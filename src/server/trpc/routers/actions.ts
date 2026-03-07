@@ -1,7 +1,9 @@
+import { createHash, randomUUID } from "node:crypto";
+
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { agentToolPermissions, toolConnections, toolProviders } from "@/db/schema";
+import { agentInvocations, agentToolPermissions, toolConnections, toolProviders } from "@/db/schema";
 import { logAuditEvent } from "@/lib/audit";
 import { decryptString, encryptString } from "@/lib/crypto";
 import { openClawAdapter } from "@/lib/openclaw/adapter";
@@ -18,6 +20,9 @@ export const actionsRouter = createTrpcRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const correlationId = randomUUID();
+      const startedAt = Date.now();
+
       const allowedRows = await ctx.db
         .select({
           providerId: agentToolPermissions.providerId,
@@ -28,6 +33,7 @@ export const actionsRouter = createTrpcRouter({
         .innerJoin(toolProviders, eq(toolProviders.id, agentToolPermissions.providerId))
         .where(
           and(
+            eq(agentToolPermissions.workspaceId, ctx.workspace.id),
             eq(agentToolPermissions.agentId, input.agentId),
             eq(agentToolPermissions.isAllowed, true)
           )
@@ -40,7 +46,8 @@ export const actionsRouter = createTrpcRouter({
         const connection = await ctx.db.query.toolConnections.findFirst({
           where: and(
             eq(toolConnections.providerId, row.providerId),
-            eq(toolConnections.userId, ctx.user.id)
+            eq(toolConnections.workspaceId, ctx.workspace.id),
+            eq(toolConnections.userId, ctx.user!.id)
           )
         });
 
@@ -72,7 +79,13 @@ export const actionsRouter = createTrpcRouter({
               scopes: refreshed.scopes,
               updatedAt: new Date()
             })
-            .where(eq(toolConnections.id, connection.id));
+            .where(
+              and(
+                eq(toolConnections.id, connection.id),
+                eq(toolConnections.workspaceId, ctx.workspace.id),
+                eq(toolConnections.userId, ctx.user!.id)
+              )
+            );
         }
 
         toolBindings.push(
@@ -89,9 +102,56 @@ export const actionsRouter = createTrpcRouter({
         toolBindings
       });
 
+      const usageRaw =
+        (typeof result.usage === "object" && result.usage !== null
+          ? (result.usage as Record<string, unknown>)
+          : {}) || {};
+
+      const promptTokens =
+        typeof usageRaw.promptTokens === "number"
+          ? usageRaw.promptTokens
+          : typeof usageRaw.input_tokens === "number"
+            ? usageRaw.input_tokens
+            : null;
+      const completionTokens =
+        typeof usageRaw.completionTokens === "number"
+          ? usageRaw.completionTokens
+          : typeof usageRaw.output_tokens === "number"
+            ? usageRaw.output_tokens
+            : null;
+      const totalTokens =
+        typeof usageRaw.totalTokens === "number"
+          ? usageRaw.totalTokens
+          : typeof usageRaw.total_tokens === "number"
+            ? usageRaw.total_tokens
+            : promptTokens !== null && completionTokens !== null
+              ? promptTokens + completionTokens
+              : null;
+
+      const outputString = typeof result.output === "string" ? result.output : JSON.stringify(result);
+      await ctx.db.insert(agentInvocations).values({
+        workspaceId: ctx.workspace.id,
+        correlationId,
+        actorUserId: ctx.user!.id,
+        agentId: input.agentId,
+        promptHash: createHash("sha256").update(input.prompt).digest("hex"),
+        outputHash: createHash("sha256").update(outputString).digest("hex"),
+        promptTokens,
+        completionTokens,
+        totalTokens,
+        durationMs: Date.now() - startedAt,
+        result: "success",
+        usageRaw,
+        requestMeta: {
+          toolBindingCount: toolBindings.length
+        }
+      });
+
       await logAuditEvent({
+        workspaceId: ctx.workspace.id,
+        correlationId,
         eventType: "agents.invoke",
-        actorUserId: ctx.user.id,
+        actorUserId: ctx.user!.id,
         agentId: input.agentId,
         result: "success",
         details: {

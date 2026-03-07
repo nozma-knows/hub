@@ -4,6 +4,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -67,12 +68,66 @@ export const verifications = pgTable("verification", {
 // BetterAuth's Drizzle adapter resolves this model by the singular key.
 export const verification = verifications;
 
+export const workspaces = pgTable("workspaces", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: varchar("name", { length: 160 }).notNull(),
+  slug: varchar("slug", { length: 120 }).notNull().unique(),
+  createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+});
+
+export const workspaceMembers = pgTable(
+  "workspace_members",
+  {
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    role: varchar("role", { length: 20 }).notNull().default("operator"),
+    invitedBy: text("invited_by").references(() => users.id, { onDelete: "set null" }),
+    joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.workspaceId, table.userId] })
+  })
+);
+
+export const workspaceInvites = pgTable("workspace_invites", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id")
+    .notNull()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  email: varchar("email", { length: 320 }).notNull(),
+  role: varchar("role", { length: 20 }).notNull().default("operator"),
+  tokenHash: text("token_hash").notNull().unique(),
+  invitedBy: text("invited_by")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  acceptedBy: text("accepted_by").references(() => users.id, { onDelete: "set null" }),
+  acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+});
+
 export const agents = pgTable("agents", {
   id: text("id").primaryKey(),
+  workspaceId: uuid("workspace_id")
+    .notNull()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   status: varchar("status", { length: 40 }).notNull().default("unknown"),
   openclawVersion: varchar("openclaw_version", { length: 80 }),
   behaviorChecksum: varchar("behavior_checksum", { length: 80 }),
+  isRemoved: boolean("is_removed").notNull().default(false),
+  removedAt: timestamp("removed_at", { withTimezone: true }),
+  lastSeenUpstreamAt: timestamp("last_seen_upstream_at", { withTimezone: true }),
   lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
@@ -82,6 +137,9 @@ export const agentBehaviorConfigs = pgTable(
   "agent_behavior_configs",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
     agentId: text("agent_id")
       .notNull()
       .references(() => agents.id, { onDelete: "cascade" }),
@@ -113,6 +171,9 @@ export const toolConnections = pgTable(
   "tool_connections",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
     providerId: uuid("provider_id")
       .notNull()
       .references(() => toolProviders.id, { onDelete: "cascade" }),
@@ -129,7 +190,11 @@ export const toolConnections = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
   },
   (table) => ({
-    byProviderAndUser: uniqueIndex("tool_connection_provider_user_unique").on(table.providerId, table.userId)
+    byProviderWorkspaceUser: uniqueIndex("tool_connection_provider_workspace_user_unique").on(
+      table.providerId,
+      table.workspaceId,
+      table.userId
+    )
   })
 );
 
@@ -137,6 +202,9 @@ export const agentToolPermissions = pgTable(
   "agent_tool_permissions",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
     agentId: text("agent_id")
       .notNull()
       .references(() => agents.id, { onDelete: "cascade" }),
@@ -152,12 +220,20 @@ export const agentToolPermissions = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
   },
   (table) => ({
-    byAgentProvider: uniqueIndex("agent_provider_permission_unique").on(table.agentId, table.providerId)
+    byWorkspaceAgentProvider: uniqueIndex("agent_workspace_provider_permission_unique").on(
+      table.workspaceId,
+      table.agentId,
+      table.providerId
+    )
   })
 );
 
 export const auditEvents = pgTable("audit_events", {
   id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id")
+    .notNull()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  correlationId: varchar("correlation_id", { length: 120 }),
   eventType: varchar("event_type", { length: 80 }).notNull(),
   actorUserId: text("actor_user_id").references(() => users.id, { onDelete: "set null" }),
   agentId: text("agent_id").references(() => agents.id, { onDelete: "set null" }),
@@ -171,6 +247,9 @@ export const oauthStates = pgTable(
   "oauth_states",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
     providerKey: varchar("provider_key", { length: 60 }).notNull(),
     state: varchar("state", { length: 120 }).notNull(),
     userId: text("user_id").references(() => users.id, { onDelete: "set null" }),
@@ -180,9 +259,81 @@ export const oauthStates = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
   },
   (table) => ({
-    byState: uniqueIndex("oauth_state_unique").on(table.state)
+    byState: uniqueIndex("oauth_state_unique").on(table.workspaceId, table.state)
   })
 );
+
+export const modelProviderCredentials = pgTable(
+  "model_provider_credentials",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    providerKey: varchar("provider_key", { length: 60 }).notNull(),
+    encryptedApiKey: text("encrypted_api_key").notNull(),
+    label: varchar("label", { length: 120 }).notNull().default("default"),
+    createdBy: text("created_by")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    updatedBy: text("updated_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => ({
+    byWorkspaceProviderLabel: uniqueIndex("model_credential_workspace_provider_label_unique").on(
+      table.workspaceId,
+      table.providerKey,
+      table.label
+    )
+  })
+);
+
+export const modelCatalogCache = pgTable(
+  "model_catalog_cache",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    providerKey: varchar("provider_key", { length: 60 }).notNull(),
+    models: jsonb("models").$type<Array<{ id: string; name?: string; contextWindow?: number }>>().notNull().default(sql`'[]'::jsonb`),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => ({
+    byWorkspaceProvider: uniqueIndex("model_catalog_workspace_provider_unique").on(
+      table.workspaceId,
+      table.providerKey
+    )
+  })
+);
+
+export const agentInvocations = pgTable("agent_invocations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id")
+    .notNull()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  correlationId: varchar("correlation_id", { length: 120 }).notNull(),
+  actorUserId: text("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+  agentId: text("agent_id")
+    .notNull()
+    .references(() => agents.id),
+  model: varchar("model", { length: 120 }),
+  promptHash: varchar("prompt_hash", { length: 80 }),
+  outputHash: varchar("output_hash", { length: 80 }),
+  promptTokens: integer("prompt_tokens"),
+  completionTokens: integer("completion_tokens"),
+  totalTokens: integer("total_tokens"),
+  durationMs: integer("duration_ms"),
+  result: varchar("result", { length: 20 }).notNull(),
+  errorClass: varchar("error_class", { length: 120 }),
+  usageRaw: jsonb("usage_raw").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+  requestMeta: jsonb("request_meta").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+});
 
 export const providersRelations = relations(toolProviders, ({ many }) => ({
   connections: many(toolConnections),

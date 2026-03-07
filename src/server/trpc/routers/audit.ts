@@ -17,7 +17,7 @@ export const auditRouter = createTrpcRouter({
     )
     .query(async ({ ctx, input }) => {
       const limit = input?.limit ?? 50;
-      const conditions = [];
+      const conditions = [eq(auditEvents.workspaceId, ctx.workspace.id)];
 
       if (input?.agentId) {
         conditions.push(eq(auditEvents.agentId, input.agentId));

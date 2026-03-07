@@ -15,11 +15,14 @@ A Bun-first control plane for OpenClaw agents with per-agent tool access governa
 
 - Agent CRUD routed through OpenClaw (OpenClaw is source of truth)
 - Local mirrored agent table + behavior config history
+- Workspace-based multi-user collaboration with invite flow and roles (`owner/admin/operator`)
 - Provider plugin system with Slack + Linear implementations
 - OAuth connect/disconnect callbacks via Hono
 - Per-agent allow/deny matrix for provider access
 - Policy-gated agent invoke path that injects only allowed provider credentials
 - Audit event trail for security-sensitive mutations
+- Per-invoke usage ledger (token and latency metadata)
+- Model credential store + model catalog fetch (OpenAI/Anthropic)
 - Scheduled reconciliation sync from OpenClaw to local mirror
 
 ## Bun runtime
@@ -86,6 +89,8 @@ Copy `.env.example` and fill these with real values:
 - `HUB_ENCRYPTION_KEY`
 - `OPENCLAW_BASE_URL`
 - `OPENCLAW_API_KEY`
+- `OPENAI_API_KEY` (optional, for model catalog seeding)
+- `ANTHROPIC_API_KEY` (optional, for model catalog seeding)
 - `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`
 - `LINEAR_CLIENT_ID`, `LINEAR_CLIENT_SECRET`
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
@@ -117,6 +122,13 @@ For production, replace `http://localhost:3000` with your deployed origin.
 - Provider callbacks:
 - `/api/oauth/slack/callback`
 - `/api/oauth/linear/callback`
+
+## Multi-user workflow
+
+1. Sign in as workspace owner/admin.
+2. Open `/workspace` and create an invite token for your collaborator.
+3. Collaborator signs in and opens `/workspace/invite?token=<token>`.
+4. Both users now interact with shared agents, access matrix, integrations, usage, and audit logs.
 
 ## Extending providers
 

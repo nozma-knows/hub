@@ -6,6 +6,7 @@ import type {
   CreateAgentInput,
   InvokeAgentInput,
   OpenClawAgent,
+  OpenClawAgentConfig,
   UpdateAgentInput
 } from "@/lib/openclaw/types";
 
@@ -606,6 +607,114 @@ export class OpenClawAdapter {
           }
           return {
             output: payload
+          };
+        }
+      });
+    });
+  }
+
+  async getAgentConfig(agentId: string): Promise<OpenClawAgentConfig> {
+    return this.withRetry(async () => {
+      const encodedAgentId = encodeURIComponent(agentId);
+      try {
+        return await this.firstCompatibleResponse({
+          paths: [
+            `/agents/${encodedAgentId}/config`,
+            `/api/agents/${encodedAgentId}/config`,
+            `/v1/agents/${encodedAgentId}/config`,
+            `/control/agents/${encodedAgentId}/config`,
+            `/api/control/agents/${encodedAgentId}/config`,
+            `/v1/control/agents/${encodedAgentId}/config`
+          ],
+          parse: (payload) => {
+            if (!isRecord(payload)) {
+              return undefined;
+            }
+            const filesValue = payload.files;
+            if (!Array.isArray(filesValue)) {
+              return undefined;
+            }
+
+            const files = filesValue
+              .map((file) => {
+                if (!isRecord(file)) {
+                  return null;
+                }
+                const path = firstString(file.path);
+                const content = firstString(file.content);
+                if (!path || content === undefined) {
+                  return null;
+                }
+                return { path, content };
+              })
+              .filter((row): row is { path: string; content: string } => row !== null);
+
+            return {
+              agentId,
+              files,
+              readOnly: Boolean(payload.readOnly)
+            };
+          }
+        });
+      } catch (error) {
+        if (!this.isUnsupportedEndpoint(error)) {
+          throw error;
+        }
+      }
+
+      const fallback = await this.getAgent(agentId);
+      return {
+        agentId,
+        readOnly: true,
+        files: [
+          {
+            path: "instructions.md",
+            content: `# ${fallback.name}\n\nOpenClaw config endpoint is unavailable on this gateway.`
+          }
+        ]
+      };
+    });
+  }
+
+  async updateAgentConfig(input: OpenClawAgentConfig): Promise<OpenClawAgentConfig> {
+    return this.withRetry(async () => {
+      const encodedAgentId = encodeURIComponent(input.agentId);
+      return this.firstCompatibleResponse({
+        paths: [
+          `/agents/${encodedAgentId}/config`,
+          `/api/agents/${encodedAgentId}/config`,
+          `/v1/agents/${encodedAgentId}/config`,
+          `/control/agents/${encodedAgentId}/config`,
+          `/api/control/agents/${encodedAgentId}/config`,
+          `/v1/control/agents/${encodedAgentId}/config`
+        ],
+        init: {
+          method: "PUT",
+          body: JSON.stringify({
+            files: input.files
+          })
+        },
+        parse: (payload) => {
+          if (!isRecord(payload) || !Array.isArray(payload.files)) {
+            return undefined;
+          }
+          const files = payload.files
+            .map((row) => {
+              if (!isRecord(row)) {
+                return null;
+              }
+              const path = firstString(row.path);
+              const content = firstString(row.content);
+              if (!path || content === undefined) {
+                return null;
+              }
+              return { path, content };
+            })
+            .filter((row): row is { path: string; content: string } => row !== null);
+          return {
+            agentId: input.agentId,
+            files,
+            readOnly: Boolean(payload.readOnly)
           };
         }
       });

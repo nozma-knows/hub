@@ -1,10 +1,10 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, notInArray, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { agentBehaviorConfigs, agents, agentToolPermissions, toolProviders } from "@/db/schema";
 import { logAuditEvent } from "@/lib/audit";
 import { openClawAdapter } from "@/lib/openclaw/adapter";
-import { createTrpcRouter, protectedProcedure } from "@/server/trpc/init";
+import { adminProcedure, createTrpcRouter, protectedProcedure } from "@/server/trpc/init";
 
 const behaviorSchema = z.object({
   model: z.string().min(1),
@@ -12,9 +12,100 @@ const behaviorSchema = z.object({
   runtimeConfig: z.record(z.string(), z.any()).optional()
 });
 
+async function upsertWorkspaceAgents(input: {
+  workspaceId: string;
+  rows: Awaited<ReturnType<typeof openClawAdapter.listAgents>>;
+  db: any;
+}) {
+  if (input.rows.length === 0) {
+    return;
+  }
+
+  await Promise.all(
+    input.rows.map((agent) =>
+      input.db
+        .insert(agents)
+        .values({
+          id: agent.id,
+          workspaceId: input.workspaceId,
+          name: agent.name,
+          status: agent.status,
+          openclawVersion: agent.version,
+          behaviorChecksum: agent.behaviorChecksum,
+          isRemoved: false,
+          removedAt: null,
+          lastSeenUpstreamAt: new Date(),
+          lastSyncedAt: new Date()
+        })
+        .onConflictDoUpdate({
+          target: agents.id,
+          set: {
+            workspaceId: input.workspaceId,
+            name: agent.name,
+            status: agent.status,
+            openclawVersion: agent.version,
+            behaviorChecksum: agent.behaviorChecksum,
+            isRemoved: false,
+            removedAt: null,
+            lastSeenUpstreamAt: new Date(),
+            lastSyncedAt: new Date(),
+            updatedAt: new Date()
+          }
+        })
+    )
+  );
+}
+
+async function softMarkMissingAgents(input: {
+  workspaceId: string;
+  liveAgentIds: string[];
+  db: any;
+}) {
+  const existing = await input.db.query.agents.findMany({
+    where: and(eq(agents.workspaceId, input.workspaceId), eq(agents.isRemoved, false)),
+    columns: {
+      id: true
+    }
+  });
+  const existingIds = existing.map((row: { id: string }) => row.id);
+  if (existingIds.length === 0) {
+    return 0;
+  }
+
+  if (input.liveAgentIds.length === 0) {
+    await input.db
+      .update(agents)
+      .set({
+        isRemoved: true,
+        removedAt: new Date(),
+        updatedAt: new Date()
+      })
+      .where(and(eq(agents.workspaceId, input.workspaceId), inArray(agents.id, existingIds)));
+    return existingIds.length;
+  }
+
+  await input.db
+    .update(agents)
+    .set({
+      isRemoved: true,
+      removedAt: new Date(),
+      updatedAt: new Date()
+    })
+    .where(
+      and(
+        eq(agents.workspaceId, input.workspaceId),
+        inArray(agents.id, existingIds),
+        notInArray(agents.id, input.liveAgentIds)
+      )
+    );
+
+  return existingIds.filter((id: string) => !input.liveAgentIds.includes(id)).length;
+}
+
 export const agentsRouter = createTrpcRouter({
   list: protectedProcedure.query(async ({ ctx }) => {
     const rows = await ctx.db.query.agents.findMany({
+      where: eq(agents.workspaceId, ctx.workspace.id),
       orderBy: (table, { asc }) => [asc(table.name)]
     });
 
@@ -24,82 +115,56 @@ export const agentsRouter = createTrpcRouter({
 
     try {
       const liveAgents = await openClawAdapter.listAgents();
-      if (liveAgents.length > 0) {
-        await Promise.all(
-          liveAgents.map((agent) =>
-            ctx.db
-              .insert(agents)
-              .values({
-                id: agent.id,
-                name: agent.name,
-                status: agent.status,
-                openclawVersion: agent.version,
-                behaviorChecksum: agent.behaviorChecksum,
-                lastSyncedAt: new Date()
-              })
-              .onConflictDoUpdate({
-                target: agents.id,
-                set: {
-                  name: agent.name,
-                  status: agent.status,
-                  openclawVersion: agent.version,
-                  behaviorChecksum: agent.behaviorChecksum,
-                  lastSyncedAt: new Date(),
-                  updatedAt: new Date()
-                }
-              })
-          )
-        );
-      }
+      await upsertWorkspaceAgents({
+        workspaceId: ctx.workspace.id,
+        rows: liveAgents,
+        db: ctx.db
+      });
 
-      return ctx.db.query.agents.findMany({
-        orderBy: (table, { asc }) => [asc(table.name)]
+      await softMarkMissingAgents({
+        workspaceId: ctx.workspace.id,
+        liveAgentIds: liveAgents.map((agent) => agent.id),
+        db: ctx.db
       });
     } catch {
       return rows;
     }
+
+    return ctx.db.query.agents.findMany({
+      where: eq(agents.workspaceId, ctx.workspace.id),
+      orderBy: (table, { asc }) => [asc(table.name)]
+    });
   }),
 
   sync: protectedProcedure.mutation(async ({ ctx }) => {
     const liveAgents = await openClawAdapter.listAgents();
 
-    await Promise.all(
-      liveAgents.map((agent) =>
-        ctx.db
-          .insert(agents)
-          .values({
-            id: agent.id,
-            name: agent.name,
-            status: agent.status,
-            openclawVersion: agent.version,
-            behaviorChecksum: agent.behaviorChecksum,
-            lastSyncedAt: new Date()
-          })
-          .onConflictDoUpdate({
-            target: agents.id,
-            set: {
-              name: agent.name,
-              status: agent.status,
-              openclawVersion: agent.version,
-              behaviorChecksum: agent.behaviorChecksum,
-              lastSyncedAt: new Date(),
-              updatedAt: new Date()
-            }
-          })
-      )
-    );
+    await upsertWorkspaceAgents({
+      workspaceId: ctx.workspace.id,
+      rows: liveAgents,
+      db: ctx.db
+    });
+
+    const removedCount = await softMarkMissingAgents({
+      workspaceId: ctx.workspace.id,
+      liveAgentIds: liveAgents.map((agent) => agent.id),
+      db: ctx.db
+    });
 
     await logAuditEvent({
+      workspaceId: ctx.workspace.id,
       eventType: "agents.sync",
-      actorUserId: ctx.user.id,
+      actorUserId: ctx.user!.id,
       result: "success",
       details: {
-        count: liveAgents.length
+        count: liveAgents.length,
+        removedCount
       }
     });
 
     return {
-      count: liveAgents.length
+      count: liveAgents.length,
+      removedCount
     };
   }),
 
@@ -111,11 +176,14 @@ export const agentsRouter = createTrpcRouter({
     )
     .query(async ({ ctx, input }) => {
       const agent = await ctx.db.query.agents.findFirst({
-        where: eq(agents.id, input.agentId)
+        where: and(eq(agents.workspaceId, ctx.workspace.id), eq(agents.id, input.agentId))
       });
 
       const behaviors = await ctx.db.query.agentBehaviorConfigs.findMany({
-        where: eq(agentBehaviorConfigs.agentId, input.agentId),
+        where: and(
+          eq(agentBehaviorConfigs.workspaceId, ctx.workspace.id),
+          eq(agentBehaviorConfigs.agentId, input.agentId)
+        ),
         orderBy: (table, { desc: descOrder }) => [descOrder(table.version)]
       });
 
@@ -123,6 +191,48 @@ export const agentsRouter = createTrpcRouter({
         agent,
         behaviors
       };
+    }),
+
+  getConfig: protectedProcedure
+    .input(
+      z.object({
+        agentId: z.string().min(1)
+      })
+    )
+    .query(async ({ input }) => {
+      return openClawAdapter.getAgentConfig(input.agentId);
+    }),
+
+  updateConfig: adminProcedure
+    .input(
+      z.object({
+        agentId: z.string().min(1),
+        files: z.array(
+          z.object({
+            path: z.string().min(1),
+            content: z.string()
+          })
+        )
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const updated = await openClawAdapter.updateAgentConfig({
+        agentId: input.agentId,
+        files: input.files
+      });
+
+      await logAuditEvent({
+        workspaceId: ctx.workspace.id,
+        eventType: "agents.config.update",
+        actorUserId: ctx.user!.id,
+        agentId: input.agentId,
+        result: "success",
+        details: {
+          fileCount: input.files.length
+        }
+      });
+
+      return updated;
     }),
 
   create: protectedProcedure
@@ -145,26 +255,32 @@ export const agentsRouter = createTrpcRouter({
 
       await ctx.db.insert(agents).values({
         id: remote.id,
+        workspaceId: ctx.workspace.id,
         name: remote.name,
         status: remote.status,
         openclawVersion: remote.version,
         behaviorChecksum: validation.checksum,
+        isRemoved: false,
+        removedAt: null,
+        lastSeenUpstreamAt: new Date(),
         lastSyncedAt: new Date()
       });
 
       await ctx.db.insert(agentBehaviorConfigs).values({
+        workspaceId: ctx.workspace.id,
         agentId: remote.id,
         version: 1,
         model: input.behavior.model,
         instructions: input.behavior.instructions,
         runtimeConfig: input.behavior.runtimeConfig ?? {},
         isActive: true,
-        updatedBy: ctx.user.id
+        updatedBy: ctx.user!.id
       });
 
       await logAuditEvent({
+        workspaceId: ctx.workspace.id,
         eventType: "agents.create",
-        actorUserId: ctx.user.id,
+        actorUserId: ctx.user!.id,
         agentId: remote.id,
         result: "success"
       });
@@ -197,20 +313,28 @@ export const agentsRouter = createTrpcRouter({
         .insert(agents)
         .values({
           id: updatedRemote.id,
+          workspaceId: ctx.workspace.id,
           name: updatedRemote.name,
           status: updatedRemote.status,
           openclawVersion: updatedRemote.version,
           behaviorChecksum: updatedRemote.behaviorChecksum,
+          isRemoved: false,
+          removedAt: null,
+          lastSeenUpstreamAt: new Date(),
           lastSyncedAt: new Date(),
           updatedAt: new Date()
         })
         .onConflictDoUpdate({
           target: agents.id,
           set: {
+            workspaceId: ctx.workspace.id,
             name: updatedRemote.name,
             status: updatedRemote.status,
             openclawVersion: updatedRemote.version,
             behaviorChecksum: updatedRemote.behaviorChecksum,
+            isRemoved: false,
+            removedAt: null,
+            lastSeenUpstreamAt: new Date(),
             lastSyncedAt: new Date(),
             updatedAt: new Date()
           }
@@ -222,29 +346,41 @@ export const agentsRouter = createTrpcRouter({
             nextVersion: sql<number>`coalesce(max(${agentBehaviorConfigs.version}), 0) + 1`
           })
           .from(agentBehaviorConfigs)
-          .where(eq(agentBehaviorConfigs.agentId, input.agentId));
+          .where(
+            and(
+              eq(agentBehaviorConfigs.workspaceId, ctx.workspace.id),
+              eq(agentBehaviorConfigs.agentId, input.agentId)
+            )
+          );
 
         await ctx.db
           .update(agentBehaviorConfigs)
           .set({
             isActive: false
           })
-          .where(eq(agentBehaviorConfigs.agentId, input.agentId));
+          .where(
+            and(
+              eq(agentBehaviorConfigs.workspaceId, ctx.workspace.id),
+              eq(agentBehaviorConfigs.agentId, input.agentId)
+            )
+          );
 
         await ctx.db.insert(agentBehaviorConfigs).values({
+          workspaceId: ctx.workspace.id,
           agentId: input.agentId,
           version: nextVersion?.nextVersion ?? 1,
           model: input.behavior.model,
           instructions: input.behavior.instructions,
           runtimeConfig: input.behavior.runtimeConfig ?? {},
           isActive: true,
-          updatedBy: ctx.user.id
+          updatedBy: ctx.user!.id
         });
       }
 
       await logAuditEvent({
+        workspaceId: ctx.workspace.id,
         eventType: "agents.update",
-        actorUserId: ctx.user.id,
+        actorUserId: ctx.user!.id,
         agentId: input.agentId,
         result: "success"
       });
@@ -252,7 +388,7 @@ export const agentsRouter = createTrpcRouter({
       return updatedRemote;
     }),
 
-  remove: protectedProcedure
+  remove: adminProcedure
     .input(
       z.object({
         agentId: z.string().min(1)
@@ -261,13 +397,30 @@ export const agentsRouter = createTrpcRouter({
     .mutation(async ({ ctx, input }) => {
       await openClawAdapter.deleteAgent(input.agentId);
 
-      await ctx.db.delete(agentToolPermissions).where(eq(agentToolPermissions.agentId, input.agentId));
-      await ctx.db.delete(agentBehaviorConfigs).where(eq(agentBehaviorConfigs.agentId, input.agentId));
-      await ctx.db.delete(agents).where(eq(agents.id, input.agentId));
+      await ctx.db
+        .delete(agentToolPermissions)
+        .where(
+          and(
+            eq(agentToolPermissions.workspaceId, ctx.workspace.id),
+            eq(agentToolPermissions.agentId, input.agentId)
+          )
+        );
+      await ctx.db
+        .delete(agentBehaviorConfigs)
+        .where(
+          and(
+            eq(agentBehaviorConfigs.workspaceId, ctx.workspace.id),
+            eq(agentBehaviorConfigs.agentId, input.agentId)
+          )
+        );
+      await ctx.db
+        .delete(agents)
+        .where(and(eq(agents.workspaceId, ctx.workspace.id), eq(agents.id, input.agentId)));
 
       await logAuditEvent({
+        workspaceId: ctx.workspace.id,
         eventType: "agents.delete",
-        actorUserId: ctx.user.id,
+        actorUserId: ctx.user!.id,
         agentId: input.agentId,
         result: "success"
       });
@@ -285,7 +438,10 @@ export const agentsRouter = createTrpcRouter({
     )
     .query(async ({ ctx, input }) => {
       return ctx.db.query.agentBehaviorConfigs.findMany({
-        where: eq(agentBehaviorConfigs.agentId, input.agentId),
+        where: and(
+          eq(agentBehaviorConfigs.workspaceId, ctx.workspace.id),
+          eq(agentBehaviorConfigs.agentId, input.agentId)
+        ),
         orderBy: (table, { desc: descOrder }) => [descOrder(table.version)]
       });
     }),
@@ -299,8 +455,15 @@ export const agentsRouter = createTrpcRouter({
         allowed: agentToolPermissions.isAllowed
       })
       .from(agents)
-      .leftJoin(agentToolPermissions, eq(agentToolPermissions.agentId, agents.id))
-      .leftJoin(toolProviders, eq(toolProviders.id, agentToolPermissions.providerId));
+      .leftJoin(
+        agentToolPermissions,
+        and(
+          eq(agentToolPermissions.workspaceId, ctx.workspace.id),
+          eq(agentToolPermissions.agentId, agents.id)
+        )
+      )
+      .leftJoin(toolProviders, eq(toolProviders.id, agentToolPermissions.providerId))
+      .where(eq(agents.workspaceId, ctx.workspace.id));
 
     return rows;
   })

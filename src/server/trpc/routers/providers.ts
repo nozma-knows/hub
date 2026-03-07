@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { ensureProviderSeeds, getProviderByKey, getProviders } from "@/lib/providers/registry";
 import { randomState } from "@/lib/utils";
-import { createTrpcRouter, protectedProcedure } from "@/server/trpc/init";
+import { adminProcedure, createTrpcRouter, protectedProcedure } from "@/server/trpc/init";
 
 export const providersRouter = createTrpcRouter({
   list: protectedProcedure.query(async ({ ctx }) => {
@@ -23,7 +23,8 @@ export const providersRouter = createTrpcRouter({
         const connection = await ctx.db.query.toolConnections.findFirst({
           where: and(
             eq(toolConnections.providerId, providerRow.id),
-            eq(toolConnections.userId, ctx.user.id)
+            eq(toolConnections.workspaceId, ctx.workspace.id),
+            eq(toolConnections.userId, ctx.user!.id)
           )
         });
 
@@ -41,7 +42,7 @@ export const providersRouter = createTrpcRouter({
     return output;
   }),
 
-  beginConnect: protectedProcedure
+  beginConnect: adminProcedure
     .input(
       z.object({
         providerKey: z.enum(["slack", "linear"]),
@@ -53,9 +54,10 @@ export const providersRouter = createTrpcRouter({
       const state = randomState();
 
       await db.insert(oauthStates).values({
+        workspaceId: ctx.workspace.id,
         providerKey: provider.key,
         state,
-        userId: ctx.user.id,
+        userId: ctx.user!.id,
         redirectPath: input.redirectPath,
         expiresAt: new Date(Date.now() + 1000 * 60 * 10)
       });
@@ -71,7 +73,7 @@ export const providersRouter = createTrpcRouter({
       };
     }),
 
-  disconnect: protectedProcedure
+  disconnect: adminProcedure
     .input(
       z.object({
         providerKey: z.enum(["slack", "linear"])
@@ -90,7 +92,8 @@ export const providersRouter = createTrpcRouter({
       const connection = await ctx.db.query.toolConnections.findFirst({
         where: and(
           eq(toolConnections.providerId, providerRow.id),
-          eq(toolConnections.userId, ctx.user.id)
+          eq(toolConnections.workspaceId, ctx.workspace.id),
+          eq(toolConnections.userId, ctx.user!.id)
         )
       });
 
@@ -100,11 +103,18 @@ export const providersRouter = createTrpcRouter({
 
         await ctx.db
           .delete(toolConnections)
-          .where(and(eq(toolConnections.providerId, providerRow.id), eq(toolConnections.userId, ctx.user.id)));
+          .where(
+            and(
+              eq(toolConnections.providerId, providerRow.id),
+              eq(toolConnections.workspaceId, ctx.workspace.id),
+              eq(toolConnections.userId, ctx.user!.id)
+            )
+          );
 
         await logAuditEvent({
+          workspaceId: ctx.workspace.id,
           eventType: "providers.disconnect",
-          actorUserId: ctx.user.id,
+          actorUserId: ctx.user!.id,
           providerKey: provider.key,
           result: "success"
         });
@@ -113,7 +123,7 @@ export const providersRouter = createTrpcRouter({
       return { success: true };
     }),
 
-  health: protectedProcedure
+  health: adminProcedure
     .input(
       z.object({
         providerKey: z.enum(["slack", "linear"])
@@ -136,7 +146,8 @@ export const providersRouter = createTrpcRouter({
       const connection = await ctx.db.query.toolConnections.findFirst({
         where: and(
           eq(toolConnections.providerId, providerRow.id),
-          eq(toolConnections.userId, ctx.user.id)
+          eq(toolConnections.workspaceId, ctx.workspace.id),
+          eq(toolConnections.userId, ctx.user!.id)
         )
       });
 
@@ -179,7 +190,13 @@ export const providersRouter = createTrpcRouter({
             expiresAt: refreshed.expiresAt,
             updatedAt: new Date()
           })
-          .where(and(eq(toolConnections.id, connection.id), eq(toolConnections.userId, ctx.user.id)));
+          .where(
+            and(
+              eq(toolConnections.id, connection.id),
+              eq(toolConnections.workspaceId, ctx.workspace.id),
+              eq(toolConnections.userId, ctx.user!.id)
+            )
+          );
       }
 
       return {

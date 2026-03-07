@@ -8,14 +8,28 @@ const t = initTRPC.context<TrpcContext>().create({
 });
 
 const requireUser = t.middleware(({ ctx, next }) => {
-  if (!ctx.user) {
+  if (!ctx.user || !ctx.workspace) {
     throw new TRPCError({ code: "UNAUTHORIZED" });
   }
 
   return next({
     ctx: {
       ...ctx,
-      user: ctx.user
+      user: ctx.user,
+      workspace: ctx.workspace
+    }
+  });
+});
+
+const requireAdmin = t.middleware(({ ctx, next }) => {
+  if (!ctx.workspace || (ctx.workspace.role !== "owner" && ctx.workspace.role !== "admin")) {
+    throw new TRPCError({ code: "FORBIDDEN" });
+  }
+
+  return next({
+    ctx: {
+      ...ctx,
+      workspace: ctx.workspace
     }
   });
 });
@@ -23,3 +37,4 @@ const requireUser = t.middleware(({ ctx, next }) => {
 export const createTrpcRouter = t.router;
 export const publicProcedure = t.procedure;
 export const protectedProcedure = t.procedure.use(requireUser);
+export const adminProcedure = protectedProcedure.use(requireAdmin);

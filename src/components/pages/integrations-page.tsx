@@ -15,7 +15,9 @@ export function IntegrationsPage() {
   const error = searchParams.get("error");
 
   const utils = trpc.useUtils();
+  const me = trpc.auth.me.useQuery();
   const providers = trpc.providers.list.useQuery();
+  const isAdmin = me.data?.workspace?.role === "owner" || me.data?.workspace?.role === "admin";
 
   const connect = trpc.providers.beginConnect.useMutation();
   const disconnect = trpc.providers.disconnect.useMutation({
@@ -60,12 +62,14 @@ export function IntegrationsPage() {
                 {provider.connected ? (
                   <Button
                     variant="outline"
+                    disabled={!isAdmin}
                     onClick={() => disconnect.mutate({ providerKey: provider.key as "slack" | "linear" })}
                   >
                     Disconnect
                   </Button>
                 ) : (
                   <Button
+                    disabled={!isAdmin}
                     onClick={async () => {
                       const result = await connect.mutateAsync({
                         providerKey: provider.key as "slack" | "linear",
@@ -79,6 +83,7 @@ export function IntegrationsPage() {
                 )}
                 <Button
                   variant="secondary"
+                  disabled={!isAdmin}
                   onClick={() => health.mutate({ providerKey: provider.key as "slack" | "linear" })}
                 >
                   Check Health

@@ -76,6 +76,7 @@ honoApp.get("/oauth/:provider/callback", async (c) => {
       .insert(toolConnections)
       .values({
         providerId: providerRow.id,
+        workspaceId: oauthState.workspaceId,
         userId: oauthState.userId,
         encryptedAccessToken: encryptString(tokenResult.accessToken),
         encryptedRefreshToken: tokenResult.refreshToken
@@ -88,7 +89,7 @@ honoApp.get("/oauth/:provider/callback", async (c) => {
         updatedAt: new Date()
       })
       .onConflictDoUpdate({
-        target: [toolConnections.providerId, toolConnections.userId],
+        target: [toolConnections.providerId, toolConnections.workspaceId, toolConnections.userId],
         set: {
           encryptedAccessToken: encryptString(tokenResult.accessToken),
           encryptedRefreshToken: tokenResult.refreshToken
@@ -105,6 +106,7 @@ honoApp.get("/oauth/:provider/callback", async (c) => {
     await db.delete(oauthStates).where(eq(oauthStates.id, oauthState.id));
 
     await logAuditEvent({
+      workspaceId: oauthState.workspaceId,
       eventType: "providers.connect",
       actorUserId: oauthState.userId,
       providerKey: provider.key,

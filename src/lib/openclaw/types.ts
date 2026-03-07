@@ -6,6 +6,15 @@ export type OpenClawAgent = {
   behaviorChecksum?: string;
 };
 
+export type OpenClawAgentConfig = {
+  agentId: string;
+  files: Array<{
+    path: string;
+    content: string;
+  }>;
+  readOnly?: boolean;
+};
+
 export type AgentBehaviorInput = {
   model: string;
   instructions: string;

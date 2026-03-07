@@ -8,6 +8,20 @@
       "when": 1772830399197,
       "tag": "0000_misty_starbolt",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1772858117590,
+      "tag": "0001_complete_doomsday",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1772862272999,
+      "tag": "0002_sweet_yellowjacket",
+      "breakpoints": true
     }
   ]
 }

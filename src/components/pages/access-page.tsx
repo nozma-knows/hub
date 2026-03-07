@@ -9,7 +9,9 @@ import { trpc } from "@/lib/trpc-client";
 
 export function AccessPage() {
   const utils = trpc.useUtils();
+  const me = trpc.auth.me.useQuery();
   const matrix = trpc.permissions.matrix.useQuery();
+  const isAdmin = me.data?.workspace?.role === "owner" || me.data?.workspace?.role === "admin";
 
   const upsert = trpc.permissions.upsert.useMutation({
     onSuccess: async () => {
@@ -60,6 +62,7 @@ export function AccessPage() {
                       <TableCell key={provider.id}>
                         <Switch
                           checked={enabled}
+                          disabled={!isAdmin}
                           onChange={(event) => {
                             upsert.mutate({
                               agentId: agent.id,

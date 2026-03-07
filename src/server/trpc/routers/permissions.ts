@@ -3,18 +3,21 @@ import { z } from "zod";
 
 import { agentToolPermissions, agents, toolProviders } from "@/db/schema";
 import { logAuditEvent } from "@/lib/audit";
-import { createTrpcRouter, protectedProcedure } from "@/server/trpc/init";
+import { adminProcedure, createTrpcRouter, protectedProcedure } from "@/server/trpc/init";
 
 export const permissionsRouter = createTrpcRouter({
   matrix: protectedProcedure.query(async ({ ctx }) => {
     const [agentRows, providerRows, permissionRows] = await Promise.all([
       ctx.db.query.agents.findMany({
+        where: eq(agents.workspaceId, ctx.workspace.id),
         orderBy: (table, { asc }) => [asc(table.name)]
       }),
       ctx.db.query.toolProviders.findMany({
         orderBy: (table, { asc }) => [asc(table.name)]
       }),
-      ctx.db.query.agentToolPermissions.findMany()
+      ctx.db.query.agentToolPermissions.findMany({
+        where: eq(agentToolPermissions.workspaceId, ctx.workspace.id)
+      })
     ]);
 
     const permissions = permissionRows.map((row) => ({
@@ -31,7 +34,7 @@ export const permissionsRouter = createTrpcRouter({
     };
   }),
 
-  upsert: protectedProcedure
+  upsert: adminProcedure
     .input(
       z.object({
         agentId: z.string().min(1),
@@ -49,19 +52,24 @@ export const permissionsRouter = createTrpcRouter({
       await ctx.db
         .insert(agentToolPermissions)
         .values({
+          workspaceId: ctx.workspace.id,
           agentId: input.agentId,
           providerId: input.providerId,
           isAllowed: input.isAllowed,
           scopeOverrides: input.scopeOverrides,
-          updatedBy: ctx.user.id,
+          updatedBy: ctx.user!.id,
           updatedAt: new Date()
         })
         .onConflictDoUpdate({
-          target: [agentToolPermissions.agentId, agentToolPermissions.providerId],
+          target: [
+            agentToolPermissions.workspaceId,
+            agentToolPermissions.agentId,
+            agentToolPermissions.providerId
+          ],
           set: {
             isAllowed: input.isAllowed,
             scopeOverrides: input.scopeOverrides,
-            updatedBy: ctx.user.id,
+            updatedBy: ctx.user!.id,
             updatedAt: new Date()
           }
         });
@@ -71,8 +79,9 @@ export const permissionsRouter = createTrpcRouter({
       });
 
       await logAuditEvent({
+        workspaceId: ctx.workspace.id,
         eventType: "permissions.update",
-        actorUserId: ctx.user.id,
+        actorUserId: ctx.user!.id,
         agentId: input.agentId,
         providerKey: provider?.key,
         result: "success",

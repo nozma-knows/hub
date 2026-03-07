@@ -22,6 +22,8 @@ const envSchema = z.object({
   OPENCLAW_RETRIES: z.coerce.number().default(3),
   OPENCLAW_CIRCUIT_THRESHOLD: z.coerce.number().default(5),
   OPENCLAW_CIRCUIT_COOLDOWN_MS: z.coerce.number().default(30000),
+  OPENAI_API_KEY: z.string().optional(),
+  ANTHROPIC_API_KEY: z.string().optional(),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   SLACK_CLIENT_ID: z.string().optional(),

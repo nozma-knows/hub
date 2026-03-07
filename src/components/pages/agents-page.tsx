@@ -57,6 +57,12 @@ export function AgentsPage() {
   });
 
   const invokeMutation = trpc.actions.invoke.useMutation();
+  const seedModelCredentials = trpc.modelCredentials.seedFromEnv.useMutation();
+  const [modelProvider, setModelProvider] = useState<"openai" | "anthropic">("openai");
+  const modelsQuery = trpc.modelCredentials.listAvailableModels.useQuery({
+    providerKey: modelProvider,
+    forceRefresh: false
+  });
 
   const [name, setName] = useState("");
   const [model, setModel] = useState(defaultBehavior.model);
@@ -105,6 +111,35 @@ export function AgentsPage() {
         </Button>
       </div>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Model Catalog</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-4">
+          <select
+            className="rounded-md border bg-background px-3 py-2 text-sm"
+            value={modelProvider}
+            onChange={(event) => setModelProvider(event.target.value as "openai" | "anthropic")}
+          >
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic</option>
+          </select>
+          <Button
+            variant="outline"
+            onClick={() => seedModelCredentials.mutate()}
+            disabled={seedModelCredentials.isPending}
+          >
+            Seed Credentials From Env
+          </Button>
+          <Button variant="outline" onClick={() => modelsQuery.refetch()}>
+            Refresh Models
+          </Button>
+          <div className="text-xs text-muted-foreground">
+            Models found: {modelsQuery.data?.length ?? 0}
+          </div>
+        </CardContent>
+      </Card>
+
       {errorMessage ? <Alert className="border-destructive text-destructive">{errorMessage}</Alert> : null}
 
       <Card>
@@ -119,7 +154,18 @@ export function AgentsPage() {
             </div>
             <div className="space-y-1">
               <Label>Model</Label>
-              <Input value={model} onChange={(event) => setModel(event.target.value)} placeholder="gpt-4.1" />
+              <select
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                value={model}
+                onChange={(event) => setModel(event.target.value)}
+              >
+                {modelsQuery.data?.map((modelOption) => (
+                  <option key={modelOption.id} value={modelOption.id}>
+                    {modelOption.id}
+                  </option>
+                ))}
+                {!modelsQuery.data?.length ? <option value="gpt-4.1">gpt-4.1</option> : null}
+              </select>
             </div>
           </div>
           <div className="space-y-1">

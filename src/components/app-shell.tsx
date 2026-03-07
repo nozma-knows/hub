@@ -11,7 +11,9 @@ const links = [
   { href: "/agents", label: "Agents" },
   { href: "/access", label: "Access Matrix" },
   { href: "/integrations", label: "Integrations" },
-  { href: "/audit", label: "Audit" }
+  { href: "/usage", label: "Usage" },
+  { href: "/audit", label: "Audit" },
+  { href: "/workspace", label: "Workspace" }
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
