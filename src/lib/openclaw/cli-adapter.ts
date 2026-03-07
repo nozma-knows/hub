@@ -10,15 +10,56 @@ import type {
 
 const execAsync = promisify(exec);
 
-const DEFAULT_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
-const OPENCLAW_BIN = process.env.OPENCLAW_CLI_PATH || "/usr/bin/openclaw";
+const DEFAULT_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/homebrew/bin";
+const OPENCLAW_BIN_CONFIGURED = process.env.OPENCLAW_CLI_PATH;
+
+async function resolveOpenclawBin(): Promise<string> {
+  if (OPENCLAW_BIN_CONFIGURED && OPENCLAW_BIN_CONFIGURED.trim().length > 0) {
+    return OPENCLAW_BIN_CONFIGURED;
+  }
+
+  // Prefer /usr/bin/openclaw when present (Linux packages)
+  try {
+    await execAsync("test -x /usr/bin/openclaw");
+    return "/usr/bin/openclaw";
+  } catch {
+    // ignore
+  }
+
+  // Fallback: resolve via PATH (works on macOS/homebrew)
+  try {
+    const { stdout } = await execAsync("command -v openclaw", {
+      env: {
+        ...process.env,
+        PATH: process.env.PATH ? `${process.env.PATH}:${DEFAULT_PATH}` : DEFAULT_PATH
+      }
+    });
+    const found = stdout.trim();
+    if (found) return found;
+  } catch {
+    // ignore
+  }
+
+  // Last resort
+  return "openclaw";
+}
 
 export class OpenClawCliAdapter {
+  private openclawBinPromise: Promise<string> | null = null;
+
+  private async openclawBin(): Promise<string> {
+    if (!this.openclawBinPromise) {
+      this.openclawBinPromise = resolveOpenclawBin();
+    }
+    return this.openclawBinPromise;
+  }
+
   private async runCommand(command: string): Promise<string> {
+    const openclawBin = await this.openclawBin();
     const resolvedCommand = command.startsWith("openclaw ")
-      ? `${OPENCLAW_BIN} ${command.slice("openclaw ".length)}`
+      ? `${openclawBin} ${command.slice("openclaw ".length)}`
       : command === "openclaw"
-        ? OPENCLAW_BIN
+        ? openclawBin
         : command;
 
     try {
