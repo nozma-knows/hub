@@ -1,4 +1,5 @@
 import { openClawAdapter } from "./adapter";
+import { openClawCliAdapter } from "./cli-adapter";
 import type { 
   OpenClawAgent, 
   OpenClawSession, 
@@ -23,24 +24,9 @@ export class OpenClawMonitor {
 
   private async fetchGatewayStatus(): Promise<OpenClawGatewayStatus> {
     try {
-      // Try to get gateway status from the dashboard endpoint
-      const response = await fetch(`${process.env.OPENCLAW_BASE_URL}/`, {
-        headers: {
-          'Accept': 'application/json',
-          'Authorization': `Bearer ${process.env.OPENCLAW_API_KEY}`,
-          'x-api-key': process.env.OPENCLAW_API_KEY,
-        }
-      });
-
-      return {
-        online: response.ok,
-        responseTime: 0, // We'll implement proper timing later
-        version: 'unknown',
-        load: 0,
-        memory: { used: 0, total: 0 },
-        uptime: 0
-      };
+      return await openClawCliAdapter.getGatewayStatus();
     } catch (error) {
+      console.error('Failed to fetch gateway status from OpenClaw CLI:', error);
       return {
         online: false,
         responseTime: 0,
@@ -48,60 +34,49 @@ export class OpenClawMonitor {
         load: 0,
         memory: { used: 0, total: 0 },
         uptime: 0,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Gateway offline'
       };
     }
   }
 
   private async fetchSessions(): Promise<OpenClawSession[]> {
-    // For now, return mock data since we need to figure out the session API
-    // This will be replaced with actual OpenClaw session API calls
-    return [
-      {
-        id: 'agent:main:main',
-        agentId: 'main',
-        kind: 'direct',
-        model: 'claude-sonnet-4-20250514',
-        tokensUsed: 75000,
-        tokensTotal: 200000,
-        lastActivity: new Date(Date.now() - 2 * 60 * 1000), // 2 minutes ago
-        status: 'active'
-      }
-    ];
+    try {
+      return await openClawCliAdapter.listSessions();
+    } catch (error) {
+      console.error('Failed to fetch sessions from OpenClaw CLI:', error);
+      return [];
+    }
   }
 
   private async fetchCronJobs(): Promise<OpenClawCronJob[]> {
-    // Mock data for now - we'll implement actual cron job API calls
-    return [
-      {
-        id: '44ba1e8d-1da9-4ef9-8bc4-996fd7e8c23e',
-        name: 'Daily Tech & AI Briefing',
-        schedule: '0 13 * * *',
-        enabled: true,
-        nextRun: new Date(Date.now() + 24 * 60 * 60 * 1000),
-        lastRun: new Date(Date.now() - 16 * 60 * 60 * 1000),
-        lastStatus: 'success',
-        agentId: 'main'
-      }
-    ];
+    try {
+      return await openClawCliAdapter.listCronJobs();
+    } catch (error) {
+      console.error('Failed to fetch cron jobs from OpenClaw CLI:', error);
+      return [];
+    }
   }
 
   private async fetchPerformanceMetrics(): Promise<OpenClawPerformanceMetrics> {
-    // Mock data for now
-    return {
-      averageResponseTime: 150,
-      totalRequests: 1250,
-      failureRate: 0.02,
-      tokensPerMinute: 850,
-      memoryUsage: 0.65,
-      cpuUsage: 0.23
-    };
+    try {
+      return await openClawCliAdapter.getPerformanceMetrics();
+    } catch (error) {
+      console.error('Failed to fetch performance metrics from OpenClaw CLI:', error);
+      return {
+        averageResponseTime: 0,
+        totalRequests: 0,
+        failureRate: 1,
+        tokensPerMinute: 0,
+        memoryUsage: 0,
+        cpuUsage: 0
+      };
+    }
   }
 
   private async gatherMonitoringData(): Promise<OpenClawMonitoringData> {
     try {
       const [agents, sessions, cronJobs, performance, gatewayStatus] = await Promise.all([
-        openClawAdapter.listAgents(),
+        openClawCliAdapter.listAgents(),
         this.fetchSessions(),
         this.fetchCronJobs(),
         this.fetchPerformanceMetrics(),

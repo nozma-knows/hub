@@ -1,9 +1,9 @@
 import { z } from "zod";
 
-import { publicProcedure, router } from "../init";
+import { publicProcedure, createTrpcRouter } from "../init";
 import { openClawMonitor } from "@/lib/openclaw/monitoring";
 
-export const monitoringRouter = router({
+export const monitoringRouter = createTrpcRouter({
   getCurrentSnapshot: publicProcedure.query(async () => {
     return openClawMonitor.getCurrentSnapshot();
   }),

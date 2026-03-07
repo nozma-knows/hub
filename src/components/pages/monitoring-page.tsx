@@ -1,39 +1,39 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api } from "@/lib/trpc-client";
+import { trpc } from "@/lib/trpc-client";
 
 export function MonitoringPage() {
   const [realTimeEnabled, setRealTimeEnabled] = useState(false);
   const [refreshInterval, setRefreshInterval] = useState(30000);
 
-  const { data: systemHealth, isLoading: healthLoading } = api.monitoring.getSystemHealth.useQuery(
+  const { data: systemHealth, isLoading: healthLoading } = trpc.monitoring.getSystemHealth.useQuery(
     undefined,
     { refetchInterval: realTimeEnabled ? refreshInterval : false }
   );
 
-  const { data: gatewayStatus, isLoading: gatewayLoading } = api.monitoring.getGatewayStatus.useQuery(
+  const { data: gatewayStatus, isLoading: gatewayLoading } = trpc.monitoring.getGatewayStatus.useQuery(
     undefined,
     { refetchInterval: realTimeEnabled ? refreshInterval : false }
   );
 
-  const { data: sessions, isLoading: sessionsLoading } = api.monitoring.getAgentSessions.useQuery(
+  const { data: sessions, isLoading: sessionsLoading } = trpc.monitoring.getAgentSessions.useQuery(
     {},
     { refetchInterval: realTimeEnabled ? refreshInterval : false }
   );
 
-  const { data: cronJobs, isLoading: cronLoading } = api.monitoring.getCronJobs.useQuery(
+  const { data: cronJobs, isLoading: cronLoading } = trpc.monitoring.getCronJobs.useQuery(
     {},
     { refetchInterval: realTimeEnabled ? refreshInterval : false }
   );
 
-  const { data: performance, isLoading: performanceLoading } = api.monitoring.getPerformanceMetrics.useQuery(
+  const { data: performance, isLoading: performanceLoading } = trpc.monitoring.getPerformanceMetrics.useQuery(
     { timeRange: '1h' },
     { refetchInterval: realTimeEnabled ? refreshInterval : false }
   );
 
-  const startRealTimeMonitoring = api.monitoring.startRealTimeMonitoring.useMutation();
-  const stopRealTimeMonitoring = api.monitoring.stopRealTimeMonitoring.useMutation();
+  const startRealTimeMonitoring = trpc.monitoring.startRealTimeMonitoring.useMutation();
+  const stopRealTimeMonitoring = trpc.monitoring.stopRealTimeMonitoring.useMutation();
 
   const handleToggleRealTime = async () => {
     if (realTimeEnabled) {
@@ -102,7 +102,7 @@ export function MonitoringPage() {
                 ? 'bg-red-600 text-white hover:bg-red-700'
                 : 'bg-blue-600 text-white hover:bg-blue-700'
             }`}
-            disabled={startRealTimeMonitoring.isLoading || stopRealTimeMonitoring.isLoading}
+            disabled={startRealTimeMonitoring.isPending || stopRealTimeMonitoring.isPending}
           >
             {realTimeEnabled ? 'Stop Monitoring' : 'Start Real-Time'}
           </button>
