@@ -8,6 +8,7 @@ import { modelCredentialsRouter } from "@/server/trpc/routers/model-credentials"
 import { monitoringRouter } from "@/server/trpc/routers/monitoring";
 import { permissionsRouter } from "@/server/trpc/routers/permissions";
 import { providersRouter } from "@/server/trpc/routers/providers";
+import { syncRouter } from "@/server/trpc/routers/sync";
 import { usageRouter } from "@/server/trpc/routers/usage";
 
 export const appRouter = createTrpcRouter({
@@ -20,7 +21,8 @@ export const appRouter = createTrpcRouter({
   members: membersRouter,
   usage: usageRouter,
   modelCredentials: modelCredentialsRouter,
-  monitoring: monitoringRouter
+  monitoring: monitoringRouter,
+  sync: syncRouter
 });
 
 export type AppRouter = typeof appRouter;
