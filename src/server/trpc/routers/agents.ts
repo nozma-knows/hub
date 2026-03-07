@@ -4,6 +4,7 @@ import { z } from "zod";
 import { agentBehaviorConfigs, agents, agentToolPermissions, toolProviders } from "@/db/schema";
 import { logAuditEvent } from "@/lib/audit";
 import { openClawAdapter } from "@/lib/openclaw/adapter";
+import { openClawCliAdapter } from "@/lib/openclaw/cli-adapter";
 import { adminProcedure, createTrpcRouter, protectedProcedure } from "@/server/trpc/init";
 
 const behaviorSchema = z.object({
@@ -14,7 +15,7 @@ const behaviorSchema = z.object({
 
 async function upsertWorkspaceAgents(input: {
   workspaceId: string;
-  rows: Awaited<ReturnType<typeof openClawAdapter.listAgents>>;
+  rows: Awaited<ReturnType<typeof openClawCliAdapter.listAgents>>;
   db: any;
 }) {
   if (input.rows.length === 0) {
@@ -114,7 +115,7 @@ export const agentsRouter = createTrpcRouter({
     }
 
     try {
-      const liveAgents = await openClawAdapter.listAgents();
+      const liveAgents = await openClawCliAdapter.listAgents();
       await upsertWorkspaceAgents({
         workspaceId: ctx.workspace.id,
         rows: liveAgents,
@@ -137,7 +138,7 @@ export const agentsRouter = createTrpcRouter({
   }),
 
   sync: protectedProcedure.mutation(async ({ ctx }) => {
-    const liveAgents = await openClawAdapter.listAgents();
+    const liveAgents = await openClawCliAdapter.listAgents();
 
     await upsertWorkspaceAgents({
       workspaceId: ctx.workspace.id,
