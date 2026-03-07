@@ -1,8 +1,7 @@
-import { z } from "zod";
-import { publicProcedure, createTrpcRouter } from "../init";
+import { createTrpcRouter, protectedProcedure } from "../init";
 
 export const syncRouter = createTrpcRouter({
-  manualSync: publicProcedure.mutation(async () => {
+  manualSync: protectedProcedure.mutation(async ({ ctx }) => {
     try {
       // Only import what we need to avoid circuit breaker issues
       const { openClawCliAdapter } = await import("@/lib/openclaw/cli-adapter");
@@ -15,18 +14,9 @@ export const syncRouter = createTrpcRouter({
       const liveAgents = await openClawCliAdapter.listAgents();
       console.log(`📡 Found ${liveAgents.length} live agents:`, liveAgents.map(a => `${a.name}(${a.id})`));
       
-      // Get the default workspace
-      const workspaceRows = await db.query.workspaces.findMany({
-        columns: { id: true, name: true }
-      });
-      
-      if (workspaceRows.length === 0) {
-        throw new Error("No workspaces found in database");
-      }
-      
-      const defaultWorkspace = workspaceRows[0];
-      console.log(`🏢 Using workspace: ${defaultWorkspace.id}`);
-      
+      const workspaceId = ctx.workspace.id;
+      console.log(`🏢 Using workspace: ${workspaceId}`);
+
       let syncedCount = 0;
       
       // Insert each live agent
@@ -36,7 +26,7 @@ export const syncRouter = createTrpcRouter({
             .insert(agents)
             .values({
               id: agent.id,
-              workspaceId: defaultWorkspace.id,
+              workspaceId,
               name: agent.name,
               status: agent.status,
               openclawVersion: agent.version || null,
@@ -74,7 +64,7 @@ export const syncRouter = createTrpcRouter({
       
       return {
         success: true,
-        message: `Successfully synced ${syncedCount} agents to workspace ${defaultWorkspace.id}`,
+        message: `Successfully synced ${syncedCount} agents to workspace ${workspaceId}`, 
         agentCount: syncedCount,
         agentNames: liveAgents.map(a => a.name)
       };
@@ -85,14 +75,14 @@ export const syncRouter = createTrpcRouter({
     }
   }),
 
-  checkSyncStatus: publicProcedure.query(async () => {
+  checkSyncStatus: protectedProcedure.query(async ({ ctx }) => {
     try {
       const { db } = await import("@/lib/db");
       const { openClawCliAdapter } = await import("@/lib/openclaw/cli-adapter");
       
-      // Count agents in database
+      // Count agents in database for this workspace
       const dbAgents = await db.query.agents.findMany({
-        where: (agents, { eq }) => eq(agents.isRemoved, false),
+        where: (agents, { and, eq }) => and(eq(agents.workspaceId, ctx.workspace.id), eq(agents.isRemoved, false)),
         columns: { id: true, name: true, lastSyncedAt: true }
       });
       

@@ -131,6 +131,18 @@ export function MonitoringPage() {
       {/* System Health Overview */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-white p-6 rounded-lg shadow">
+          <h3 className="text-sm font-medium text-gray-900">Sync Status</h3>
+          <div className="mt-2 text-lg font-semibold">
+            {syncStatus.isLoading ? "…" : syncStatus.data?.inSync ? "✅ In sync" : "❌ Out of sync"}
+          </div>
+          <div className="text-sm text-gray-600">
+            DB: {syncStatus.data?.databaseAgents ?? 0} · Live: {syncStatus.data?.liveAgents ?? 0}
+          </div>
+          {syncStatus.data?.error && (
+            <div className="mt-2 text-xs text-red-600 break-words">{syncStatus.data.error}</div>
+          )}
+        </div>
+        <div className="bg-white p-6 rounded-lg shadow">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-medium text-gray-900">System Health</h3>
             <div 
