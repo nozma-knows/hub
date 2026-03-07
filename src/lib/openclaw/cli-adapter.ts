@@ -10,12 +10,25 @@ import type {
 
 const execAsync = promisify(exec);
 
+const DEFAULT_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
+const OPENCLAW_BIN = process.env.OPENCLAW_CLI_PATH || "/usr/bin/openclaw";
+
 export class OpenClawCliAdapter {
   private async runCommand(command: string): Promise<string> {
+    const resolvedCommand = command.startsWith("openclaw ")
+      ? `${OPENCLAW_BIN} ${command.slice("openclaw ".length)}`
+      : command === "openclaw"
+        ? OPENCLAW_BIN
+        : command;
+
     try {
-      const { stdout, stderr } = await execAsync(command, {
+      const { stdout, stderr } = await execAsync(resolvedCommand, {
         timeout: 15000, // 15 second timeout
-        maxBuffer: 1024 * 1024 // 1MB max output
+        maxBuffer: 1024 * 1024, // 1MB max output
+        env: {
+          ...process.env,
+          PATH: process.env.PATH ? `${process.env.PATH}:${DEFAULT_PATH}` : DEFAULT_PATH
+        }
       });
       
       if (stderr && !stderr.includes('warning:') && !stderr.includes('info:')) {
