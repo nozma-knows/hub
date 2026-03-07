@@ -123,5 +123,90 @@ export const monitoringRouter = createTrpcRouter({
   stopRealTimeMonitoring: publicProcedure.mutation(async () => {
     openClawMonitor.stopRealTimeMonitoring();
     return { stopped: true };
+  }),
+
+  triggerSync: publicProcedure.mutation(async () => {
+    try {
+      // Import and run sync logic
+      const { and, eq, inArray } = await import("drizzle-orm");
+      const { agents } = await import("@/db/schema");
+      const { db } = await import("@/lib/db");
+      const { openClawCliAdapter } = await import("@/lib/openclaw/cli-adapter");
+      
+      console.log("🔄 Starting manual OpenClaw sync...");
+      
+      // Get live agents from OpenClaw CLI
+      const live = await openClawCliAdapter.listAgents();
+      console.log(`📡 Found ${live.length} live agents:`, live.map((a: any) => a.name));
+      
+      // Get all workspaces
+      const workspaceRows = await db.query.workspaces.findMany({
+        columns: { id: true }
+      });
+      
+      if (workspaceRows.length === 0) {
+        throw new Error("No workspaces found");
+      }
+      
+      let totalSynced = 0;
+      
+      // Sync agents to all workspaces
+      for (const workspace of workspaceRows) {
+        console.log(`🏢 Syncing to workspace: ${workspace.id}`);
+        
+        // Insert/update live agents
+        for (const agent of live) {
+          await db
+            .insert(agents)
+            .values({
+              id: agent.id,
+              workspaceId: workspace.id,
+              name: agent.name,
+              status: agent.status,
+              openclawVersion: agent.version,
+              behaviorChecksum: agent.behaviorChecksum,
+              isRemoved: false,
+              removedAt: null,
+              lastSeenUpstreamAt: new Date(),
+              lastSyncedAt: new Date(),
+              updatedAt: new Date()
+            })
+            .onConflictDoUpdate({
+              target: agents.id,
+              set: {
+                workspaceId: workspace.id,
+                name: agent.name,
+                status: agent.status,
+                openclawVersion: agent.version,
+                behaviorChecksum: agent.behaviorChecksum,
+                isRemoved: false,
+                removedAt: null,
+                lastSeenUpstreamAt: new Date(),
+                lastSyncedAt: new Date(),
+                updatedAt: new Date()
+              }
+            });
+          
+          totalSynced++;
+          console.log(`✅ Synced agent: ${agent.name} (${agent.id})`);
+        }
+      }
+      
+      console.log(`🎉 Sync complete! Synced ${totalSynced} agent records`);
+      return { 
+        success: true, 
+        message: `Successfully synced ${live.length} agents`, 
+        agents: live.length 
+      };
+      
+    } catch (error) {
+      console.error("❌ Sync failed:", error);
+      throw new Error(`Sync failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }),
+
+  getSystemInfo: publicProcedure.query(async () => {
+    const { openClawCliAdapter } = await import("@/lib/openclaw/cli-adapter");
+    return openClawCliAdapter.getSystemInfo();
   })
 });

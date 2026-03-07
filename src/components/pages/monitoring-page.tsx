@@ -34,6 +34,7 @@ export function MonitoringPage() {
 
   const startRealTimeMonitoring = trpc.monitoring.startRealTimeMonitoring.useMutation();
   const stopRealTimeMonitoring = trpc.monitoring.stopRealTimeMonitoring.useMutation();
+  const triggerSync = trpc.monitoring.triggerSync.useMutation();
 
   const handleToggleRealTime = async () => {
     if (realTimeEnabled) {
@@ -94,6 +95,22 @@ export function MonitoringPage() {
             <option value={30000}>30 seconds</option>
             <option value={60000}>1 minute</option>
           </select>
+          
+          <button
+            onClick={async () => {
+              try {
+                await triggerSync.mutateAsync();
+                // Refetch data after sync
+                window.location.reload();
+              } catch (error) {
+                alert(`Sync failed: ${error}`);
+              }
+            }}
+            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium"
+            disabled={triggerSync.isPending}
+          >
+            {triggerSync.isPending ? 'Syncing...' : 'Sync from OpenClaw'}
+          </button>
           
           <button
             onClick={handleToggleRealTime}

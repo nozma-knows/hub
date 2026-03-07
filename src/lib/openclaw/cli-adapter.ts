@@ -323,6 +323,137 @@ export class OpenClawCliAdapter {
       };
     }
   }
+
+  async getSystemInfo(): Promise<{
+    hostname: string;
+    platform: string;
+    arch: string;
+    nodeVersion: string;
+    openclawVersion: string;
+    uptime: number;
+    loadAvg: number[];
+    memoryUsage: { used: number; total: number; free: number };
+    diskSpace: { used: number; total: number; free: number };
+  }> {
+    try {
+      const [statusOutput, hostnameOutput, unameOutput, uptimeOutput, memoryOutput, diskOutput] = await Promise.all([
+        this.runCommand('openclaw status').catch(() => ''),
+        this.runCommand('hostname').catch(() => 'unknown'),
+        this.runCommand('uname -a').catch(() => 'unknown unknown unknown'),
+        this.runCommand('uptime').catch(() => ''),
+        this.runCommand('cat /proc/meminfo').catch(() => ''),
+        this.runCommand('df -h /').catch(() => '')
+      ]);
+
+      // Parse OpenClaw version
+      let openclawVersion = 'unknown';
+      const versionMatch = statusOutput.match(/OpenClaw ([^\s]+)/);
+      if (versionMatch) {
+        openclawVersion = versionMatch[1];
+      }
+
+      // Parse system info
+      const hostname = hostnameOutput.trim();
+      const unameFields = unameOutput.split(' ');
+      const platform = unameFields[0] || 'unknown';
+      const arch = unameFields[4] || 'unknown';
+
+      // Parse uptime
+      let uptime = 0;
+      const uptimeMatch = uptimeOutput.match(/up\s+(.+?),/);
+      if (uptimeMatch) {
+        const uptimeStr = uptimeMatch[1];
+        // Simple parsing - just get a rough estimate
+        if (uptimeStr.includes('day')) {
+          const days = parseInt(uptimeStr);
+          uptime = days * 24 * 3600;
+        } else if (uptimeStr.includes(':')) {
+          const timeParts = uptimeStr.split(':');
+          uptime = parseInt(timeParts[0]) * 3600 + parseInt(timeParts[1]) * 60;
+        }
+      }
+
+      // Parse load average
+      const loadAvg = [0, 0, 0];
+      const loadMatch = uptimeOutput.match(/load average:\s*([0-9.]+),\s*([0-9.]+),\s*([0-9.]+)/);
+      if (loadMatch) {
+        loadAvg[0] = parseFloat(loadMatch[1]);
+        loadAvg[1] = parseFloat(loadMatch[2]);
+        loadAvg[2] = parseFloat(loadMatch[3]);
+      }
+
+      // Parse memory (Linux /proc/meminfo)
+      let memoryUsage = { used: 0, total: 0, free: 0 };
+      const memTotalMatch = memoryOutput.match(/MemTotal:\s*(\d+) kB/);
+      const memAvailableMatch = memoryOutput.match(/MemAvailable:\s*(\d+) kB/);
+      const memFreeMatch = memoryOutput.match(/MemFree:\s*(\d+) kB/);
+      
+      if (memTotalMatch) {
+        const total = parseInt(memTotalMatch[1]) * 1024; // Convert KB to bytes
+        const available = memAvailableMatch ? parseInt(memAvailableMatch[1]) * 1024 : 0;
+        const free = memFreeMatch ? parseInt(memFreeMatch[1]) * 1024 : available;
+        
+        memoryUsage = {
+          total,
+          free,
+          used: total - free
+        };
+      }
+
+      // Parse disk space
+      let diskSpace = { used: 0, total: 0, free: 0 };
+      const diskLines = diskOutput.split('\n');
+      if (diskLines.length > 1) {
+        const diskLine = diskLines[1];
+        const diskFields = diskLine.trim().split(/\s+/);
+        if (diskFields.length >= 4) {
+          // Parse sizes like "100G" or "1.5T"
+          const parseSize = (sizeStr: string) => {
+            const match = sizeStr.match(/^([0-9.]+)([KMGT]?)$/);
+            if (match) {
+              const num = parseFloat(match[1]);
+              const unit = match[2];
+              const multiplier = unit === 'K' ? 1024 : unit === 'M' ? 1024*1024 : unit === 'G' ? 1024*1024*1024 : unit === 'T' ? 1024*1024*1024*1024 : 1;
+              return num * multiplier;
+            }
+            return 0;
+          };
+
+          diskSpace = {
+            total: parseSize(diskFields[1]),
+            used: parseSize(diskFields[2]),
+            free: parseSize(diskFields[3])
+          };
+        }
+      }
+
+      return {
+        hostname,
+        platform,
+        arch,
+        nodeVersion: process.version,
+        openclawVersion,
+        uptime,
+        loadAvg,
+        memoryUsage,
+        diskSpace
+      };
+
+    } catch (error) {
+      console.error('Failed to gather system info:', error);
+      return {
+        hostname: 'unknown',
+        platform: 'unknown', 
+        arch: 'unknown',
+        nodeVersion: process.version,
+        openclawVersion: 'unknown',
+        uptime: 0,
+        loadAvg: [0, 0, 0],
+        memoryUsage: { used: 0, total: 0, free: 0 },
+        diskSpace: { used: 0, total: 0, free: 0 }
+      };
+    }
+  }
 }
 
 export const openClawCliAdapter = new OpenClawCliAdapter();

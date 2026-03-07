@@ -18,6 +18,8 @@ export function startReconciliationSync(): void {
     return;
   }
 
+  console.log("🔄 Starting OpenClaw reconciliation sync...");
+
   const run = async () => {
     try {
       const live = await openClawCliAdapter.listAgents();
