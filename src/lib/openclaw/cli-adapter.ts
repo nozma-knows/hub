@@ -62,24 +62,36 @@ export class OpenClawCliAdapter {
         ? openclawBin
         : command;
 
+    const timeoutMs = Number(process.env.OPENCLAW_CLI_TIMEOUT_MS ?? 60000);
+
     try {
       const { stdout, stderr } = await execAsync(resolvedCommand, {
-        timeout: 15000, // 15 second timeout
-        maxBuffer: 1024 * 1024, // 1MB max output
+        timeout: Number.isFinite(timeoutMs) ? timeoutMs : 60000,
+        maxBuffer: 4 * 1024 * 1024, // 4MB max output
         env: {
           ...process.env,
           PATH: process.env.PATH ? `${process.env.PATH}:${DEFAULT_PATH}` : DEFAULT_PATH
         }
       });
-      
-      if (stderr && !stderr.includes('warning:') && !stderr.includes('info:')) {
-        console.warn('OpenClaw CLI stderr:', stderr);
+
+      if (stderr && !stderr.includes("warning:") && !stderr.includes("info:")) {
+        console.warn("OpenClaw CLI stderr:", stderr);
       }
-      
+
       return stdout.trim();
     } catch (error) {
-      console.error('OpenClaw CLI command failed:', command, error);
-      throw new Error(`OpenClaw CLI error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      const err = error as any;
+      const meta = {
+        cmd: resolvedCommand,
+        code: err?.code ?? null,
+        signal: err?.signal ?? null,
+        killed: err?.killed ?? null,
+        stderr: typeof err?.stderr === "string" ? err.stderr.trim().slice(0, 400) : undefined
+      };
+      console.error("OpenClaw CLI command failed:", meta);
+      throw new Error(
+        `OpenClaw CLI error (timeout=${timeoutMs}ms): ${err?.stderr?.trim?.() || err?.message || "Unknown error"}`
+      );
     }
   }
 

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { LogOut } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -25,7 +26,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-10 border-b bg-background/90 backdrop-blur">
-        <div className="mx-auto w-full max-w-7xl px-4 py-3 sm:px-6">
+        <div className="relative mx-auto w-full max-w-7xl px-4 py-3 sm:px-6">
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2 text-sm font-semibold">
               <span className="shrink-0 rounded-md bg-primary px-2 py-1 text-primary-foreground">Hub</span>
