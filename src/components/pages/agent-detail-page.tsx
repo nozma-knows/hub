@@ -70,7 +70,12 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
             ← Back
           </Link>
           <h1 className="mt-2 text-2xl font-semibold">Agent: {agent.data?.agent?.name ?? agentId}</h1>
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          {agent.data?.agent?.description ? (
+            <div className="mt-1 text-sm text-muted-foreground">{agent.data.agent.description}</div>
+          ) : (
+            <div className="mt-1 text-sm text-muted-foreground italic">No description yet.</div>
+          )}
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             <span className="font-mono">{agentId}</span>
             <Badge>{status}</Badge>
             {agent.data?.agent?.model ? <span>· {agent.data.agent.model}</span> : null}

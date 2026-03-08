@@ -204,6 +204,7 @@ export const agentsRouter = createTrpcRouter({
       z.object({
         agentId: z.string().min(1),
         model: z.string().min(1),
+        description: z.string().optional(),
         files: z.array(z.object({ path: z.string().min(1), content: z.string() })).default([])
       })
     )
@@ -240,6 +241,13 @@ export const agentsRouter = createTrpcRouter({
       // Pull latest agent list into DB
       const liveAgents = await openClawCliAdapter.listAgents();
       await upsertWorkspaceAgents({ workspaceId: ctx.workspace.id, rows: liveAgents, db: ctx.db });
+
+      if (input.description) {
+        await ctx.db
+          .update(agents)
+          .set({ description: input.description, updatedAt: new Date() })
+          .where(and(eq(agents.workspaceId, ctx.workspace.id), eq(agents.id, input.agentId)));
+      }
 
       await logAuditEvent({
         workspaceId: ctx.workspace.id,

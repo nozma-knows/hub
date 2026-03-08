@@ -125,6 +125,7 @@ export const agents = pgTable("agents", {
   status: varchar("status", { length: 40 }).notNull().default("unknown"),
   openclawVersion: varchar("openclaw_version", { length: 80 }),
   model: varchar("model", { length: 160 }),
+  description: text("description"),
   upstreamWorkspacePath: text("upstream_workspace_path"),
   upstreamAgentDir: text("upstream_agent_dir"),
   behaviorChecksum: varchar("behavior_checksum", { length: 80 }),

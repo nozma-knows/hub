@@ -19,6 +19,7 @@ type Preset = {
   identityName: string;
   identityEmoji: string;
   identityTheme: string;
+  agentDescription: string;
   soul: string;
   user: string;
   tools: string;
@@ -30,6 +31,7 @@ const PRESETS: Preset[] = [
     key: "exec",
     name: "Executive Assistant",
     description: "Briefings, reminders, prioritization, comms drafts, keeping Noah on track.",
+    agentDescription: "Primary assistant for Noah. Helps with reminders, daily planning, briefings, and turning intent into action.",
     model: "openai-codex/gpt-5.2",
     identityName: "Kodi",
     identityEmoji: "🐨",
@@ -43,6 +45,7 @@ const PRESETS: Preset[] = [
     key: "ops",
     name: "Ops / Reliability",
     description: "Health checks, incident response, runbooks, infra debugging.",
+    agentDescription: "Maintains the VPS + OpenClaw/Hub reliability. Runs health checks, investigates incidents, and proposes safe fixes with rollbacks.",
     model: "openai-codex/gpt-5.2",
     identityName: "Ops",
     identityEmoji: "🛠️",
@@ -56,6 +59,7 @@ const PRESETS: Preset[] = [
     key: "pm",
     name: "Product / Planning",
     description: "Specs, roadmaps, decision logs, user feedback synthesis.",
+    agentDescription: "Turns product intent into clear specs and execution plans. Maintains decision logs, prioritization, and milestone breakdowns.",
     model: "openai-codex/gpt-5.2",
     identityName: "PM",
     identityEmoji: "🧭",
@@ -69,6 +73,7 @@ const PRESETS: Preset[] = [
     key: "research",
     name: "Research",
     description: "Source-backed answers, comparisons, distilled takeaways.",
+    agentDescription: "Finds primary sources and produces cited summaries/comparisons to unblock decisions.",
     model: "openai-codex/gpt-5.2",
     identityName: "Research",
     identityEmoji: "🔎",
@@ -82,6 +87,7 @@ const PRESETS: Preset[] = [
     key: "dev",
     name: "Developer",
     description: "Implement features, write clean PRs, debug build/runtime issues.",
+    agentDescription: "Implements Hub features, fixes bugs, and ships clean, small diffs with mobile polish.",
     model: "openai-codex/gpt-5.2",
     identityName: "Dev",
     identityEmoji: "💻",
@@ -133,6 +139,7 @@ export function NewAgentPage() {
   const [identityName, setIdentityName] = useState(preset.identityName);
   const [identityEmoji, setIdentityEmoji] = useState(preset.identityEmoji);
   const [identityTheme, setIdentityTheme] = useState(preset.identityTheme);
+  const [agentDescription, setAgentDescription] = useState(preset.agentDescription);
 
   const [soul, setSoul] = useState(preset.soul);
   const [user, setUser] = useState(preset.user);
@@ -182,6 +189,7 @@ export function NewAgentPage() {
               setIdentityName(p.identityName);
               setIdentityEmoji(p.identityEmoji);
               setIdentityTheme(p.identityTheme);
+              setAgentDescription(p.agentDescription);
               setSoul(p.soul);
               setUser(p.user);
               setTools(p.tools);
@@ -230,7 +238,20 @@ export function NewAgentPage() {
           </div>
           <div className="space-y-1">
             <Label>Theme</Label>
-            <Input value={identityTheme} onChange={(e) => setIdentityTheme(e.target.value)} placeholder="e.g. Pragmatic" />
+            <Input
+              value={identityTheme}
+              onChange={(e) => setIdentityTheme(e.target.value)}
+              placeholder="e.g. Pragmatic"
+            />
+          </div>
+          <div className="md:col-span-3 space-y-1">
+            <Label>Description</Label>
+            <Textarea
+              value={agentDescription}
+              onChange={(e) => setAgentDescription(e.target.value)}
+              placeholder="What is this agent for?"
+              className="min-h-24"
+            />
           </div>
           <div className="md:col-span-3 text-xs text-muted-foreground">
             This writes IDENTITY.md and applies it via <span className="font-mono">openclaw agents set-identity</span>.
@@ -270,6 +291,7 @@ export function NewAgentPage() {
                 await create.mutateAsync({
                   agentId: agentId.trim(),
                   model: model.trim(),
+                  description: agentDescription.trim() || undefined,
                   files: [
                     { path: "IDENTITY.md", content: identity },
                     { path: "SOUL.md", content: soul },
