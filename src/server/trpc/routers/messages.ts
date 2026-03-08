@@ -2,6 +2,7 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 
 import { hubChannelAgents, hubChannels, hubMessages, hubThreads } from "@/db/schema";
+import { openClawAdapter } from "@/lib/openclaw/adapter";
 import { logAuditEvent } from "@/lib/audit";
 import { adminProcedure, createTrpcRouter, protectedProcedure } from "@/server/trpc/init";
 
@@ -222,6 +223,56 @@ export const messagesRouter = createTrpcRouter({
         .set({ lastMessageAt: new Date(), updatedAt: new Date() })
         .where(and(eq(hubThreads.workspaceId, ctx.workspace.id), eq(hubThreads.id, input.threadId)));
 
-      return { ok: true };
+      const shouldInvoke = /(^|\s)@command(\b|\s)/i.test(input.body);
+      if (shouldInvoke) {
+        const recent = await ctx.db.query.hubMessages.findMany({
+          where: and(eq(hubMessages.workspaceId, ctx.workspace.id), eq(hubMessages.threadId, input.threadId)),
+          orderBy: (t, { desc: descOrder }) => [descOrder(t.createdAt)],
+          limit: 20
+        });
+
+        const context = recent
+          .slice()
+          .reverse()
+          .map((m) => `${m.authorType === "agent" ? `agent:${m.authorAgentId ?? "?"}` : `user:${m.authorUserId ?? "?"}`}: ${m.body}`)
+          .join("\n");
+
+        const prompt = `You are @command (Chief of Staff). Reply in-channel.
+
+Thread title: ${thread.title ?? "(none)"}
+
+Recent messages:
+${context}
+
+Instructions:
+- Be concise and action-oriented.
+- If this should become a ticket, say so and propose: title + owner agent (cos/ops/dev/pm/research).
+- If you need clarification, ask at most 1-2 questions.`;
+
+        const result = await openClawAdapter.invokeAgent("cos", {
+          prompt,
+          toolBindings: []
+        });
+
+        const output = (result.output || "").toString().trim();
+        if (output) {
+          await ctx.db.insert(hubMessages).values({
+            workspaceId: ctx.workspace.id,
+            threadId: input.threadId,
+            authorType: "agent",
+            authorAgentId: "cos",
+            body: output
+          });
+
+          await ctx.db
+            .update(hubThreads)
+            .set({ lastMessageAt: new Date(), updatedAt: new Date() })
+            .where(and(eq(hubThreads.workspaceId, ctx.workspace.id), eq(hubThreads.id, input.threadId)));
+        }
+
+        return { ok: true, invoked: true };
+      }
+
+      return { ok: true, invoked: false };
     })
 });
