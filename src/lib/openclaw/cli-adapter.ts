@@ -98,27 +98,31 @@ export class OpenClawCliAdapter {
   async listAgents(): Promise<OpenClawAgent[]> {
     const output = await this.runCommand('openclaw agents list');
     const agents: OpenClawAgent[] = [];
-    
-    // Parse the output format
+
     const lines = output.split('\n');
     let currentAgent: Partial<OpenClawAgent> | null = null;
-    
+
+    const flush = () => {
+      if (!currentAgent?.id) return;
+      agents.push({
+        id: currentAgent.id,
+        name: currentAgent.name || currentAgent.id,
+        status: currentAgent.status || 'ready',
+        version: currentAgent.version,
+        behaviorChecksum: currentAgent.behaviorChecksum,
+        workspacePath: currentAgent.workspacePath,
+        agentDir: currentAgent.agentDir,
+        model: currentAgent.model
+      });
+    };
+
     for (const line of lines) {
       const trimmed = line.trim();
-      
-      // Agent name line: "- main (default)"
+
       if (trimmed.startsWith('- ')) {
-        if (currentAgent?.id) {
-          agents.push({
-            id: currentAgent.id,
-            name: currentAgent.name || currentAgent.id,
-            status: currentAgent.status || 'ready',
-            version: currentAgent.version,
-            behaviorChecksum: currentAgent.behaviorChecksum
-          });
-        }
-        
-        const match = trimmed.match(/^- (\w+)(.*)$/);
+        flush();
+
+        const match = trimmed.match(/^- (\S+)(.*)$/);
         if (match) {
           currentAgent = {
             id: match[1],
@@ -126,36 +130,43 @@ export class OpenClawCliAdapter {
             status: 'ready'
           };
         }
+        continue;
       }
-      
-      // Identity line: "  Identity: 🐨 Kodi (IDENTITY.md)"
-      if (trimmed.startsWith('Identity:') && currentAgent) {
-        const identityMatch = trimmed.match(/Identity: (?:🐨\s+)?(.+?)(?:\s+\([^)]+\))?$/);
-        if (identityMatch) {
-          currentAgent.name = identityMatch[1].trim();
-        }
+
+      if (!currentAgent) continue;
+
+      if (trimmed.startsWith('Identity:')) {
+        // Identity: 🐨 Kodi (IDENTITY.md)
+        const identityMatch = trimmed.match(/Identity:\s+(?:\S+\s+)?(.+?)(?:\s+\([^)]+\))?$/);
+        if (identityMatch) currentAgent.name = identityMatch[1].trim();
+        continue;
       }
-      
-      // Model line: "  Model: anthropic/claude-sonnet-4-20250514"
-      if (trimmed.startsWith('Model:') && currentAgent) {
-        const modelMatch = trimmed.match(/Model: (.+)$/);
-        if (modelMatch) {
-          currentAgent.version = modelMatch[1];
+
+      if (trimmed.startsWith('Workspace:')) {
+        const m = trimmed.match(/Workspace:\s+(.+)$/);
+        if (m) currentAgent.workspacePath = m[1].trim();
+        continue;
+      }
+
+      if (trimmed.startsWith('Agent dir:') || trimmed.startsWith('Agent dir')) {
+        const m = trimmed.match(/Agent dir:\s+(.+)$/);
+        if (m) currentAgent.agentDir = m[1].trim();
+        continue;
+      }
+
+      if (trimmed.startsWith('Model:')) {
+        const m = trimmed.match(/Model:\s+(.+)$/);
+        if (m) {
+          currentAgent.model = m[1].trim();
+          // Back-compat: keep version field for now
+          currentAgent.version = m[1].trim();
         }
+        continue;
       }
     }
-    
-    // Add the last agent if exists
-    if (currentAgent?.id) {
-      agents.push({
-        id: currentAgent.id,
-        name: currentAgent.name || currentAgent.id,
-        status: currentAgent.status || 'ready',
-        version: currentAgent.version,
-        behaviorChecksum: currentAgent.behaviorChecksum
-      });
-    }
-    
+
+    flush();
+
     return agents;
   }
 

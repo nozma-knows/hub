@@ -4,6 +4,9 @@ export type OpenClawAgent = {
   status: string;
   version?: string;
   behaviorChecksum?: string;
+  workspacePath?: string;
+  agentDir?: string;
+  model?: string;
 };
 
 export type OpenClawAgentConfig = {
