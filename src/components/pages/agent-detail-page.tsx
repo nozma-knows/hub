@@ -7,6 +7,7 @@ import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc-client";
 
@@ -15,6 +16,9 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [draft, setDraft] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
+
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
 
   const agent = trpc.agents.get.useQuery({ agentId });
   const models = trpc.agents.listValidModels.useQuery();
@@ -44,6 +48,14 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
       if (selectedPath) {
         await utils.agents.filesRead.invalidate({ agentId, path: selectedPath });
       }
+    },
+    onError: (e) => setError(e.message)
+  });
+
+  const remove = trpc.agents.remove.useMutation({
+    onSuccess: async () => {
+      await utils.agents.list.invalidate();
+      window.location.href = "/agents";
     },
     onError: (e) => setError(e.message)
   });
@@ -172,6 +184,68 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
           </div>
         </CardContent>
       </Card>
+
+      <Card className="border-destructive/40">
+        <CardHeader>
+          <CardTitle>Danger Zone</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-sm text-muted-foreground">
+            Deleting an agent removes its config and local state. This cannot be undone.
+          </div>
+          <Button
+            variant="destructive"
+            onClick={() => {
+              setDeleteConfirm("");
+              setDeleteOpen(true);
+            }}
+          >
+            Delete Agent
+          </Button>
+        </CardContent>
+      </Card>
+
+      {deleteOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-lg rounded-lg bg-background shadow-lg">
+            <div className="border-b p-4">
+              <div className="text-lg font-semibold">Delete agent</div>
+              <div className="mt-1 text-sm text-muted-foreground">
+                Type <span className="font-mono">{agentId}</span> to confirm.
+              </div>
+            </div>
+
+            <div className="space-y-3 p-4">
+              <Input
+                value={deleteConfirm}
+                onChange={(e) => setDeleteConfirm(e.target.value)}
+                placeholder={agentId}
+              />
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setDeleteOpen(false);
+                    setDeleteConfirm("");
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  disabled={deleteConfirm.trim() !== agentId || remove.isPending}
+                  onClick={async () => {
+                    setError(null);
+                    await remove.mutateAsync({ agentId });
+                  }}
+                >
+                  {remove.isPending ? "Deleting…" : "Delete"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
