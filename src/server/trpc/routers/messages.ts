@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 
 import { hubChannelAgents, hubChannels, hubMessages, hubThreads } from "@/db/schema";
@@ -110,10 +110,30 @@ export const messagesRouter = createTrpcRouter({
   threadsList: protectedProcedure
     .input(z.object({ channelId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
-      return ctx.db.query.hubThreads.findMany({
+      const threads = await ctx.db.query.hubThreads.findMany({
         where: and(eq(hubThreads.workspaceId, ctx.workspace.id), eq(hubThreads.channelId, input.channelId)),
         orderBy: (t, { desc: descOrder }) => [descOrder(t.lastMessageAt)]
       });
+
+      if (threads.length === 0) return [];
+
+      const threadIds = threads.map((t) => t.id);
+      const lastMessages = await ctx.db.query.hubMessages.findMany({
+        where: and(eq(hubMessages.workspaceId, ctx.workspace.id), inArray(hubMessages.threadId, threadIds)),
+        orderBy: (t, { desc: descOrder }) => [descOrder(t.createdAt)]
+      });
+
+      const lastByThread = new Map<string, string>();
+      for (const m of lastMessages) {
+        if (!lastByThread.has(m.threadId)) {
+          lastByThread.set(m.threadId, m.body);
+        }
+      }
+
+      return threads.map((t) => ({
+        ...t,
+        lastMessagePreview: (lastByThread.get(t.id) || "").slice(0, 200)
+      }));
     }),
 
   threadGet: protectedProcedure

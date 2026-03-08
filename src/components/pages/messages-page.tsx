@@ -95,7 +95,7 @@ export function MessagesPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Messages</h1>
-          <p className="text-sm text-muted-foreground">Hub-native channels, threads, and messages.</p>
+          <p className="text-sm text-muted-foreground">Slack-like layout: channels → threads → messages.</p>
         </div>
         <Button variant="outline" onClick={() => setShowCreateChannel(true)}>
           New channel
@@ -106,9 +106,12 @@ export function MessagesPage() {
 
       <div className="grid gap-4 lg:grid-cols-12">
         {/* Channels */}
-        <Card className="lg:col-span-3">
-          <CardHeader>
+        <Card className={`lg:col-span-3 ${selectedChannelId ? "hidden lg:block" : ""}`}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <CardTitle>Channels</CardTitle>
+            {selectedChannel ? (
+              <div className="lg:hidden text-xs text-muted-foreground">tap a channel</div>
+            ) : null}
           </CardHeader>
           <CardContent className="space-y-1">
             {(channels.data ?? []).map((c) => (
@@ -133,9 +136,24 @@ export function MessagesPage() {
         </Card>
 
         {/* Threads */}
-        <Card className="lg:col-span-4">
-          <CardHeader>
-            <CardTitle>Threads {selectedChannel ? <span className="text-muted-foreground">· #{selectedChannel.name}</span> : null}</CardTitle>
+        <Card className={`lg:col-span-4 ${selectedChannelId && selectedThreadId ? "hidden lg:block" : selectedChannelId ? "" : "hidden lg:block"}`}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+            <CardTitle>
+              Threads {selectedChannel ? <span className="text-muted-foreground">· #{selectedChannel.name}</span> : null}
+            </CardTitle>
+            {selectedChannelId ? (
+              <Button
+                className="lg:hidden"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setSelectedChannelId(null);
+                  setSelectedThreadId(null);
+                }}
+              >
+                ← Channels
+              </Button>
+            ) : null}
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="space-y-2 rounded-md border p-3">
@@ -167,7 +185,10 @@ export function MessagesPage() {
                   onClick={() => setSelectedThreadId(t.id)}
                 >
                   <div className="truncate font-medium">{t.title || "(no title)"}</div>
-                  <div className="text-xs text-muted-foreground">{new Date(t.lastMessageAt).toLocaleString()}</div>
+                  {t.lastMessagePreview ? (
+                    <div className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{t.lastMessagePreview}</div>
+                  ) : null}
+                  <div className="mt-1 text-[11px] text-muted-foreground">{new Date(t.lastMessageAt).toLocaleString()}</div>
                 </button>
               ))}
               {(threads.data ?? []).length === 0 && !threads.isLoading ? (
@@ -178,9 +199,19 @@ export function MessagesPage() {
         </Card>
 
         {/* Thread view */}
-        <Card className="lg:col-span-5">
-          <CardHeader>
+        <Card className={`lg:col-span-5 ${selectedThreadId ? "" : "hidden lg:block"}`}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <CardTitle>Thread</CardTitle>
+            {selectedThreadId ? (
+              <Button
+                className="lg:hidden"
+                size="sm"
+                variant="outline"
+                onClick={() => setSelectedThreadId(null)}
+              >
+                ← Threads
+              </Button>
+            ) : null}
           </CardHeader>
           <CardContent className="space-y-3">
             {!selectedThreadId ? (
