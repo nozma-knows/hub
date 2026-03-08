@@ -33,7 +33,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
 
             {/* Desktop nav */}
-            <nav className="hidden items-center gap-1 md:flex">
+            <nav className="hidden items-center gap-1 lg:flex">
               {links.map((link) => (
                 <Link
                   key={link.href}
@@ -56,7 +56,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 size="sm"
                 variant="outline"
                 type="button"
-                className="md:hidden"
+                className="lg:hidden"
                 onClick={() => setMobileOpen((v) => !v)}
                 aria-expanded={mobileOpen}
                 aria-controls="hub-mobile-nav"
@@ -74,7 +74,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
           {/* Mobile nav */}
           {mobileOpen ? (
-            <nav id="hub-mobile-nav" className="mt-3 grid gap-1 md:hidden">
+            <nav id="hub-mobile-nav" className="mt-3 grid gap-1 lg:hidden">
               {links.map((link) => (
                 <Link
                   key={link.href}
