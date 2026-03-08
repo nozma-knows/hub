@@ -231,66 +231,135 @@ export function AgentsPage() {
           <CardTitle>Agent Registry</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Version</TableHead>
-                <TableHead>Last Sync</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(agents.data ?? []).map((agent) => (
-                <TableRow key={agent.id}>
-                  <TableCell>
-                    <div className="font-medium">{agent.name}</div>
-                    <div className="text-xs text-muted-foreground">{agent.id}</div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge>{agent.status}</Badge>
-                  </TableCell>
-                  <TableCell>{agent.openclawVersion ?? "-"}</TableCell>
-                  <TableCell>{agent.lastSyncedAt ? new Date(agent.lastSyncedAt).toLocaleString() : "-"}</TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setEditingAgentId(agent.id);
-                          setName(agent.name);
-                        }}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() =>
-                          invokeMutation.mutate({
-                            agentId: agent.id,
-                            prompt
-                          })
-                        }
-                      >
-                        Test Invoke
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => deleteMutation.mutate({ agentId: agent.id })}
-                        disabled={deleteMutation.isPending}
-                      >
-                        Delete
-                      </Button>
+          {/* Mobile: stacked cards */}
+          <div className="grid gap-3 md:hidden">
+            {(agents.data ?? []).map((agent) => (
+              <Card key={agent.id}>
+                <CardContent className="space-y-3 pt-6">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="truncate font-medium">{agent.name}</div>
+                      <div className="truncate text-xs text-muted-foreground">{agent.id}</div>
                     </div>
-                  </TableCell>
+                    <Badge className="shrink-0">{agent.status}</Badge>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-2 text-sm">
+                    <div className="rounded-md border px-3 py-2">
+                      <div className="text-xs text-muted-foreground">Version</div>
+                      <div className="truncate">{agent.openclawVersion ?? "-"}</div>
+                    </div>
+                    <div className="rounded-md border px-3 py-2">
+                      <div className="text-xs text-muted-foreground">Last Sync</div>
+                      <div className="truncate">
+                        {agent.lastSyncedAt ? new Date(agent.lastSyncedAt).toLocaleString() : "-"}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => {
+                        setEditingAgentId(agent.id);
+                        setName(agent.name);
+                      }}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="w-full"
+                      onClick={() =>
+                        invokeMutation.mutate({
+                          agentId: agent.id,
+                          prompt
+                        })
+                      }
+                    >
+                      Invoke
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      className="w-full"
+                      onClick={() => deleteMutation.mutate({ agentId: agent.id })}
+                      disabled={deleteMutation.isPending}
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* Desktop/tablet: table */}
+          <div className="hidden md:block overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Version</TableHead>
+                  <TableHead>Last Sync</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {(agents.data ?? []).map((agent) => (
+                  <TableRow key={agent.id}>
+                    <TableCell>
+                      <div className="font-medium">{agent.name}</div>
+                      <div className="text-xs text-muted-foreground">{agent.id}</div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge>{agent.status}</Badge>
+                    </TableCell>
+                    <TableCell>{agent.openclawVersion ?? "-"}</TableCell>
+                    <TableCell>{agent.lastSyncedAt ? new Date(agent.lastSyncedAt).toLocaleString() : "-"}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setEditingAgentId(agent.id);
+                            setName(agent.name);
+                          }}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() =>
+                            invokeMutation.mutate({
+                              agentId: agent.id,
+                              prompt
+                            })
+                          }
+                        >
+                          Test Invoke
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => deleteMutation.mutate({ agentId: agent.id })}
+                          disabled={deleteMutation.isPending}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
 
