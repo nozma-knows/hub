@@ -125,19 +125,22 @@ export function WorkspacePage() {
         </CardHeader>
         <CardContent className="space-y-2">
           {(members.data?.members ?? []).map((member) => (
-            <div key={`${member.workspaceId}:${member.userId}`} className="flex items-center justify-between rounded-md border p-3">
-              <div>
-                <div className="font-medium">{member.userId}</div>
+            <div
+              key={`${member.workspaceId}:${member.userId}`}
+              className="flex flex-col gap-3 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div className="min-w-0">
+                <div className="truncate font-medium">{member.userId}</div>
                 <div className="text-xs text-muted-foreground">
                   Joined {new Date(member.joinedAt).toLocaleString()}
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Badge>{member.role}</Badge>
                 {isAdmin ? (
                   <>
                     <select
-                      className="rounded-md border bg-background px-2 py-1 text-sm"
+                      className="w-full rounded-md border bg-background px-2 py-2 text-sm sm:w-auto"
                       value={member.role}
                       onChange={(event) =>
                         updateRole.mutate({
@@ -150,7 +153,12 @@ export function WorkspacePage() {
                       <option value="admin">Admin</option>
                       <option value="operator">Operator</option>
                     </select>
-                    <Button size="sm" variant="destructive" onClick={() => remove.mutate({ userId: member.userId })}>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      className="w-full sm:w-auto"
+                      onClick={() => remove.mutate({ userId: member.userId })}
+                    >
                       Remove
                     </Button>
                   </>

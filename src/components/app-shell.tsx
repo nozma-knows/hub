@@ -76,7 +76,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
           {/* Mobile nav */}
           {mobileOpen ? (
-            <nav id="hub-mobile-nav" className="mt-3 grid gap-1 lg:hidden">
+            <div className="lg:hidden">
+              <div
+                className="fixed inset-0 z-40 bg-black/30"
+                onClick={() => setMobileOpen(false)}
+                aria-hidden="true"
+              />
+              <nav
+                id="hub-mobile-nav"
+                className="absolute left-4 right-4 top-full z-50 mt-3 grid gap-1 rounded-md border bg-background p-2 shadow-lg"
+              >
               {links.map((link) => (
                 <Link
                   key={link.href}
@@ -92,7 +101,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   {link.label}
                 </Link>
               ))}
-            </nav>
+              </nav>
+            </div>
           ) : null}
         </div>
       </header>

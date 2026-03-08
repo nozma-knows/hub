@@ -38,7 +38,9 @@ export function AuditPage() {
             onChange={(event) => setProviderKey(event.target.value)}
           />
           <Input placeholder="limit" value={limit} onChange={(event) => setLimit(event.target.value)} />
-          <Button onClick={() => auditQuery.refetch()}>Refresh</Button>
+          <Button className="w-full md:w-auto" onClick={() => auditQuery.refetch()}>
+            Refresh
+          </Button>
         </CardContent>
       </Card>
 
@@ -48,7 +50,7 @@ export function AuditPage() {
         </CardHeader>
         <CardContent className="space-y-2">
           {(auditQuery.data ?? []).map((event) => (
-            <div key={event.id} className="flex items-center justify-between rounded-md border px-3 py-2">
+            <div key={event.id} className="flex flex-col gap-2 rounded-md border px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div className="text-sm font-medium">{event.eventType}</div>
                 <div className="text-xs text-muted-foreground">

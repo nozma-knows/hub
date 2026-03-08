@@ -94,7 +94,9 @@ export function IntegrationsPage() {
         ))}
       </div>
 
-      {health.data ? <pre className="rounded-md border bg-muted p-3 text-xs">{JSON.stringify(health.data, null, 2)}</pre> : null}
+      {health.data ? (
+        <pre className="overflow-x-auto rounded-md border bg-muted p-3 text-xs">{JSON.stringify(health.data, null, 2)}</pre>
+      ) : null}
     </div>
   );
 }
