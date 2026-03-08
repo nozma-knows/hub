@@ -206,7 +206,7 @@ export const monitoringRouter = createTrpcRouter({
   }),
 
   getSystemInfo: protectedProcedure.query(async () => {
-    const { openClawCliAdapter } = await import("@/lib/openclaw/cli-adapter");
-    return openClawCliAdapter.getSystemInfo();
+    const { getHostInfo } = await import("@/lib/system-info");
+    return getHostInfo();
   })
 });

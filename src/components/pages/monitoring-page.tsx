@@ -32,6 +32,10 @@ export function MonitoringPage() {
     { refetchInterval: realTimeEnabled ? refreshInterval : false }
   );
 
+  const { data: hostInfo } = trpc.monitoring.getSystemInfo.useQuery(undefined, {
+    refetchInterval: realTimeEnabled ? refreshInterval : 60_000
+  });
+
   const startRealTimeMonitoring = trpc.monitoring.startRealTimeMonitoring.useMutation();
   const stopRealTimeMonitoring = trpc.monitoring.stopRealTimeMonitoring.useMutation();
   const triggerSync = trpc.sync.manualSync.useMutation();
@@ -128,6 +132,27 @@ export function MonitoringPage() {
 
       {/* System Health Overview */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="bg-white p-6 rounded-lg shadow">
+          <h3 className="text-sm font-medium text-gray-900">VPS</h3>
+          <div className="mt-2 text-sm text-gray-700">
+            <div className="font-semibold truncate">{hostInfo?.hostname ?? "—"}</div>
+            <div className="text-xs text-gray-600">
+              CPU: {hostInfo?.cpus ?? "—"} · Load: {hostInfo ? hostInfo.loadAvg.map((v) => v.toFixed(2)).join(" ") : "—"}
+            </div>
+            <div className="text-xs text-gray-600">
+              RAM: {hostInfo ? `${formatBytes(hostInfo.memory.used)} / ${formatBytes(hostInfo.memory.total)}` : "—"}
+            </div>
+            <div className="text-xs text-gray-600">
+              Disk: {hostInfo?.diskRoot ? `${formatBytes(hostInfo.diskRoot.used)} / ${formatBytes(hostInfo.diskRoot.total)}` : "—"}
+            </div>
+            {hostInfo?.swap ? (
+              <div className="text-xs text-gray-600">
+                Swap: {formatBytes(hostInfo.swap.used)} / {formatBytes(hostInfo.swap.total)}
+              </div>
+            ) : null}
+          </div>
+        </div>
+
         <div className="bg-white p-6 rounded-lg shadow">
           <h3 className="text-sm font-medium text-gray-900">Sync Status</h3>
           <div className="mt-2 text-lg font-semibold">
