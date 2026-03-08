@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useMemo, useState } from "react";
 
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc-client";
 
 export function MessagesPage() {
@@ -17,85 +17,33 @@ export function MessagesPage() {
   const channels = trpc.messages.channelsList.useQuery();
   const agents = trpc.agents.list.useQuery();
 
-  const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
-  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!selectedChannelId && channels.data && channels.data.length > 0) {
-      setSelectedChannelId(channels.data[0].id);
-    }
-  }, [channels.data, selectedChannelId]);
-
-  const threads = trpc.messages.threadsList.useQuery(
-    { channelId: selectedChannelId ?? "" },
-    { enabled: Boolean(selectedChannelId) }
-  );
-
-  useEffect(() => {
-    if (!selectedThreadId && threads.data && threads.data.length > 0) {
-      setSelectedThreadId(threads.data[0].id);
-    }
-  }, [threads.data, selectedThreadId]);
-
-  const thread = trpc.messages.threadGet.useQuery(
-    { threadId: selectedThreadId ?? "" },
-    { enabled: Boolean(selectedThreadId) }
-  );
-
-  const send = trpc.messages.messageSend.useMutation({
-    onSuccess: async () => {
-      if (selectedThreadId) {
-        await utils.messages.threadGet.invalidate({ threadId: selectedThreadId });
-        await utils.messages.threadsList.invalidate({ channelId: selectedChannelId! });
-      }
-    },
-    onError: (e) => setError(e.message)
-  });
-
-  const createThread = trpc.messages.threadCreate.useMutation({
-    onSuccess: async (res) => {
-      await utils.messages.threadsList.invalidate({ channelId: selectedChannelId! });
-      setSelectedThreadId(res.threadId);
-      setNewThreadTitle("");
-      setNewThreadBody("");
-    },
-    onError: (e) => setError(e.message)
-  });
-
-  const createChannel = trpc.messages.channelCreate.useMutation({
-    onSuccess: async (created) => {
-      await utils.messages.channelsList.invalidate();
-      setSelectedChannelId(created.id);
-      setChannelName("");
-      setChannelDescription("");
-      setChannelAgentIds([]);
-      setShowCreateChannel(false);
-    },
-    onError: (e) => setError(e.message)
-  });
-
-  const [composer, setComposer] = useState("");
-
-  const [newThreadTitle, setNewThreadTitle] = useState("");
-  const [newThreadBody, setNewThreadBody] = useState("");
 
   const [showCreateChannel, setShowCreateChannel] = useState(false);
   const [channelName, setChannelName] = useState("");
   const [channelDescription, setChannelDescription] = useState("");
   const [channelAgentIds, setChannelAgentIds] = useState<string[]>([]);
 
-  const selectedChannel = useMemo(
-    () => (channels.data ?? []).find((c) => c.id === selectedChannelId) ?? null,
-    [channels.data, selectedChannelId]
-  );
+  const createChannel = trpc.messages.channelCreate.useMutation({
+    onSuccess: async (created) => {
+      await utils.messages.channelsList.invalidate();
+      setChannelName("");
+      setChannelDescription("");
+      setChannelAgentIds([]);
+      setShowCreateChannel(false);
+      window.location.href = `/messages/${created.id}`;
+    },
+    onError: (e) => setError(e.message)
+  });
+
+  const list = useMemo(() => channels.data ?? [], [channels.data]);
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Messages</h1>
-          <p className="text-sm text-muted-foreground">Slack-like layout: channels → threads → messages.</p>
+          <p className="text-sm text-muted-foreground">Pick a channel, then view the timeline and send messages.</p>
         </div>
         <Button variant="outline" onClick={() => setShowCreateChannel(true)}>
           New channel
@@ -104,162 +52,26 @@ export function MessagesPage() {
 
       {error ? <Alert className="border-destructive text-destructive">{error}</Alert> : null}
 
-      <div className="grid gap-4 lg:grid-cols-12">
-        {/* Channels */}
-        <Card className={`lg:col-span-3 ${selectedChannelId ? "hidden lg:block" : ""}`}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0">
-            <CardTitle>Channels</CardTitle>
-            {selectedChannel ? (
-              <div className="lg:hidden text-xs text-muted-foreground">tap a channel</div>
-            ) : null}
-          </CardHeader>
-          <CardContent className="space-y-1">
-            {(channels.data ?? []).map((c) => (
-              <button
-                key={c.id}
-                className={`w-full rounded-md px-3 py-2 text-left text-sm hover:bg-muted ${
-                  selectedChannelId === c.id ? "bg-muted" : ""
-                }`}
-                onClick={() => {
-                  setSelectedChannelId(c.id);
-                  setSelectedThreadId(null);
-                }}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="truncate">#{c.name}</span>
-                  {c.name === "general" ? <Badge className="bg-muted text-muted-foreground">default</Badge> : null}
-                </div>
-                {c.description ? <div className="text-xs text-muted-foreground truncate">{c.description}</div> : null}
-              </button>
-            ))}
-          </CardContent>
-        </Card>
-
-        {/* Threads */}
-        <Card className={`lg:col-span-4 ${selectedChannelId && selectedThreadId ? "hidden lg:block" : selectedChannelId ? "" : "hidden lg:block"}`}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0">
-            <CardTitle>
-              Threads {selectedChannel ? <span className="text-muted-foreground">· #{selectedChannel.name}</span> : null}
-            </CardTitle>
-            {selectedChannelId ? (
-              <Button
-                className="lg:hidden"
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setSelectedChannelId(null);
-                  setSelectedThreadId(null);
-                }}
-              >
-                ← Channels
-              </Button>
-            ) : null}
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="space-y-2 rounded-md border p-3">
-              <div className="text-sm font-medium">New thread</div>
-              <Input value={newThreadTitle} onChange={(e) => setNewThreadTitle(e.target.value)} placeholder="Title (optional)" />
-              <Textarea value={newThreadBody} onChange={(e) => setNewThreadBody(e.target.value)} placeholder="Message" className="min-h-24" />
-              <Button
-                disabled={!selectedChannelId || createThread.isPending || !newThreadBody.trim()}
-                onClick={() => {
-                  setError(null);
-                  createThread.mutate({
-                    channelId: selectedChannelId!,
-                    title: newThreadTitle.trim() || undefined,
-                    body: newThreadBody.trim()
-                  });
-                }}
-              >
-                {createThread.isPending ? "Creating…" : "Create"}
-              </Button>
-            </div>
-
-            <div className="max-h-[55vh] overflow-auto rounded-md border">
-              {(threads.data ?? []).map((t) => (
-                <button
-                  key={t.id}
-                  className={`block w-full border-b px-3 py-2 text-left text-sm hover:bg-muted ${
-                    selectedThreadId === t.id ? "bg-muted" : ""
-                  }`}
-                  onClick={() => setSelectedThreadId(t.id)}
-                >
-                  <div className="truncate font-medium">{t.title || "(no title)"}</div>
-                  {t.lastMessagePreview ? (
-                    <div className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{t.lastMessagePreview}</div>
-                  ) : null}
-                  <div className="mt-1 text-[11px] text-muted-foreground">{new Date(t.lastMessageAt).toLocaleString()}</div>
-                </button>
-              ))}
-              {(threads.data ?? []).length === 0 && !threads.isLoading ? (
-                <div className="p-3 text-sm text-muted-foreground">No threads yet.</div>
-              ) : null}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Thread view */}
-        <Card className={`lg:col-span-5 ${selectedThreadId ? "" : "hidden lg:block"}`}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0">
-            <CardTitle>Thread</CardTitle>
-            {selectedThreadId ? (
-              <Button
-                className="lg:hidden"
-                size="sm"
-                variant="outline"
-                onClick={() => setSelectedThreadId(null)}
-              >
-                ← Threads
-              </Button>
-            ) : null}
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {!selectedThreadId ? (
-              <div className="text-sm text-muted-foreground">Select a thread.</div>
-            ) : thread.error ? (
-              <Alert className="border-destructive text-destructive">{thread.error.message}</Alert>
-            ) : (
-              <>
-                <div className="rounded-md border p-3">
-                  <div className="text-sm font-medium truncate">{thread.data?.thread.title || "(no title)"}</div>
-                  <div className="text-xs text-muted-foreground">Status: {thread.data?.thread.status}</div>
-                </div>
-
-                <div className="max-h-[55vh] overflow-auto space-y-2 rounded-md border p-3">
-                  {(thread.data?.messages ?? []).map((m) => (
-                    <div key={m.id} className="rounded-md border bg-background p-2">
-                      <div className="text-xs text-muted-foreground">
-                        {m.authorType} · {new Date(m.createdAt).toLocaleString()}
-                      </div>
-                      <div className="whitespace-pre-wrap text-sm">{m.body}</div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="space-y-2">
-                  <Textarea
-                    value={composer}
-                    onChange={(e) => setComposer(e.target.value)}
-                    placeholder="Reply…"
-                    className="min-h-24"
-                  />
-                  <Button
-                    disabled={send.isPending || !composer.trim()}
-                    onClick={async () => {
-                      if (!selectedThreadId) return;
-                      setError(null);
-                      await send.mutateAsync({ threadId: selectedThreadId, body: composer.trim() });
-                      setComposer("");
-                    }}
-                  >
-                    {send.isPending ? "Sending…" : "Send"}
-                  </Button>
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Channels</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-1">
+          {list.map((c) => (
+            <Link
+              key={c.id}
+              href={`/messages/${c.id}`}
+              className="block rounded-md px-3 py-3 hover:bg-muted"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate font-medium">#{c.name}</span>
+                {c.name === "general" ? <Badge className="bg-muted text-muted-foreground">default</Badge> : null}
+              </div>
+              {c.description ? <div className="mt-0.5 text-xs text-muted-foreground truncate">{c.description}</div> : null}
+            </Link>
+          ))}
+        </CardContent>
+      </Card>
 
       {showCreateChannel ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -289,9 +101,7 @@ export function MessagesPage() {
                           type="checkbox"
                           checked={checked}
                           onChange={() => {
-                            setChannelAgentIds((prev) =>
-                              checked ? prev.filter((x) => x !== a.id) : [...prev, a.id]
-                            );
+                            setChannelAgentIds((prev) => (checked ? prev.filter((x) => x !== a.id) : [...prev, a.id]));
                           }}
                         />
                         <span className="truncate">{a.name}</span>
@@ -303,12 +113,7 @@ export function MessagesPage() {
               </div>
 
               <div className="flex justify-end gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowCreateChannel(false);
-                  }}
-                >
+                <Button variant="outline" onClick={() => setShowCreateChannel(false)}>
                   Cancel
                 </Button>
                 <Button

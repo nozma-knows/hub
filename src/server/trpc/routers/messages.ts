@@ -157,7 +157,7 @@ export const messagesRouter = createTrpcRouter({
       z.object({
         channelId: z.string().uuid(),
         title: z.string().min(1).max(200).optional(),
-        body: z.string().min(1).max(20_000)
+        body: z.string().max(20_000).default("")
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -175,13 +175,20 @@ export const messagesRouter = createTrpcRouter({
 
       if (!thread) throw new Error("Failed to create thread");
 
-      await ctx.db.insert(hubMessages).values({
-        workspaceId: ctx.workspace.id,
-        threadId: thread.id,
-        authorType: "human",
-        authorUserId: ctx.user!.id,
-        body: input.body
-      });
+      if (input.body.trim().length > 0) {
+        await ctx.db.insert(hubMessages).values({
+          workspaceId: ctx.workspace.id,
+          threadId: thread.id,
+          authorType: "human",
+          authorUserId: ctx.user!.id,
+          body: input.body
+        });
+
+        await ctx.db
+          .update(hubThreads)
+          .set({ lastMessageAt: new Date(), updatedAt: new Date() })
+          .where(and(eq(hubThreads.workspaceId, ctx.workspace.id), eq(hubThreads.id, thread.id)));
+      }
 
       await logAuditEvent({
         workspaceId: ctx.workspace.id,
