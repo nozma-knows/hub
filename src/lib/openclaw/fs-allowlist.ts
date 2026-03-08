@@ -30,11 +30,15 @@ export async function resolveSafeRoot(inputRoot: string): Promise<string> {
 export async function resolveSafeFile(root: string, relativePath: string): Promise<string> {
   if (relativePath.includes("\0")) throw new Error("Invalid path");
 
-  const rel = relativePath.replace(/^\/+/, "");
-  const joined = path.join(root, rel);
-
   const realRoot = await fs.realpath(root);
-  // Note: the file might not exist yet (for writes), so resolve parent.
+  const rel = relativePath.replace(/^\/+/, "").trim();
+
+  // Special-case: root itself
+  if (rel === "" || rel === ".") return realRoot;
+
+  const joined = path.resolve(realRoot, rel);
+
+  // For non-existent paths we can't realpath(joined), so verify by parent.
   const parent = path.dirname(joined);
   const realParent = await fs.realpath(parent);
 
