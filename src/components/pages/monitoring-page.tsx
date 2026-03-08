@@ -79,44 +79,43 @@ export function MonitoringPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold">Real-Time Monitoring</h1>
           <p className="text-gray-600">Monitor OpenClaw agents, sessions, and performance</p>
         </div>
-        
-        <div className="flex items-center space-x-4">
+
+        <div className="grid grid-cols-1 gap-2 sm:flex sm:items-center sm:gap-4">
           <select
             value={refreshInterval}
             onChange={(e) => setRefreshInterval(Number(e.target.value))}
-            className="px-3 py-2 border rounded-md"
+            className="w-full px-3 py-2 border rounded-md sm:w-auto"
           >
             <option value={5000}>5 seconds</option>
             <option value={10000}>10 seconds</option>
             <option value={30000}>30 seconds</option>
             <option value={60000}>1 minute</option>
           </select>
-          
+
           <button
             onClick={async () => {
               try {
                 const result = await triggerSync.mutateAsync();
                 alert(`✅ Sync successful! Synced ${result.agentCount} agents: ${result.agentNames.join(', ')}`);
-                // Refetch data after sync
                 window.location.reload();
               } catch (error) {
                 alert(`❌ Sync failed: ${error}`);
               }
             }}
-            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium"
+            className="w-full px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium sm:w-auto"
             disabled={triggerSync.isPending}
           >
             {triggerSync.isPending ? 'Syncing...' : 'Sync from OpenClaw'}
           </button>
-          
+
           <button
             onClick={handleToggleRealTime}
-            className={`px-4 py-2 rounded-md font-medium ${
+            className={`w-full px-4 py-2 rounded-md font-medium sm:w-auto ${
               realTimeEnabled
                 ? 'bg-red-600 text-white hover:bg-red-700'
                 : 'bg-blue-600 text-white hover:bg-blue-700'

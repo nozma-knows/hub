@@ -56,7 +56,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 size="sm"
                 variant="outline"
                 type="button"
-                className="lg:hidden"
+                className="lg:hidden px-2"
                 onClick={() => setMobileOpen((v) => !v)}
                 aria-expanded={mobileOpen}
                 aria-controls="hub-mobile-nav"
@@ -65,8 +65,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </Button>
 
               <form action="/api/auth/sign-out" method="post">
-                <Button size="sm" variant="outline" type="submit">
-                  Sign out
+                <Button size="sm" variant="outline" type="submit" className="px-2">
+                  <span className="hidden sm:inline">Sign out</span>
+                  <span className="sm:hidden">Out</span>
                 </Button>
               </form>
             </div>
