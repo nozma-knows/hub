@@ -1,8 +1,9 @@
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { hubTickets } from "@/db/schema";
+import { hubThreadTickets, hubTicketComments, hubTickets } from "@/db/schema";
 import { logAuditEvent } from "@/lib/audit";
+import { openClawAdapter } from "@/lib/openclaw/adapter";
 import { adminProcedure, createTrpcRouter, protectedProcedure } from "@/server/trpc/init";
 
 const statusSchema = z.enum(["todo", "doing", "done"]);
@@ -15,6 +16,119 @@ export const ticketsRouter = createTrpcRouter({
       orderBy: (t, { desc: descOrder }) => [descOrder(t.updatedAt)]
     });
   }),
+
+  get: protectedProcedure
+    .input(z.object({ ticketId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const ticket = await ctx.db.query.hubTickets.findFirst({
+        where: and(eq(hubTickets.workspaceId, ctx.workspace.id), eq(hubTickets.id, input.ticketId))
+      });
+      if (!ticket) throw new Error("Ticket not found");
+
+      const comments = await ctx.db.query.hubTicketComments.findMany({
+        where: and(eq(hubTicketComments.workspaceId, ctx.workspace.id), eq(hubTicketComments.ticketId, input.ticketId)),
+        orderBy: (t, { asc }) => [asc(t.createdAt)]
+      });
+
+      const links = await ctx.db.query.hubThreadTickets.findMany({
+        where: and(eq(hubThreadTickets.workspaceId, ctx.workspace.id), eq(hubThreadTickets.ticketId, input.ticketId))
+      });
+
+      return { ticket, comments, threadLinks: links };
+    }),
+
+  commentAdd: protectedProcedure
+    .input(z.object({ ticketId: z.string().uuid(), body: z.string().min(1).max(20_000) }))
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db.insert(hubTicketComments).values({
+        workspaceId: ctx.workspace.id,
+        ticketId: input.ticketId,
+        authorType: "human",
+        authorUserId: ctx.user!.id,
+        body: input.body
+      });
+
+      await ctx.db
+        .update(hubTickets)
+        .set({ updatedAt: new Date() })
+        .where(and(eq(hubTickets.workspaceId, ctx.workspace.id), eq(hubTickets.id, input.ticketId)));
+
+      return { ok: true };
+    }),
+
+  createFromThread: protectedProcedure
+    .input(
+      z.object({
+        threadId: z.string().uuid(),
+        title: z.string().min(1).max(200),
+        description: z.string().optional(),
+        ownerAgentId: z.string().optional()
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const [created] = await ctx.db
+        .insert(hubTickets)
+        .values({
+          workspaceId: ctx.workspace.id,
+          title: input.title,
+          description: input.description,
+          status: "todo",
+          priority: "normal",
+          ownerAgentId: input.ownerAgentId,
+          createdByUserId: ctx.user!.id
+        })
+        .returning();
+
+      if (!created) throw new Error("Failed to create ticket");
+
+      await ctx.db.insert(hubThreadTickets).values({
+        workspaceId: ctx.workspace.id,
+        threadId: input.threadId,
+        ticketId: created.id
+      });
+
+      await logAuditEvent({
+        workspaceId: ctx.workspace.id,
+        eventType: "tickets.createFromThread",
+        actorUserId: ctx.user!.id,
+        result: "success",
+        details: { ticketId: created.id, threadId: input.threadId }
+      });
+
+      return created;
+    }),
+
+  invokeOwner: adminProcedure
+    .input(z.object({ ticketId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const ticket = await ctx.db.query.hubTickets.findFirst({
+        where: and(eq(hubTickets.workspaceId, ctx.workspace.id), eq(hubTickets.id, input.ticketId))
+      });
+      if (!ticket) throw new Error("Ticket not found");
+      if (!ticket.ownerAgentId) throw new Error("Ticket has no owner agent");
+
+      const prompt = `You are working a ticket in OpenClaw Hub.\n\nTitle: ${ticket.title}\n\nDescription:\n${ticket.description || "(none)"}\n\nRespond with:\n- what you did\n- what changed\n- next steps (if any)\n- blockers/questions for Noah (if any)`;
+
+      const result = await openClawAdapter.invokeAgent(ticket.ownerAgentId, { prompt, toolBindings: [] });
+
+      // Save a ticket comment with the output
+      await ctx.db.insert(hubTicketComments).values({
+        workspaceId: ctx.workspace.id,
+        ticketId: ticket.id,
+        authorType: "agent",
+        authorAgentId: ticket.ownerAgentId,
+        body: (result.output || "").toString()
+      });
+
+      await ctx.db
+        .update(hubTickets)
+        .set({ updatedAt: new Date() })
+        .where(and(eq(hubTickets.workspaceId, ctx.workspace.id), eq(hubTickets.id, ticket.id)));
+
+      // TODO: link to agentInvocations once we unify invocation flow (Hub-native dispatcher).
+
+      return { ok: true, output: result.output };
+    }),
 
   create: protectedProcedure
     .input(

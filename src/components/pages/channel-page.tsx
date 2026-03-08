@@ -6,6 +6,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc-client";
 
@@ -13,6 +15,11 @@ export function ChannelPage({ channelId }: { channelId: string }) {
   const utils = trpc.useUtils();
   const [error, setError] = useState<string | null>(null);
   const [composer, setComposer] = useState("");
+
+  const agents = trpc.agents.list.useQuery();
+  const [showTicket, setShowTicket] = useState(false);
+  const [ticketTitle, setTicketTitle] = useState("");
+  const [ticketOwner, setTicketOwner] = useState<string>("");
 
   const channels = trpc.messages.channelsList.useQuery();
   const channel = useMemo(() => (channels.data ?? []).find((c) => c.id === channelId) ?? null, [channels.data, channelId]);
@@ -53,6 +60,15 @@ export function ChannelPage({ channelId }: { channelId: string }) {
     onError: (e) => setError(e.message)
   });
 
+  const createTicket = trpc.tickets.createFromThread.useMutation({
+    onSuccess: () => {
+      setShowTicket(false);
+      setTicketTitle("");
+      setTicketOwner("");
+    },
+    onError: (e) => setError(e.message)
+  });
+
   const listRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     const el = listRef.current;
@@ -74,9 +90,23 @@ export function ChannelPage({ channelId }: { channelId: string }) {
               <div className="mt-1 text-xs text-muted-foreground truncate">{channel.description}</div>
             ) : null}
           </div>
-          <Link href="/messages" className="text-sm text-muted-foreground hover:text-foreground">
-            ← Channels
-          </Link>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!threadId}
+              onClick={() => {
+                setError(null);
+                setTicketTitle(channel ? `Follow up: #${channel.name}` : "Follow up");
+                setShowTicket(true);
+              }}
+            >
+              Create ticket
+            </Button>
+            <Link href="/messages" className="text-sm text-muted-foreground hover:text-foreground">
+              ← Channels
+            </Link>
+          </div>
         </CardHeader>
 
         <CardContent className="p-0">
@@ -120,6 +150,59 @@ export function ChannelPage({ channelId }: { channelId: string }) {
           </div>
         </CardContent>
       </Card>
+
+      {showTicket ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-xl rounded-lg bg-background shadow-lg">
+            <div className="border-b p-4">
+              <div className="text-lg font-semibold">Create ticket</div>
+              <div className="mt-1 text-sm text-muted-foreground">This will create a Todo ticket linked to this channel’s thread.</div>
+            </div>
+            <div className="space-y-3 p-4">
+              <div className="space-y-1">
+                <Label>Title</Label>
+                <Input value={ticketTitle} onChange={(e) => setTicketTitle(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label>Owner (agent)</Label>
+                <select
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  value={ticketOwner}
+                  onChange={(e) => setTicketOwner(e.target.value)}
+                >
+                  <option value="">Unassigned</option>
+                  {(agents.data ?? []).map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name} ({a.id})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setShowTicket(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  disabled={!threadId || !ticketTitle.trim() || createTicket.isPending}
+                  onClick={async () => {
+                    if (!threadId) return;
+                    setError(null);
+                    await createTicket.mutateAsync({
+                      threadId,
+                      title: ticketTitle.trim(),
+                      description: `Created from channel ${title}.`,
+                      ownerAgentId: ticketOwner || undefined
+                    });
+                  }}
+                >
+                  {createTicket.isPending ? "Creating…" : "Create"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

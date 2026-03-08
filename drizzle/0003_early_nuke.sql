@@ -1,0 +1,3 @@
+-- Placeholder migration file.
+-- This file was generated transiently and referenced by drizzle migration journal.
+-- No-op.

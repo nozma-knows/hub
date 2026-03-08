@@ -197,6 +197,35 @@ export const hubThreadTickets = pgTable("hub_thread_tickets", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 });
 
+export const hubTicketComments = pgTable("hub_ticket_comments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id")
+    .notNull()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  ticketId: uuid("ticket_id")
+    .notNull()
+    .references(() => hubTickets.id, { onDelete: "cascade" }),
+  authorType: varchar("author_type", { length: 16 }).notNull().default("human"),
+  authorUserId: text("author_user_id"),
+  authorAgentId: text("author_agent_id"),
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+});
+
+export const hubTicketInvocations = pgTable("hub_ticket_invocations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id")
+    .notNull()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  ticketId: uuid("ticket_id")
+    .notNull()
+    .references(() => hubTickets.id, { onDelete: "cascade" }),
+  invocationId: uuid("invocation_id")
+    .notNull()
+    .references(() => agentInvocations.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+});
+
 export const agents = pgTable("agents", {
   id: text("id").primaryKey(),
   workspaceId: uuid("workspace_id")
