@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { trpc } from "@/lib/trpc-client";
 
 type Preset = {
   key: string;
@@ -56,7 +57,15 @@ export function NewAgentPage() {
   const [user, setUser] = useState(preset.user);
   const [error, setError] = useState<string | null>(null);
 
-  // Wiring creation via OpenClaw CLI is next; for now this page sets expectations.
+  const utils = trpc.useUtils();
+  const create = trpc.agents.createIsolated.useMutation({
+    onSuccess: async () => {
+      await utils.agents.list.invalidate();
+      window.location.href = `/agents/${agentId}`;
+    },
+    onError: (e) => setError(e.message)
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -130,19 +139,34 @@ export function NewAgentPage() {
             <Label>USER.md</Label>
             <Textarea value={user} onChange={(e) => setUser(e.target.value)} className="min-h-48" />
           </div>
-          <div className="md:col-span-2">
-            <Alert>
-              Agent creation via OpenClaw CLI + seeding these files is next. This page is the UI scaffold.
-            </Alert>
-          </div>
           <div className="md:col-span-2 flex gap-2">
-            <Button disabled> Create (coming next) </Button>
+            <Button
+              disabled={!agentId.trim() || !model.trim() || create.isPending}
+              onClick={async () => {
+                setError(null);
+                await create.mutateAsync({
+                  agentId: agentId.trim(),
+                  model: model.trim(),
+                  files: [
+                    { path: "SOUL.md", content: soul },
+                    { path: "USER.md", content: user }
+                  ]
+                });
+              }}
+            >
+              {create.isPending ? "Creating…" : "Create"}
+            </Button>
             <Link
               href="/agents"
               className="inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
             >
               Cancel
             </Link>
+          </div>
+          <div className="md:col-span-2">
+            <Alert>
+              Note: this creates an isolated agent on the OpenClaw host and seeds SOUL.md + USER.md in its workspace.
+            </Alert>
           </div>
         </CardContent>
       </Card>

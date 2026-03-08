@@ -110,6 +110,106 @@ async function softMarkMissingAgents(input: {
 }
 
 export const agentsRouter = createTrpcRouter({
+  filesList: adminProcedure
+    .input(z.object({ agentId: z.string().min(1) }))
+    .query(async ({ ctx, input }) => {
+      const agent = await ctx.db.query.agents.findFirst({
+        where: and(eq(agents.workspaceId, ctx.workspace.id), eq(agents.id, input.agentId))
+      });
+      if (!agent?.upstreamWorkspacePath) throw new Error("Agent workspace path not known yet. Sync first.");
+
+      const { listAgentWorkspaceFiles } = await import("@/lib/openclaw/agent-files");
+      return listAgentWorkspaceFiles({ workspacePath: agent.upstreamWorkspacePath });
+    }),
+
+  filesRead: adminProcedure
+    .input(z.object({ agentId: z.string().min(1), path: z.string().min(1) }))
+    .query(async ({ ctx, input }) => {
+      const agent = await ctx.db.query.agents.findFirst({
+        where: and(eq(agents.workspaceId, ctx.workspace.id), eq(agents.id, input.agentId))
+      });
+      if (!agent?.upstreamWorkspacePath) throw new Error("Agent workspace path not known yet. Sync first.");
+
+      const { readAgentWorkspaceFile } = await import("@/lib/openclaw/agent-files");
+      return {
+        path: input.path,
+        content: await readAgentWorkspaceFile({ workspacePath: agent.upstreamWorkspacePath, relativePath: input.path })
+      };
+    }),
+
+  filesWrite: adminProcedure
+    .input(z.object({ agentId: z.string().min(1), path: z.string().min(1), content: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const agent = await ctx.db.query.agents.findFirst({
+        where: and(eq(agents.workspaceId, ctx.workspace.id), eq(agents.id, input.agentId))
+      });
+      if (!agent?.upstreamWorkspacePath) throw new Error("Agent workspace path not known yet. Sync first.");
+
+      const { writeAgentWorkspaceFile } = await import("@/lib/openclaw/agent-files");
+      await writeAgentWorkspaceFile({
+        workspacePath: agent.upstreamWorkspacePath,
+        relativePath: input.path,
+        content: input.content
+      });
+
+      await logAuditEvent({
+        workspaceId: ctx.workspace.id,
+        eventType: "agents.files.write",
+        actorUserId: ctx.user!.id,
+        agentId: input.agentId,
+        result: "success",
+        details: {
+          path: input.path,
+          bytes: input.content.length
+        }
+      });
+
+      return { ok: true };
+    }),
+
+  createIsolated: adminProcedure
+    .input(
+      z.object({
+        agentId: z.string().min(1),
+        model: z.string().min(1),
+        files: z.array(z.object({ path: z.string().min(1), content: z.string() })).default([])
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const workspacePath = `~/.openclaw/agents/${input.agentId}/workspace`;
+
+      const { openClawAddAgent } = await import("@/lib/openclaw/cli-adapter");
+      const result = await openClawAddAgent({
+        agentId: input.agentId,
+        workspacePath,
+        model: input.model
+      });
+
+      // Seed files into the agent workspace
+      const { expandHome, resolveSafeRoot, resolveSafeFile } = await import("@/lib/openclaw/fs-allowlist");
+      const fs = await import("node:fs/promises");
+      const root = await resolveSafeRoot(expandHome(workspacePath));
+      for (const f of input.files) {
+        const abs = await resolveSafeFile(root, f.path);
+        await fs.mkdir((await import("node:path")).dirname(abs), { recursive: true });
+        await fs.writeFile(abs, f.content, "utf8");
+      }
+
+      // Pull latest agent list into DB
+      const liveAgents = await openClawCliAdapter.listAgents();
+      await upsertWorkspaceAgents({ workspaceId: ctx.workspace.id, rows: liveAgents, db: ctx.db });
+
+      await logAuditEvent({
+        workspaceId: ctx.workspace.id,
+        eventType: "agents.create.isolated",
+        actorUserId: ctx.user!.id,
+        agentId: input.agentId,
+        result: "success",
+        details: { model: input.model }
+      });
+
+      return { result };
+    }),
   list: protectedProcedure.query(async ({ ctx }) => {
     const rows = await ctx.db.query.agents.findMany({
       where: eq(agents.workspaceId, ctx.workspace.id),

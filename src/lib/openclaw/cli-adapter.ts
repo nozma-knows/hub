@@ -54,7 +54,7 @@ export class OpenClawCliAdapter {
     return this.openclawBinPromise;
   }
 
-  private async runCommand(command: string): Promise<string> {
+  async runCommand(command: string): Promise<string> {
     const openclawBin = await this.openclawBin();
     const resolvedCommand = command.startsWith("openclaw ")
       ? `${openclawBin} ${command.slice("openclaw ".length)}`
@@ -534,3 +534,34 @@ export class OpenClawCliAdapter {
 }
 
 export const openClawCliAdapter = new OpenClawCliAdapter();
+
+export type OpenClawAddAgentInput = {
+  agentId: string;
+  workspacePath: string;
+  model: string;
+};
+
+function shQuote(value: string): string {
+  return `'${value.replace(/'/g, `'"'"'`)}'`;
+}
+
+export async function openClawAddAgent(input: OpenClawAddAgentInput) {
+  // NOTE: openclaw agents add [name]
+  const cmd = [
+    "openclaw agents add",
+    shQuote(input.agentId),
+    "--workspace",
+    shQuote(input.workspacePath),
+    "--model",
+    shQuote(input.model),
+    "--non-interactive",
+    "--json"
+  ].join(" ");
+
+  const output = await openClawCliAdapter.runCommand(cmd);
+  try {
+    return JSON.parse(output);
+  } catch {
+    return { raw: output };
+  }
+}
