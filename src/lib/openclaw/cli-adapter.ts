@@ -541,6 +541,11 @@ export type OpenClawAddAgentInput = {
   model: string;
 };
 
+export type OpenClawSetIdentityFromWorkspaceInput = {
+  agentId: string;
+  workspacePath: string;
+};
+
 function shQuote(value: string): string {
   return `'${value.replace(/'/g, `'"'"'`)}'`;
 }
@@ -555,6 +560,25 @@ export async function openClawAddAgent(input: OpenClawAddAgentInput) {
     "--model",
     shQuote(input.model),
     "--non-interactive",
+    "--json"
+  ].join(" ");
+
+  const output = await openClawCliAdapter.runCommand(cmd);
+  try {
+    return JSON.parse(output);
+  } catch {
+    return { raw: output };
+  }
+}
+
+export async function openClawSetIdentityFromWorkspace(input: OpenClawSetIdentityFromWorkspaceInput) {
+  const cmd = [
+    "openclaw agents set-identity",
+    "--agent",
+    shQuote(input.agentId),
+    "--workspace",
+    shQuote(input.workspacePath),
+    "--from-identity",
     "--json"
   ].join(" ");
 

@@ -178,7 +178,7 @@ export const agentsRouter = createTrpcRouter({
     .mutation(async ({ ctx, input }) => {
       const workspacePath = `~/.openclaw/agents/${input.agentId}/workspace`;
 
-      const { openClawAddAgent } = await import("@/lib/openclaw/cli-adapter");
+      const { openClawAddAgent, openClawSetIdentityFromWorkspace } = await import("@/lib/openclaw/cli-adapter");
       const result = await openClawAddAgent({
         agentId: input.agentId,
         workspacePath,
@@ -188,11 +188,21 @@ export const agentsRouter = createTrpcRouter({
       // Seed files into the agent workspace
       const { expandHome, resolveSafeRoot, resolveSafeFile } = await import("@/lib/openclaw/fs-allowlist");
       const fs = await import("node:fs/promises");
+      const nodePath = await import("node:path");
       const root = await resolveSafeRoot(expandHome(workspacePath));
       for (const f of input.files) {
         const abs = await resolveSafeFile(root, f.path);
-        await fs.mkdir((await import("node:path")).dirname(abs), { recursive: true });
+        await fs.mkdir(nodePath.dirname(abs), { recursive: true });
         await fs.writeFile(abs, f.content, "utf8");
+      }
+
+      // If IDENTITY.md was provided, apply it via OpenClaw CLI
+      if (input.files.some((f) => f.path === "IDENTITY.md")) {
+        try {
+          await openClawSetIdentityFromWorkspace({ agentId: input.agentId, workspacePath });
+        } catch {
+          // non-fatal; identity can be applied later
+        }
       }
 
       // Pull latest agent list into DB
