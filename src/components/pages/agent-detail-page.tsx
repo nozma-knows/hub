@@ -67,6 +67,9 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
         <CardContent className="grid gap-4 lg:grid-cols-3">
           <div className="lg:col-span-1">
             <div className="text-sm font-medium">Workspace files</div>
+            {files.error ? (
+              <Alert className="mt-2 border-destructive text-destructive">{files.error.message}</Alert>
+            ) : null}
             <div className="mt-2 max-h-[50vh] overflow-auto rounded-md border">
               {(files.data ?? []).map((f) => (
                 <button
