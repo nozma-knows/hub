@@ -41,18 +41,27 @@ export type ProviderBinding = {
   constraints?: Record<string, unknown>;
 };
 
+export type ProviderAppCredentials = {
+  clientId: string;
+  clientSecret: string;
+  scopes: string[];
+};
+
 export interface ToolProvider {
   readonly key: ProviderKey;
   readonly displayName: string;
   readonly authType: "oauth2";
 
-  getAuthUrl(input: ProviderAuthUrlInput): string;
-  exchangeCode(input: ExchangeCodeInput): Promise<ProviderTokenResult>;
-  refreshIfNeeded(input: {
-    connection: ConnectionRecord;
-    decryptedAccessToken: string;
-    decryptedRefreshToken?: string;
-  }): Promise<ProviderTokenResult | null>;
+  getAuthUrl(input: ProviderAuthUrlInput, app: ProviderAppCredentials): string;
+  exchangeCode(input: ExchangeCodeInput, app: ProviderAppCredentials): Promise<ProviderTokenResult>;
+  refreshIfNeeded(
+    input: {
+      connection: ConnectionRecord;
+      decryptedAccessToken: string;
+      decryptedRefreshToken?: string;
+    },
+    app: ProviderAppCredentials
+  ): Promise<ProviderTokenResult | null>;
   revoke(input: { decryptedAccessToken: string }): Promise<void>;
   listCapabilities(): string[];
   buildOpenClawToolBindings(input: OpenClawBindingInput): ProviderBinding;

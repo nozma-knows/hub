@@ -1,4 +1,3 @@
-import { env } from "@/lib/env";
 import type {
   ExchangeCodeInput,
   OpenClawBindingInput,
@@ -12,14 +11,10 @@ export class SlackProvider implements ToolProvider {
   readonly displayName = "Slack";
   readonly authType = "oauth2" as const;
 
-  getAuthUrl(input: ProviderAuthUrlInput): string {
-    if (!env.SLACK_CLIENT_ID) {
-      throw new Error("SLACK_CLIENT_ID is not configured");
-    }
-
+  getAuthUrl(input: ProviderAuthUrlInput, app: import("@/lib/providers/types").ProviderAppCredentials): string {
     const params = new URLSearchParams({
-      client_id: env.SLACK_CLIENT_ID,
-      scope: env.SLACK_SCOPES,
+      client_id: app.clientId,
+      scope: app.scopes.join(","),
       redirect_uri: input.redirectUri,
       state: input.state
     });
@@ -27,15 +22,11 @@ export class SlackProvider implements ToolProvider {
     return `https://slack.com/oauth/v2/authorize?${params.toString()}`;
   }
 
-  async exchangeCode(input: ExchangeCodeInput): Promise<ProviderTokenResult> {
-    if (!env.SLACK_CLIENT_ID || !env.SLACK_CLIENT_SECRET) {
-      throw new Error("Slack OAuth credentials are not configured");
-    }
-
+  async exchangeCode(input: ExchangeCodeInput, app: import("@/lib/providers/types").ProviderAppCredentials): Promise<ProviderTokenResult> {
     const body = new URLSearchParams({
       code: input.code,
-      client_id: env.SLACK_CLIENT_ID,
-      client_secret: env.SLACK_CLIENT_SECRET,
+      client_id: app.clientId,
+      client_secret: app.clientSecret,
       redirect_uri: input.redirectUri
     });
 
@@ -71,7 +62,14 @@ export class SlackProvider implements ToolProvider {
     };
   }
 
-  async refreshIfNeeded(): Promise<ProviderTokenResult | null> {
+  async refreshIfNeeded(
+    _input: {
+      connection: import("@/lib/providers/types").ConnectionRecord;
+      decryptedAccessToken: string;
+      decryptedRefreshToken?: string;
+    },
+    _app: import("@/lib/providers/types").ProviderAppCredentials
+  ): Promise<ProviderTokenResult | null> {
     return null;
   }
 

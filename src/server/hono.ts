@@ -2,7 +2,7 @@ import { trpcServer } from "@hono/trpc-server";
 import { and, eq, gt } from "drizzle-orm";
 import { Hono } from "hono";
 
-import { oauthStates, toolConnections, toolProviders } from "@/db/schema";
+import { oauthStates, toolConnections, toolProviderAppCredentials, toolProviders } from "@/db/schema";
 import { logAuditEvent } from "@/lib/audit";
 import { decryptString, encryptString } from "@/lib/crypto";
 import { db } from "@/lib/db";
@@ -57,13 +57,6 @@ honoApp.get("/oauth/:provider/callback", async (c) => {
       return c.redirect(`${env.NEXT_PUBLIC_APP_URL}/integrations?status=invalid_state`);
     }
 
-    const redirectUri = `${env.NEXT_PUBLIC_APP_URL}/api/oauth/${provider.key}/callback`;
-    const tokenResult = await provider.exchangeCode({
-      code,
-      redirectUri,
-      codeVerifier: oauthState.codeVerifier ?? undefined
-    });
-
     const providerRow = await db.query.toolProviders.findFirst({
       where: eq(toolProviders.key, provider.key)
     });
@@ -72,6 +65,31 @@ honoApp.get("/oauth/:provider/callback", async (c) => {
       throw new Error("Provider seed missing");
     }
 
+    const appCreds = await db.query.toolProviderAppCredentials.findFirst({
+      where: and(
+        eq(toolProviderAppCredentials.workspaceId, oauthState.workspaceId),
+        eq(toolProviderAppCredentials.providerId, providerRow.id)
+      )
+    });
+
+    if (!appCreds) {
+      throw new Error(`${provider.displayName} is not configured for this workspace.`);
+    }
+
+    const redirectUri = `${env.NEXT_PUBLIC_APP_URL}/api/oauth/${provider.key}/callback`;
+    const tokenResult = await provider.exchangeCode(
+      {
+        code,
+        redirectUri,
+        codeVerifier: oauthState.codeVerifier ?? undefined
+      },
+      {
+        clientId: decryptString(appCreds.encryptedClientId),
+        clientSecret: decryptString(appCreds.encryptedClientSecret),
+        scopes: appCreds.scopes
+      }
+    );
+
     await db
       .insert(toolConnections)
       .values({
@@ -79,9 +97,7 @@ honoApp.get("/oauth/:provider/callback", async (c) => {
         workspaceId: oauthState.workspaceId,
         userId: oauthState.userId,
         encryptedAccessToken: encryptString(tokenResult.accessToken),
-        encryptedRefreshToken: tokenResult.refreshToken
-          ? encryptString(tokenResult.refreshToken)
-          : null,
+        encryptedRefreshToken: tokenResult.refreshToken ? encryptString(tokenResult.refreshToken) : null,
         scopes: tokenResult.scopes,
         expiresAt: tokenResult.expiresAt,
         externalAccountId: tokenResult.externalAccountId,
@@ -92,9 +108,7 @@ honoApp.get("/oauth/:provider/callback", async (c) => {
         target: [toolConnections.providerId, toolConnections.workspaceId, toolConnections.userId],
         set: {
           encryptedAccessToken: encryptString(tokenResult.accessToken),
-          encryptedRefreshToken: tokenResult.refreshToken
-            ? encryptString(tokenResult.refreshToken)
-            : null,
+          encryptedRefreshToken: tokenResult.refreshToken ? encryptString(tokenResult.refreshToken) : null,
           scopes: tokenResult.scopes,
           expiresAt: tokenResult.expiresAt,
           externalAccountId: tokenResult.externalAccountId,
@@ -113,9 +127,7 @@ honoApp.get("/oauth/:provider/callback", async (c) => {
       result: "success"
     });
 
-    return c.redirect(
-      `${env.NEXT_PUBLIC_APP_URL}${oauthState.redirectPath}?provider=${provider.key}&status=connected`
-    );
+    return c.redirect(`${env.NEXT_PUBLIC_APP_URL}${oauthState.redirectPath}?provider=${provider.key}&status=connected`);
   } catch (error) {
     return c.redirect(
       `${env.NEXT_PUBLIC_APP_URL}/integrations?status=oauth_failed&error=${encodeURIComponent(

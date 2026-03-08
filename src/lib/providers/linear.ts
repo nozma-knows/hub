@@ -21,33 +21,25 @@ export class LinearProvider implements ToolProvider {
   readonly displayName = "Linear";
   readonly authType = "oauth2" as const;
 
-  getAuthUrl(input: ProviderAuthUrlInput): string {
-    if (!env.LINEAR_CLIENT_ID) {
-      throw new Error("LINEAR_CLIENT_ID is not configured");
-    }
-
+  getAuthUrl(input: ProviderAuthUrlInput, app: import("@/lib/providers/types").ProviderAppCredentials): string {
     const params = new URLSearchParams({
-      client_id: env.LINEAR_CLIENT_ID,
+      client_id: app.clientId,
       redirect_uri: input.redirectUri,
       response_type: "code",
-      scope: env.LINEAR_SCOPES,
+      scope: app.scopes.join(" "),
       state: input.state
     });
 
     return `https://linear.app/oauth/authorize?${params.toString()}`;
   }
 
-  async exchangeCode(input: ExchangeCodeInput): Promise<ProviderTokenResult> {
-    if (!env.LINEAR_CLIENT_ID || !env.LINEAR_CLIENT_SECRET) {
-      throw new Error("Linear OAuth credentials are not configured");
-    }
-
+  async exchangeCode(input: ExchangeCodeInput, app: import("@/lib/providers/types").ProviderAppCredentials): Promise<ProviderTokenResult> {
     const payload = {
       grant_type: "authorization_code",
       code: input.code,
       redirect_uri: input.redirectUri,
-      client_id: env.LINEAR_CLIENT_ID,
-      client_secret: env.LINEAR_CLIENT_SECRET
+      client_id: app.clientId,
+      client_secret: app.clientSecret
     };
 
     const response = await fetch("https://api.linear.app/oauth/token", {
@@ -77,21 +69,20 @@ export class LinearProvider implements ToolProvider {
     };
   }
 
-  async refreshIfNeeded(input: {
-    connection: ConnectionRecord;
-    decryptedAccessToken: string;
-    decryptedRefreshToken?: string;
-  }): Promise<ProviderTokenResult | null> {
+  async refreshIfNeeded(
+    input: {
+      connection: ConnectionRecord;
+      decryptedAccessToken: string;
+      decryptedRefreshToken?: string;
+    },
+    app: import("@/lib/providers/types").ProviderAppCredentials
+  ): Promise<ProviderTokenResult | null> {
     if (!input.connection.expiresAt || input.connection.expiresAt.getTime() > Date.now() + 60_000) {
       return null;
     }
 
     if (!input.decryptedRefreshToken) {
       return null;
-    }
-
-    if (!env.LINEAR_CLIENT_ID || !env.LINEAR_CLIENT_SECRET) {
-      throw new Error("Linear OAuth credentials are not configured");
     }
 
     const response = await fetch("https://api.linear.app/oauth/token", {
@@ -102,8 +93,8 @@ export class LinearProvider implements ToolProvider {
       body: JSON.stringify({
         grant_type: "refresh_token",
         refresh_token: input.decryptedRefreshToken,
-        client_id: env.LINEAR_CLIENT_ID,
-        client_secret: env.LINEAR_CLIENT_SECRET
+        client_id: app.clientId,
+        client_secret: app.clientSecret
       })
     });
 

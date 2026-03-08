@@ -3,7 +3,13 @@ import { createHash, randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { agentInvocations, agentToolPermissions, toolConnections, toolProviders } from "@/db/schema";
+import {
+  agentInvocations,
+  agentToolPermissions,
+  toolConnections,
+  toolProviderAppCredentials,
+  toolProviders
+} from "@/db/schema";
 import { logAuditEvent } from "@/lib/audit";
 import { decryptString, encryptString } from "@/lib/crypto";
 import { openClawAdapter } from "@/lib/openclaw/adapter";
@@ -60,11 +66,29 @@ export const actionsRouter = createTrpcRouter({
           ? decryptString(connection.encryptedRefreshToken)
           : undefined;
 
-        const refreshed = await provider.refreshIfNeeded({
-          connection,
-          decryptedAccessToken: accessToken,
-          decryptedRefreshToken: refreshToken
+        const appCreds = await ctx.db.query.toolProviderAppCredentials.findFirst({
+          where: and(
+            eq(toolProviderAppCredentials.workspaceId, ctx.workspace.id),
+            eq(toolProviderAppCredentials.providerId, row.providerId)
+          )
         });
+
+        if (!appCreds) {
+          continue;
+        }
+
+        const refreshed = await provider.refreshIfNeeded(
+          {
+            connection,
+            decryptedAccessToken: accessToken,
+            decryptedRefreshToken: refreshToken
+          },
+          {
+            clientId: decryptString(appCreds.encryptedClientId),
+            clientSecret: decryptString(appCreds.encryptedClientSecret),
+            scopes: appCreds.scopes
+          }
+        );
 
         if (refreshed) {
           accessToken = refreshed.accessToken;

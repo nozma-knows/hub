@@ -167,6 +167,32 @@ export const toolProviders = pgTable("tool_providers", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
 });
 
+// OAuth app credentials (client_id/client_secret) for tool providers, encrypted at rest.
+export const toolProviderAppCredentials = pgTable(
+  "tool_provider_app_credentials",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    providerId: uuid("provider_id")
+      .notNull()
+      .references(() => toolProviders.id, { onDelete: "cascade" }),
+    encryptedClientId: text("encrypted_client_id").notNull(),
+    encryptedClientSecret: text("encrypted_client_secret").notNull(),
+    scopes: text("scopes").array().notNull().default(sql`ARRAY[]::text[]`),
+    updatedBy: text("updated_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => ({
+    byWorkspaceProvider: uniqueIndex("tool_provider_app_creds_workspace_provider_unique").on(
+      table.workspaceId,
+      table.providerId
+    )
+  })
+);
+
 export const toolConnections = pgTable(
   "tool_connections",
   {
@@ -337,7 +363,8 @@ export const agentInvocations = pgTable("agent_invocations", {
 
 export const providersRelations = relations(toolProviders, ({ many }) => ({
   connections: many(toolConnections),
-  permissions: many(agentToolPermissions)
+  permissions: many(agentToolPermissions),
+  appCredentials: many(toolProviderAppCredentials)
 }));
 
 export const agentRelations = relations(agents, ({ many }) => ({
@@ -364,5 +391,20 @@ export const permissionRelations = relations(agentToolPermissions, ({ one }) => 
   provider: one(toolProviders, {
     fields: [agentToolPermissions.providerId],
     references: [toolProviders.id]
+  })
+}));
+
+export const providerAppCredentialRelations = relations(toolProviderAppCredentials, ({ one }) => ({
+  provider: one(toolProviders, {
+    fields: [toolProviderAppCredentials.providerId],
+    references: [toolProviders.id]
+  }),
+  workspace: one(workspaces, {
+    fields: [toolProviderAppCredentials.workspaceId],
+    references: [workspaces.id]
+  }),
+  updatedByUser: one(users, {
+    fields: [toolProviderAppCredentials.updatedBy],
+    references: [users.id]
   })
 }));
