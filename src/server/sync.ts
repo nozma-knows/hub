@@ -3,7 +3,6 @@ import { and, eq, inArray, notInArray } from "drizzle-orm";
 import { agents } from "@/db/schema";
 import { db } from "@/lib/db";
 import { openClawAdapter } from "@/lib/openclaw/adapter";
-import { openClawCliAdapter } from "@/lib/openclaw/cli-adapter";
 
 const SYNC_INTERVAL_MS = 1000 * 60 * 5;
 const syncKey = Symbol.for("openclaw-hub.sync.interval");
@@ -20,9 +19,15 @@ export function startReconciliationSync(): void {
 
   console.log("🔄 Starting OpenClaw reconciliation sync...");
 
+  let isRunning = false;
   const run = async () => {
+    if (isRunning) {
+      return;
+    }
+
+    isRunning = true;
     try {
-      const live = await openClawCliAdapter.listAgents();
+      const live = await openClawAdapter.listAgents();
       const workspaceRows = await db.query.workspaces.findMany({
         columns: {
           id: true
@@ -109,6 +114,8 @@ export function startReconciliationSync(): void {
       );
     } catch {
       // keep scheduler alive even if OpenClaw temporarily fails
+    } finally {
+      isRunning = false;
     }
   };
 

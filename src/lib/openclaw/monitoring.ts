@@ -21,6 +21,7 @@ export class OpenClawMonitor {
   private pollInterval: NodeJS.Timeout | null = null;
   private lastSnapshot: OpenClawMonitoringData | null = null;
   private callbacks: ((data: OpenClawMonitoringData) => void)[] = [];
+  private isPolling = false;
 
   private async fetchGatewayStatus(): Promise<OpenClawGatewayStatus> {
     try {
@@ -129,11 +130,18 @@ export class OpenClawMonitor {
   }
 
   startRealTimeMonitoring(intervalMs: number = 30000): void {
+    const safeIntervalMs = Math.max(intervalMs, 15000);
+
     if (this.pollInterval) {
       clearInterval(this.pollInterval);
     }
 
-    this.pollInterval = setInterval(async () => {
+    const poll = async () => {
+      if (this.isPolling) {
+        return;
+      }
+
+      this.isPolling = true;
       try {
         const newData = await this.gatherMonitoringData();
         this.lastSnapshot = newData;
@@ -148,20 +156,16 @@ export class OpenClawMonitor {
         });
       } catch (error) {
         console.error('Real-time monitoring error:', error);
+      } finally {
+        this.isPolling = false;
       }
-    }, intervalMs);
+    };
 
-    // Get initial data
-    this.gatherMonitoringData().then(data => {
-      this.lastSnapshot = data;
-      this.callbacks.forEach(callback => {
-        try {
-          callback(data);
-        } catch (error) {
-          console.error('Initial monitoring callback error:', error);
-        }
-      });
-    });
+    this.pollInterval = setInterval(() => {
+      void poll();
+    }, safeIntervalMs);
+
+    void poll();
   }
 
   stopRealTimeMonitoring(): void {

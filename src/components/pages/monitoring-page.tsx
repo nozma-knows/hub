@@ -91,8 +91,7 @@ export function MonitoringPage() {
             onChange={(e) => setRefreshInterval(Number(e.target.value))}
             className="w-full px-3 py-2 border rounded-md sm:w-auto"
           >
-            <option value={5000}>5 seconds</option>
-            <option value={10000}>10 seconds</option>
+            <option value={15000}>15 seconds</option>
             <option value={30000}>30 seconds</option>
             <option value={60000}>1 minute</option>
           </select>

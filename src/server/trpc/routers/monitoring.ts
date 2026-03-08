@@ -1,14 +1,14 @@
 import { z } from "zod";
 
-import { publicProcedure, createTrpcRouter } from "../init";
+import { createTrpcRouter, protectedProcedure } from "../init";
 import { openClawMonitor } from "@/lib/openclaw/monitoring";
 
 export const monitoringRouter = createTrpcRouter({
-  getCurrentSnapshot: publicProcedure.query(async () => {
+  getCurrentSnapshot: protectedProcedure.query(async () => {
     return openClawMonitor.getCurrentSnapshot();
   }),
 
-  getAgentSessions: publicProcedure
+  getAgentSessions: protectedProcedure
     .input(z.object({
       agentId: z.string().optional()
     }))
@@ -22,7 +22,7 @@ export const monitoringRouter = createTrpcRouter({
       return snapshot.sessions;
     }),
 
-  getCronJobs: publicProcedure
+  getCronJobs: protectedProcedure
     .input(z.object({
       agentId: z.string().optional(),
       enabled: z.boolean().optional()
@@ -42,7 +42,7 @@ export const monitoringRouter = createTrpcRouter({
       return jobs;
     }),
 
-  getPerformanceMetrics: publicProcedure
+  getPerformanceMetrics: protectedProcedure
     .input(z.object({
       timeRange: z.enum(['1h', '6h', '24h', '7d']).optional().default('1h')
     }))
@@ -58,12 +58,12 @@ export const monitoringRouter = createTrpcRouter({
       };
     }),
 
-  getGatewayStatus: publicProcedure.query(async () => {
+  getGatewayStatus: protectedProcedure.query(async () => {
     const snapshot = await openClawMonitor.getCurrentSnapshot();
     return snapshot.gatewayStatus;
   }),
 
-  getSystemHealth: publicProcedure.query(async () => {
+  getSystemHealth: protectedProcedure.query(async () => {
     const snapshot = await openClawMonitor.getCurrentSnapshot();
     
     // Calculate overall system health
@@ -111,21 +111,21 @@ export const monitoringRouter = createTrpcRouter({
     };
   }),
 
-  startRealTimeMonitoring: publicProcedure
+  startRealTimeMonitoring: protectedProcedure
     .input(z.object({
-      intervalMs: z.number().min(5000).max(300000).optional().default(30000)
+      intervalMs: z.number().min(15000).max(300000).optional().default(30000)
     }))
     .mutation(async ({ input }) => {
       openClawMonitor.startRealTimeMonitoring(input.intervalMs);
       return { started: true, intervalMs: input.intervalMs };
     }),
 
-  stopRealTimeMonitoring: publicProcedure.mutation(async () => {
+  stopRealTimeMonitoring: protectedProcedure.mutation(async () => {
     openClawMonitor.stopRealTimeMonitoring();
     return { stopped: true };
   }),
 
-  triggerSync: publicProcedure.mutation(async () => {
+  triggerSync: protectedProcedure.mutation(async () => {
     try {
       // Import and run sync logic
       const { and, eq, inArray } = await import("drizzle-orm");
@@ -205,7 +205,7 @@ export const monitoringRouter = createTrpcRouter({
     }
   }),
 
-  getSystemInfo: publicProcedure.query(async () => {
+  getSystemInfo: protectedProcedure.query(async () => {
     const { openClawCliAdapter } = await import("@/lib/openclaw/cli-adapter");
     return openClawCliAdapter.getSystemInfo();
   })
