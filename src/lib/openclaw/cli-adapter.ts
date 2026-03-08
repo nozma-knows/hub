@@ -589,3 +589,26 @@ export async function openClawSetIdentityFromWorkspace(input: OpenClawSetIdentit
     return { raw: output };
   }
 }
+
+export async function openClawConfigGet(path: string) {
+  const cmd = ["openclaw config get", shQuote(path)].join(" ");
+  const output = await openClawCliAdapter.runCommand(cmd);
+  try {
+    return JSON.parse(output);
+  } catch {
+    return output.trim();
+  }
+}
+
+export async function openClawSetAgentModel(input: { agentId: string; model: string }) {
+  // Find agent index
+  const agentsList = (await openClawConfigGet("agents.list")) as Array<any>;
+  const idx = Array.isArray(agentsList) ? agentsList.findIndex((a) => a?.id === input.agentId) : -1;
+  if (idx < 0) throw new Error(`Agent not found in OpenClaw config: ${input.agentId}`);
+
+  const setPath = `agents.list[${idx}].model`;
+  const value = JSON.stringify({ primary: input.model });
+  const cmd = ["openclaw config set", shQuote(setPath), shQuote(value), "--json"].join(" ");
+  const output = await openClawCliAdapter.runCommand(cmd);
+  return { ok: true, output: output.trim() };
+}

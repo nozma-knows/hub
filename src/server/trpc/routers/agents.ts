@@ -167,6 +167,38 @@ export const agentsRouter = createTrpcRouter({
       return { ok: true };
     }),
 
+  listValidModels: adminProcedure.query(async () => {
+    // Source of truth: OpenClaw config `agents.defaults.models` keys
+    const { openClawConfigGet } = await import("@/lib/openclaw/cli-adapter");
+    const models = (await openClawConfigGet("agents.defaults.models")) as Record<string, unknown>;
+    const keys = models && typeof models === "object" ? Object.keys(models) : [];
+    keys.sort();
+    return keys;
+  }),
+
+  setModel: adminProcedure
+    .input(z.object({ agentId: z.string().min(1), model: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const { openClawSetAgentModel } = await import("@/lib/openclaw/cli-adapter");
+      await openClawSetAgentModel({ agentId: input.agentId, model: input.model });
+
+      await ctx.db
+        .update(agents)
+        .set({ model: input.model, updatedAt: new Date() })
+        .where(and(eq(agents.workspaceId, ctx.workspace.id), eq(agents.id, input.agentId)));
+
+      await logAuditEvent({
+        workspaceId: ctx.workspace.id,
+        eventType: "agents.model.set",
+        actorUserId: ctx.user!.id,
+        agentId: input.agentId,
+        result: "success",
+        details: { model: input.model }
+      });
+
+      return { ok: true };
+    }),
+
   createIsolated: adminProcedure
     .input(
       z.object({

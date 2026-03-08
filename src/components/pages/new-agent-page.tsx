@@ -93,6 +93,36 @@ const PRESETS: Preset[] = [
   }
 ];
 
+function ModelSelect({
+  value,
+  onChange
+}: {
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  const models = trpc.agents.listValidModels.useQuery();
+
+  const options = models.data && models.data.length > 0 ? models.data : [
+    "openai-codex/gpt-5.2",
+    "openai/gpt-5.3-codex",
+    "openai/gpt-5.1-codex"
+  ];
+
+  return (
+    <select
+      className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    >
+      {options.map((m) => (
+        <option key={m} value={m}>
+          {m}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 export function NewAgentPage() {
   const [presetKey, setPresetKey] = useState<string>(PRESETS[0].key);
   const preset = useMemo(() => PRESETS.find((p) => p.key === presetKey) ?? PRESETS[0], [presetKey]);
@@ -180,7 +210,7 @@ export function NewAgentPage() {
           </div>
           <div className="space-y-1">
             <Label>Model</Label>
-            <Input value={model} onChange={(e) => setModel(e.target.value)} />
+            <ModelSelect value={model} onChange={setModel} />
           </div>
         </CardContent>
       </Card>

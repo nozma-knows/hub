@@ -17,6 +17,14 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
   const [error, setError] = useState<string | null>(null);
 
   const agent = trpc.agents.get.useQuery({ agentId });
+  const models = trpc.agents.listValidModels.useQuery();
+  const setModel = trpc.agents.setModel.useMutation({
+    onError: (e) => setError(e.message),
+    onSuccess: async () => {
+      await utils.agents.get.invalidate({ agentId });
+    }
+  });
+
   const files = trpc.agents.filesList.useQuery(
     { agentId },
     {
@@ -59,6 +67,41 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
       </div>
 
       {error ? <Alert className="border-destructive text-destructive">{error}</Alert> : null}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Model</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-sm text-muted-foreground">
+            Current: <span className="font-mono">{agent.data?.agent?.model ?? "-"}</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <select
+              className="rounded-md border bg-background px-3 py-2 text-sm"
+              defaultValue={agent.data?.agent?.model ?? ""}
+              onChange={(e) => {
+                const next = e.target.value;
+                if (!next) return;
+                setError(null);
+                setModel.mutate({ agentId, model: next });
+              }}
+            >
+              <option value="" disabled>
+                Select model…
+              </option>
+              {(models.data ?? []).map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+            <div className="text-xs text-muted-foreground self-center">
+              Updates OpenClaw config for this agent.
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
