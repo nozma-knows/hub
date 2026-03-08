@@ -125,4 +125,8 @@ honoApp.get("/oauth/:provider/callback", async (c) => {
   }
 });
 
-startReconciliationSync();
+// Avoid starting background intervals during Next.js build/trace steps.
+const nextPhase = process.env.NEXT_PHASE;
+if (nextPhase !== "phase-production-build") {
+  startReconciliationSync();
+}

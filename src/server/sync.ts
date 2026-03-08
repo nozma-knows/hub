@@ -2,9 +2,11 @@ import { and, eq, inArray, notInArray } from "drizzle-orm";
 
 import { agents } from "@/db/schema";
 import { db } from "@/lib/db";
-import { openClawAdapter } from "@/lib/openclaw/adapter";
+import { openClawCliAdapter } from "@/lib/openclaw/cli-adapter";
 
-const SYNC_INTERVAL_MS = 1000 * 60 * 5;
+import { env } from "@/lib/env";
+
+const SYNC_INTERVAL_MS = env.OPENCLAW_SYNC_INTERVAL_MS;
 const syncKey = Symbol.for("openclaw-hub.sync.interval");
 
 type GlobalSync = typeof globalThis & {
@@ -27,7 +29,7 @@ export function startReconciliationSync(): void {
 
     isRunning = true;
     try {
-      const live = await openClawAdapter.listAgents();
+      const live = await openClawCliAdapter.listAgents();
       const workspaceRows = await db.query.workspaces.findMany({
         columns: {
           id: true

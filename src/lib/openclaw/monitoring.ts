@@ -20,6 +20,8 @@ export interface OpenClawMonitoringData {
 export class OpenClawMonitor {
   private pollInterval: NodeJS.Timeout | null = null;
   private lastSnapshot: OpenClawMonitoringData | null = null;
+  private lastSnapshotAtMs: number | null = null;
+  private inFlight: Promise<OpenClawMonitoringData> | null = null;
   private callbacks: ((data: OpenClawMonitoringData) => void)[] = [];
   private isPolling = false;
 
@@ -123,10 +125,28 @@ export class OpenClawMonitor {
   }
 
   async getCurrentSnapshot(): Promise<OpenClawMonitoringData> {
-    if (!this.lastSnapshot) {
-      this.lastSnapshot = await this.gatherMonitoringData();
+    const ttlMs = Number(process.env.HUB_MONITORING_TTL_MS ?? 10_000);
+    const now = Date.now();
+
+    if (this.lastSnapshot && this.lastSnapshotAtMs && now - this.lastSnapshotAtMs < ttlMs) {
+      return this.lastSnapshot;
     }
-    return this.lastSnapshot;
+
+    if (this.inFlight) {
+      return this.inFlight;
+    }
+
+    this.inFlight = this.gatherMonitoringData()
+      .then((data) => {
+        this.lastSnapshot = data;
+        this.lastSnapshotAtMs = Date.now();
+        return data;
+      })
+      .finally(() => {
+        this.inFlight = null;
+      });
+
+    return this.inFlight;
   }
 
   startRealTimeMonitoring(intervalMs: number = 30000): void {
