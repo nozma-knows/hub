@@ -35,7 +35,7 @@ export function AppShell({
     <div className="min-h-screen">
       <header className="sticky top-0 z-10 border-b bg-background/90 backdrop-blur h-14">
         <div className="relative mx-auto flex h-14 w-full max-w-7xl items-center justify-between px-4 sm:px-6">
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             <div className="flex min-w-0 items-center gap-2 text-sm font-semibold">
               <span className="shrink-0 rounded-md bg-primary px-2 py-1 text-primary-foreground">Hub</span>
             </div>
@@ -57,34 +57,34 @@ export function AppShell({
                 </Link>
               ))}
             </nav>
+          </div>
 
-            <div className="flex items-center gap-2">
-              {/* Mobile menu toggle */}
+          <div className="flex shrink-0 items-center gap-2">
+            {/* Mobile menu toggle */}
+            <Button
+              size="sm"
+              variant="outline"
+              type="button"
+              className="lg:hidden px-2"
+              onClick={() => setMobileOpen((v) => !v)}
+              aria-expanded={mobileOpen}
+              aria-controls="hub-mobile-nav"
+            >
+              Menu
+            </Button>
+
+            <form action="/api/auth/sign-out" method="post">
               <Button
                 size="sm"
                 variant="outline"
-                type="button"
-                className="lg:hidden px-2"
-                onClick={() => setMobileOpen((v) => !v)}
-                aria-expanded={mobileOpen}
-                aria-controls="hub-mobile-nav"
+                type="submit"
+                className="h-9 w-9 rounded-md p-0"
+                aria-label="Sign out"
+                title="Sign out"
               >
-                Menu
+                <LogOut className="h-4 w-4" />
               </Button>
-
-              <form action="/api/auth/sign-out" method="post">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  type="submit"
-                  className="h-9 w-9 rounded-md p-0"
-                  aria-label="Sign out"
-                  title="Sign out"
-                >
-                  <LogOut className="h-4 w-4" />
-                </Button>
-              </form>
-            </div>
+            </form>
           </div>
 
           {/* Mobile nav */}
