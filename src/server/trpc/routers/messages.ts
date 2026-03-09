@@ -2,7 +2,7 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 
 import { hubChannelAgents, hubChannels, hubMessages, hubThreads } from "@/db/schema";
-import { openClawAdapter } from "@/lib/openclaw/adapter";
+import { openClawAgentTurn } from "@/lib/openclaw/cli-adapter";
 import { logAuditEvent } from "@/lib/audit";
 import { adminProcedure, createTrpcRouter, protectedProcedure } from "@/server/trpc/init";
 
@@ -249,12 +249,9 @@ Instructions:
 - If this should become a ticket, say so and propose: title + owner agent (cos/ops/dev/pm/research).
 - If you need clarification, ask at most 1-2 questions.`;
 
-        const result = await openClawAdapter.invokeAgent("cos", {
-          prompt,
-          toolBindings: []
-        });
+        const result = await openClawAgentTurn({ agentId: "cos", message: prompt, timeoutSeconds: 120 });
 
-        const output = (result.output || "").toString().trim();
+        const output = (result.output || result.message || result.text || "").toString().trim();
         if (output) {
           await ctx.db.insert(hubMessages).values({
             workspaceId: ctx.workspace.id,

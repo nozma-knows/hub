@@ -600,6 +600,25 @@ export async function openClawConfigGet(path: string) {
   }
 }
 
+export async function openClawAgentTurn(input: { agentId: string; message: string; timeoutSeconds?: number }) {
+  const cmd = [
+    "openclaw agent",
+    "--agent",
+    shQuote(input.agentId),
+    "--message",
+    shQuote(input.message),
+    "--json",
+    ...(input.timeoutSeconds ? ["--timeout", shQuote(String(input.timeoutSeconds))] : [])
+  ].join(" ");
+
+  const output = await openClawCliAdapter.runCommand(cmd);
+  try {
+    return JSON.parse(output) as any;
+  } catch {
+    return { raw: output };
+  }
+}
+
 export async function openClawSetAgentModel(input: { agentId: string; model: string }) {
   // Find agent index
   const agentsList = (await openClawConfigGet("agents.list")) as Array<any>;

@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { hubThreadTickets, hubTicketComments, hubTickets } from "@/db/schema";
 import { logAuditEvent } from "@/lib/audit";
-import { openClawAdapter } from "@/lib/openclaw/adapter";
+import { openClawAgentTurn } from "@/lib/openclaw/cli-adapter";
 import { adminProcedure, createTrpcRouter, protectedProcedure } from "@/server/trpc/init";
 
 const statusSchema = z.enum(["todo", "doing", "done"]);
@@ -109,7 +109,13 @@ export const ticketsRouter = createTrpcRouter({
 
       const prompt = `You are working a ticket in OpenClaw Hub.\n\nTitle: ${ticket.title}\n\nDescription:\n${ticket.description || "(none)"}\n\nRespond with:\n- what you did\n- what changed\n- next steps (if any)\n- blockers/questions for Noah (if any)`;
 
-      const result = await openClawAdapter.invokeAgent(ticket.ownerAgentId, { prompt, toolBindings: [] });
+      const result = await openClawAgentTurn({
+        agentId: ticket.ownerAgentId,
+        message: prompt,
+        timeoutSeconds: 300
+      });
+
+      const output = (result.output || result.message || result.text || "").toString();
 
       // Save a ticket comment with the output
       await ctx.db.insert(hubTicketComments).values({
@@ -117,7 +123,7 @@ export const ticketsRouter = createTrpcRouter({
         ticketId: ticket.id,
         authorType: "agent",
         authorAgentId: ticket.ownerAgentId,
-        body: (result.output || "").toString()
+        body: output
       });
 
       await ctx.db
@@ -127,7 +133,7 @@ export const ticketsRouter = createTrpcRouter({
 
       // TODO: link to agentInvocations once we unify invocation flow (Hub-native dispatcher).
 
-      return { ok: true, output: result.output };
+      return { ok: true, output };
     }),
 
   create: protectedProcedure
