@@ -1,7 +1,7 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
-import { hubThreadTickets, hubTicketComments, hubTickets } from "@/db/schema";
+import { hubDispatcherState, hubThreadTickets, hubTicketComments, hubTickets } from "@/db/schema";
 import { logAuditEvent } from "@/lib/audit";
 import { openClawAgentTurn } from "@/lib/openclaw/cli-adapter";
 import { adminProcedure, createTrpcRouter, protectedProcedure } from "@/server/trpc/init";
@@ -10,6 +10,47 @@ const statusSchema = z.enum(["backlog", "todo", "in_progress", "done", "canceled
 const prioritySchema = z.enum(["low", "normal", "high", "urgent"]);
 
 export const ticketsRouter = createTrpcRouter({
+  health: protectedProcedure.query(async ({ ctx }) => {
+    const dispatcher = await ctx.db.query.hubDispatcherState.findFirst({
+      where: eq(hubDispatcherState.key, "main")
+    });
+
+    const rows = await ctx.db.execute(sql`
+      select status, count(*)::int as count
+      from hub_tickets
+      where workspace_id = ${ctx.workspace.id}
+      group by status
+    `);
+
+    const byStatus: Record<string, number> = {};
+    for (const r of (rows.rows as any[])) byStatus[String(r.status)] = Number(r.count);
+
+    const running = await ctx.db.execute(sql`
+      select count(*)::int as count
+      from hub_tickets
+      where workspace_id = ${ctx.workspace.id}
+        and dispatch_state = 'running'
+    `);
+
+    const errored = await ctx.db.execute(sql`
+      select count(*)::int as count
+      from hub_tickets
+      where workspace_id = ${ctx.workspace.id}
+        and dispatch_state = 'error'
+    `);
+
+    return {
+      dispatcher: dispatcher
+        ? { lastTickAt: dispatcher.lastTickAt, lastError: dispatcher.lastError, updatedAt: dispatcher.updatedAt }
+        : null,
+      tickets: {
+        byStatus,
+        running: Number((running.rows as any[])[0]?.count ?? 0),
+        error: Number((errored.rows as any[])[0]?.count ?? 0)
+      }
+    };
+  }),
+
   list: protectedProcedure.query(async ({ ctx }) => {
     return ctx.db.query.hubTickets.findMany({
       where: eq(hubTickets.workspaceId, ctx.workspace.id),

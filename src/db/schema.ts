@@ -220,6 +220,13 @@ export const hubTicketComments = pgTable("hub_ticket_comments", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 });
 
+export const hubDispatcherState = pgTable("hub_dispatcher_state", {
+  key: varchar("key", { length: 32 }).primaryKey(),
+  lastTickAt: timestamp("last_tick_at", { withTimezone: true }),
+  lastError: text("last_error"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+});
+
 export const hubTicketInvocations = pgTable("hub_ticket_invocations", {
   id: uuid("id").primaryKey().defaultRandom(),
   workspaceId: uuid("workspace_id")

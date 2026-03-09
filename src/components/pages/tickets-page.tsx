@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc-client";
 
@@ -31,6 +32,7 @@ const columns: Array<{ key: Status; title: string }> = [
 export function TicketsPage() {
   const utils = trpc.useUtils();
   const tickets = trpc.tickets.list.useQuery();
+  const health = trpc.tickets.health.useQuery(undefined, { refetchInterval: 15_000 });
 
   const move = trpc.tickets.move.useMutation({
     onSuccess: async (_data, vars) => {
@@ -86,6 +88,44 @@ export function TicketsPage() {
       </div>
 
       {error ? <Alert className="border-destructive text-destructive">{error}</Alert> : null}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Health</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-3">
+          <div className="space-y-1">
+            <div className="text-xs text-muted-foreground">Dispatcher last tick</div>
+            <div className="text-sm">
+              {health.data?.dispatcher?.lastTickAt ? new Date(health.data.dispatcher.lastTickAt).toLocaleString() : "(unknown)"}
+            </div>
+            {health.data?.dispatcher?.lastError ? (
+              <div className="text-xs text-destructive line-clamp-2">Last error: {health.data.dispatcher.lastError}</div>
+            ) : (
+              <div className="text-xs text-muted-foreground">No dispatcher error reported</div>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <div className="text-xs text-muted-foreground">Active runs</div>
+            <div className="flex items-center gap-2">
+              <Badge className="bg-muted text-muted-foreground">running: {health.data?.tickets.running ?? 0}</Badge>
+              <Badge className="bg-muted text-muted-foreground">error: {health.data?.tickets.error ?? 0}</Badge>
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <div className="text-xs text-muted-foreground">Counts</div>
+            <div className="flex flex-wrap gap-2">
+              {columns.map((c) => (
+                <Badge key={c.key} className="bg-muted text-muted-foreground">
+                  {c.title}: {health.data?.tickets.byStatus?.[c.key] ?? 0}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 lg:grid-cols-5">
         {columns.map((col) => (

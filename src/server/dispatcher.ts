@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { and, eq, isNull, lt, or } from "drizzle-orm";
 
-import { hubTicketComments, hubTickets } from "@/db/schema";
+import { hubDispatcherState, hubTicketComments, hubTickets } from "@/db/schema";
 
 function extractTicketAction(output: string): { kind: "set_ticket_state"; status: string; note?: string } | null {
   const match = output.match(/```hub-action\s*([\s\S]*?)```/i);
@@ -69,6 +69,15 @@ export function startDispatcher(): void {
     try {
       // eslint-disable-next-line no-console
       console.log("🤖 Dispatcher tick");
+
+      // Heartbeat: record that the dispatcher loop is alive.
+      await db
+        .insert(hubDispatcherState)
+        .values({ key: "main", lastTickAt: new Date(), lastError: null, updatedAt: new Date() })
+        .onConflictDoUpdate({
+          target: hubDispatcherState.key,
+          set: { lastTickAt: new Date(), lastError: null, updatedAt: new Date() }
+        });
       const now = new Date();
       const lockExpiresAt = new Date(Date.now() + LOCK_TTL_MS);
 
@@ -220,6 +229,20 @@ Return:
         }
       }
     } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+
+      try {
+        await db
+          .insert(hubDispatcherState)
+          .values({ key: "main", lastTickAt: new Date(), lastError: msg, updatedAt: new Date() })
+          .onConflictDoUpdate({
+            target: hubDispatcherState.key,
+            set: { lastTickAt: new Date(), lastError: msg, updatedAt: new Date() }
+          });
+      } catch {
+        // ignore
+      }
+
       // eslint-disable-next-line no-console
       console.error("🤖 Dispatcher tick failed", err);
     } finally {
