@@ -3,6 +3,34 @@ import { randomUUID } from "node:crypto";
 import { and, eq, isNull, lt, or } from "drizzle-orm";
 
 import { hubTicketComments, hubTickets } from "@/db/schema";
+
+function extractTicketAction(output: string): { kind: "set_ticket_state"; status: string; note?: string } | null {
+  const match = output.match(/```hub-action\s*([\s\S]*?)```/i);
+  if (!match) return null;
+  const raw = match[1]?.trim();
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as any;
+    if (parsed?.kind !== "set_ticket_state") return null;
+    if (typeof parsed.status !== "string" || !parsed.status.trim()) return null;
+    const note = typeof parsed.note === "string" && parsed.note.trim() ? parsed.note.trim() : undefined;
+    return { kind: "set_ticket_state", status: parsed.status.trim(), note };
+  } catch {
+    return null;
+  }
+}
+
+function normalizeTicketStatus(status: string): "backlog" | "todo" | "in_progress" | "done" | "canceled" {
+  // accept legacy values and synonyms
+  const s = status.toLowerCase();
+  if (s === "doing" || s === "inprogress" || s === "in_progress") return "in_progress";
+  if (s === "backlog") return "backlog";
+  if (s === "todo" || s === "to-do" || s === "to_do") return "todo";
+  if (s === "done" || s === "complete" || s === "completed") return "done";
+  if (s === "canceled" || s === "cancelled" || s === "wont_do" || s === "won't do") return "canceled";
+  return "todo";
+}
+
 import { db } from "@/lib/db";
 import { openClawAgentTurn } from "@/lib/openclaw/cli-adapter";
 
@@ -119,6 +147,11 @@ Title: ${ticket.title}
 Description:
 ${ticket.description || "(none)"}
 
+If you believe the ticket state should change, include a fenced JSON block like:
+\`\`\`hub-action
+{"kind":"set_ticket_state","status":"done","note":"short reason"}
+\`\`\`
+
 Return:
 - what you did
 - what changed
@@ -141,10 +174,22 @@ Return:
             body: output
           });
 
-          // Move to doing after first successful run (keeps board honest)
+          const action = extractTicketAction(output);
+          const nextStatus = action ? normalizeTicketStatus(action.status) : null;
+
+          if (nextStatus) {
+            await db.insert(hubTicketComments).values({
+              workspaceId: ticket.workspaceId,
+              ticketId: ticket.id,
+              authorType: "system",
+              body: `✅ State updated by agent: ${nextStatus}${action?.note ? ` — ${action.note}` : ""}`
+            });
+          }
+
           await db
             .update(hubTickets)
             .set({
+              status: nextStatus ?? "in_progress",
               dispatchState: "idle",
               dispatchLockId: null,
               dispatchLockExpiresAt: null,
