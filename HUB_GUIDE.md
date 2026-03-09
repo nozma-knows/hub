@@ -29,11 +29,16 @@ Stack summary:
 - BetterAuth for authentication
 
 Where things live:
+- Repo root (on VPS): `/root/.openclaw/workspace/hub`
 - UI pages: `src/app/**` and `src/components/pages/**`
 - tRPC routers: `src/server/trpc/routers/**`
 - DB schema: `src/db/schema.ts`
 - Migrations: `drizzle/*.sql`
 - OpenClaw CLI adapter: `src/lib/openclaw/cli-adapter.ts`
+
+Convenience:
+- Each agent workspace has a symlink `./hub` → `/root/.openclaw/workspace/hub`
+  so agents can inspect the repo from their own workspace context.
 
 ## Key Product Model
 
