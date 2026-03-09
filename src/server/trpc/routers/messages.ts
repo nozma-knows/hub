@@ -330,7 +330,7 @@ Rules:
 - NEVER claim you created a ticket unless you include the hub-action block.
 - If you need clarification, ask at most 1-2 questions.`;
 
-            const result = await openClawAgentTurn({ agentId: "cos", message: prompt, timeoutSeconds: 120 });
+            const result = await openClawAgentTurn({ agentId: "cos", message: prompt, timeoutSeconds: 300 });
             const output = (result.output || result.message || result.text || "").toString().trim();
 
             // Remove the typing/progress indicators for this run
@@ -410,7 +410,11 @@ Rules:
                 .set({ lastMessageAt: new Date(), updatedAt: new Date() })
                 .where(and(eq(hubThreads.workspaceId, ctx.workspace.id), eq(hubThreads.id, input.threadId)));
             }
-          } catch {
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            // eslint-disable-next-line no-console
+            console.error("@command run failed", { msg });
+
             // Best-effort: surface failure
             try {
               const prefix = runId.slice(0, 6);
@@ -418,7 +422,7 @@ Rules:
                 workspaceId: ctx.workspace.id,
                 threadId: input.threadId,
                 authorType: "system",
-                body: `@command failed to respond. Try again. (${prefix})`,
+                body: `@command failed to respond (${prefix}). Error: ${msg.slice(0, 180)}`,
                 createdAt: new Date()
               });
             } catch {
