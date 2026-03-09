@@ -46,7 +46,7 @@ export function ChannelPage({ channelId }: { channelId: string }) {
 
   const thread = trpc.messages.threadGet.useQuery(
     { threadId: threadId ?? "" },
-    { enabled: Boolean(threadId) }
+    { enabled: Boolean(threadId), refetchInterval: 1500 }
   );
 
   const send = trpc.messages.messageSend.useMutation({

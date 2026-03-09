@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 
+const activeCommandRuns = new Map<string, { runId: string; startedAt: number }>();
+
 import { hubChannelAgents, hubChannels, hubMessages, hubThreads } from "@/db/schema";
 import { openClawAgentTurn } from "@/lib/openclaw/cli-adapter";
 import { logAuditEvent } from "@/lib/audit";
@@ -227,28 +229,60 @@ export const messagesRouter = createTrpcRouter({
 
       const shouldInvoke = /(^|\s)@command(\b|\s)/i.test(input.body);
       if (shouldInvoke) {
+        // Prevent piling up concurrent runs for the same thread.
+        if (activeCommandRuns.has(input.threadId)) {
+          return { ok: true, invoked: true, alreadyRunning: true };
+        }
+
+        const runId = randomUUID();
+        activeCommandRuns.set(input.threadId, { runId, startedAt: Date.now() });
+
         // Immediately reflect that the agent is working (Slack-like typing indicator)
         await ctx.db.insert(hubMessages).values({
           workspaceId: ctx.workspace.id,
           threadId: input.threadId,
           authorType: "system",
-          body: "@command is thinking…",
+          body: `@command is thinking… (${runId.slice(0, 6)})`,
           createdAt: new Date()
         });
 
-        const recent = await ctx.db.query.hubMessages.findMany({
+        // Fire-and-forget: continue work after responding to the client.
+        void (async () => {
+          const prefix = runId.slice(0, 6);
+          const heartbeat = setInterval(async () => {
+            try {
+              await ctx.db.insert(hubMessages).values({
+                workspaceId: ctx.workspace.id,
+                threadId: input.threadId,
+                authorType: "system",
+                body: `@command is still thinking… (${prefix})`,
+                createdAt: new Date()
+              });
+              await ctx.db
+                .update(hubThreads)
+                .set({ lastMessageAt: new Date(), updatedAt: new Date() })
+                .where(and(eq(hubThreads.workspaceId, ctx.workspace.id), eq(hubThreads.id, input.threadId)));
+            } catch {
+              // ignore
+            }
+          }, 8000);
+
+          try {
+            const recent = await ctx.db.query.hubMessages.findMany({
           where: and(eq(hubMessages.workspaceId, ctx.workspace.id), eq(hubMessages.threadId, input.threadId)),
           orderBy: (t, { desc: descOrder }) => [descOrder(t.createdAt)],
           limit: 20
         });
 
-        const context = recent
-          .slice()
-          .reverse()
-          .map((m) => `${m.authorType === "agent" ? `agent:${m.authorAgentId ?? "?"}` : `user:${m.authorUserId ?? "?"}`}: ${m.body}`)
-          .join("\n");
+            const context = recent
+              .slice()
+              .reverse()
+              .map((m) =>
+                `${m.authorType === "agent" ? `agent:${m.authorAgentId ?? "?"}` : `user:${m.authorUserId ?? "?"}`}: ${m.body}`
+              )
+              .join("\n");
 
-        const prompt = `You are @command (Chief of Staff). Reply in-channel.
+            const prompt = `You are @command (Chief of Staff) inside OpenClaw Hub. Reply in-channel.
 
 Thread title: ${thread.title ?? "(none)"}
 
@@ -257,38 +291,67 @@ ${context}
 
 Instructions:
 - Be concise and action-oriented.
-- If this should become a ticket, say so and propose: title + owner agent (cos/ops/dev/pm/research).
+- If this should become a ticket, say so and propose: title + owner agent (ops/dev/pm/research).
 - If you need clarification, ask at most 1-2 questions.`;
 
-        const result = await openClawAgentTurn({ agentId: "cos", message: prompt, timeoutSeconds: 120 });
+            const result = await openClawAgentTurn({ agentId: "cos", message: prompt, timeoutSeconds: 120 });
+            const output = (result.output || result.message || result.text || "").toString().trim();
 
-        const output = (result.output || result.message || result.text || "").toString().trim();
+            // Remove the typing/progress indicators for this run
+            try {
+              const prefix = runId.slice(0, 6);
+              await ctx.db
+                .delete(hubMessages)
+                .where(
+                  and(
+                    eq(hubMessages.workspaceId, ctx.workspace.id),
+                    eq(hubMessages.threadId, input.threadId),
+                    eq(hubMessages.authorType, "system"),
+                    inArray(hubMessages.body, [
+                      `@command is thinking… (${prefix})`,
+                      `@command is still thinking… (${prefix})`
+                    ])
+                  )
+                );
+            } catch {
+              // ignore
+            }
 
-        // Replace the typing indicator with the final response (best-effort)
-        try {
-          await ctx.db
-            .delete(hubMessages)
-            .where(and(eq(hubMessages.workspaceId, ctx.workspace.id), eq(hubMessages.threadId, input.threadId), eq(hubMessages.authorType, "system"), eq(hubMessages.body, "@command is thinking…")));
-        } catch {
-          // ignore
-        }
+            if (output) {
+              await ctx.db.insert(hubMessages).values({
+                workspaceId: ctx.workspace.id,
+                threadId: input.threadId,
+                authorType: "agent",
+                authorAgentId: "cos",
+                body: output
+              });
 
-        if (output) {
-          await ctx.db.insert(hubMessages).values({
-            workspaceId: ctx.workspace.id,
-            threadId: input.threadId,
-            authorType: "agent",
-            authorAgentId: "cos",
-            body: output
-          });
+              await ctx.db
+                .update(hubThreads)
+                .set({ lastMessageAt: new Date(), updatedAt: new Date() })
+                .where(and(eq(hubThreads.workspaceId, ctx.workspace.id), eq(hubThreads.id, input.threadId)));
+            }
+          } catch {
+            // Best-effort: surface failure
+            try {
+              const prefix = runId.slice(0, 6);
+              await ctx.db.insert(hubMessages).values({
+                workspaceId: ctx.workspace.id,
+                threadId: input.threadId,
+                authorType: "system",
+                body: `@command failed to respond. Try again. (${prefix})`,
+                createdAt: new Date()
+              });
+            } catch {
+              // ignore
+            }
+          } finally {
+            clearInterval(heartbeat);
+            activeCommandRuns.delete(input.threadId);
+          }
+        })();
 
-          await ctx.db
-            .update(hubThreads)
-            .set({ lastMessageAt: new Date(), updatedAt: new Date() })
-            .where(and(eq(hubThreads.workspaceId, ctx.workspace.id), eq(hubThreads.id, input.threadId)));
-        }
-
-        return { ok: true, invoked: true };
+        return { ok: true, invoked: true, async: true };
       }
 
       return { ok: true, invoked: false };
