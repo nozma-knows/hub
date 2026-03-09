@@ -5,13 +5,20 @@ import { useMemo, useState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc-client";
 
 type Status = "backlog" | "todo" | "in_progress" | "done" | "canceled";
+
+type AnyStatus = Status | "doing"; // legacy
+
+function normalizeStatus(status: string | null | undefined): Status {
+  if (status === "doing") return "in_progress";
+  if (status === "backlog" || status === "todo" || status === "in_progress" || status === "done" || status === "canceled") {
+    return status;
+  }
+  return "todo";
+}
 
 const columns: Array<{ key: Status; title: string }> = [
   { key: "backlog", title: "Backlog" },
@@ -24,16 +31,6 @@ const columns: Array<{ key: Status; title: string }> = [
 export function TicketsPage() {
   const utils = trpc.useUtils();
   const tickets = trpc.tickets.list.useQuery();
-  const agents = trpc.agents.list.useQuery();
-
-  const create = trpc.tickets.create.useMutation({
-    onSuccess: async () => {
-      await utils.tickets.list.invalidate();
-      setTitle("");
-      setDescription("");
-    },
-    onError: (e) => setError(e.message)
-  });
 
   const move = trpc.tickets.move.useMutation({
     onSuccess: async (_data, vars) => {
@@ -44,9 +41,6 @@ export function TicketsPage() {
   });
 
   const [error, setError] = useState<string | null>(null);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [ownerAgentId, setOwnerAgentId] = useState<string>("");
 
   const [openTicketId, setOpenTicketId] = useState<string | null>(null);
   const ticketDetail = trpc.tickets.get.useQuery(
@@ -72,9 +66,8 @@ export function TicketsPage() {
   const grouped = useMemo(() => {
     const map: Record<Status, any[]> = { backlog: [], todo: [], in_progress: [], done: [], canceled: [] };
     for (const t of tickets.data ?? []) {
-      const key = (t.status as Status) || "todo";
-      if (map[key]) map[key].push(t);
-      else map.todo.push(t);
+      const key = normalizeStatus(t.status as AnyStatus);
+      map[key].push(t);
     }
     return map;
   }, [tickets.data]);
@@ -87,57 +80,14 @@ export function TicketsPage() {
           <h1 className="text-2xl font-semibold">Tickets</h1>
           <p className="text-sm text-muted-foreground">Kanban board aligned with Linear workflow states.</p>
         </div>
+        <Button type="button" onClick={() => (window.location.href = "/tickets/new")}>
+          New ticket
+        </Button>
       </div>
 
       {error ? <Alert className="border-destructive text-destructive">{error}</Alert> : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>New ticket</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-2">
-          <div className="space-y-1">
-            <Label>Title</Label>
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What needs doing?" />
-          </div>
-          <div className="space-y-1">
-            <Label>Owner (agent)</Label>
-            <select
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-              value={ownerAgentId}
-              onChange={(e) => setOwnerAgentId(e.target.value)}
-            >
-              <option value="">Unassigned</option>
-              {(agents.data ?? []).map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name} ({a.id})
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="md:col-span-2 space-y-1">
-            <Label>Description</Label>
-            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} className="min-h-24" />
-          </div>
-          <div className="md:col-span-2">
-            <Button
-              disabled={!title.trim() || create.isPending}
-              onClick={() => {
-                setError(null);
-                create.mutate({
-                  title: title.trim(),
-                  description: description.trim() || undefined,
-                  ownerAgentId: ownerAgentId || undefined
-                });
-              }}
-            >
-              {create.isPending ? "Creating…" : "Create"}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-5">
         {columns.map((col) => (
           <div key={col.key} className="space-y-2">
             <div className="flex items-center justify-between">
@@ -197,7 +147,7 @@ export function TicketsPage() {
                 <div className="text-xs text-muted-foreground">State</div>
                 <select
                   className="rounded-md border bg-background px-2 py-1 text-xs"
-                  value={(ticketDetail.data?.ticket.status as Status) ?? "todo"}
+                  value={normalizeStatus(ticketDetail.data?.ticket.status)}
                   onChange={(e) => {
                     if (!openTicketId) return;
                     setError(null);
