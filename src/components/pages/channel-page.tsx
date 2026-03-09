@@ -112,9 +112,12 @@ export function ChannelPage({ channelId }: { channelId: string }) {
     if (isRecording || isTranscribing) return;
     if (recordStartPendingRef.current) return;
 
-    // Gate: first use should explicitly request mic access via a clear prompt.
-    if (!micGranted) {
-      setShowMicGate(true);
+    if (!window.isSecureContext) {
+      setSttError("Microphone requires HTTPS (secure context)");
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setSttError("Microphone not supported in this browser");
       return;
     }
 
@@ -122,8 +125,18 @@ export function ChannelPage({ channelId }: { channelId: string }) {
     setSttError(null);
 
     try {
+      // Always try directly first. If permission is needed/denied, we'll show the gate.
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStreamRef.current = stream;
+
+      if (!micGranted) {
+        setMicGranted(true);
+        try {
+          localStorage.setItem("hub.mic.granted", "true");
+        } catch {
+          // ignore
+        }
+      }
 
     // Pick a MIME type Safari can handle.
     const types = ["audio/mp4", "audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/ogg"];
@@ -228,15 +241,10 @@ export function ChannelPage({ channelId }: { channelId: string }) {
       const text = `${name}: ${msg}`;
       setSttError(text);
 
-      // If browser says not allowed, re-open the mic gate prompt.
+      // If browser says not allowed, open the mic gate prompt with guidance.
+      // Don't clear micGranted here; iOS/WebKit can throw NotAllowedError transiently.
       if (String(name).toLowerCase().includes("notallowed")) {
         setShowMicGate(true);
-        setMicGranted(false);
-        try {
-          localStorage.removeItem("hub.mic.granted");
-        } catch {
-          // ignore
-        }
       }
 
       for (const t of mediaStreamRef.current?.getTracks?.() ?? []) t.stop();
