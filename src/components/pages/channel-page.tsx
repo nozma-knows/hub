@@ -540,25 +540,23 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                   <div className="flex flex-col gap-2">
                     <button
                       type="button"
-                      onPointerDown={async () => {
-                        await startRecording();
-                      }}
-                      onPointerUp={async () => {
-                        await stopRecordingAndSend();
-                      }}
-                      onPointerCancel={async () => {
-                        await stopRecordingAndSend();
+                      onClick={async () => {
+                        if (isRecording) {
+                          await stopRecordingAndSend();
+                        } else {
+                          await startRecording();
+                        }
                       }}
                       className={
-                        "inline-flex h-12 w-12 items-center justify-center rounded-xl border shadow-sm transition select-none touch-none " +
+                        "inline-flex h-12 w-12 items-center justify-center rounded-xl border shadow-sm transition select-none " +
                         (isRecording
                           ? "bg-destructive text-destructive-foreground"
                           : isTranscribing
                             ? "bg-muted text-muted-foreground"
                             : "bg-background hover:bg-muted")
                       }
-                      aria-label="Hold to record"
-                      title="Hold to talk"
+                      aria-label={isRecording ? "Stop recording" : "Start recording"}
+                      title={isRecording ? "Stop recording" : "Start recording"}
                     >
                       <Mic className="h-5 w-5" />
                     </button>
