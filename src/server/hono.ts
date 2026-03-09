@@ -11,6 +11,7 @@ import { ensureProviderSeeds, getProviderByKey } from "@/lib/providers/registry"
 import { appRouter } from "@/server/trpc";
 import { createTrpcContext } from "@/server/trpc/context";
 import { startReconciliationSync } from "@/server/sync";
+import { startDispatcher } from "@/server/dispatcher";
 
 export const honoApp = new Hono().basePath("/api");
 
@@ -141,4 +142,5 @@ honoApp.get("/oauth/:provider/callback", async (c) => {
 const nextPhase = process.env.NEXT_PHASE;
 if (nextPhase !== "phase-production-build") {
   startReconciliationSync();
+  startDispatcher();
 }

@@ -180,6 +180,14 @@ export const hubTickets = pgTable("hub_tickets", {
   priority: varchar("priority", { length: 16 }).notNull().default("normal"),
   ownerAgentId: text("owner_agent_id"),
   createdByUserId: text("created_by_user_id"),
+
+  // Dispatcher fields
+  dispatchState: varchar("dispatch_state", { length: 16 }).notNull().default("idle"),
+  dispatchLockId: uuid("dispatch_lock_id"),
+  dispatchLockExpiresAt: timestamp("dispatch_lock_expires_at", { withTimezone: true }),
+  lastDispatchedAt: timestamp("last_dispatched_at", { withTimezone: true }),
+  lastDispatchError: text("last_dispatch_error"),
+
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
 });
