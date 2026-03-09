@@ -23,6 +23,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { isSendShortcut } from "@/lib/keyboard";
 import { trpc } from "@/lib/trpc-client";
 
 export function ChannelPage({ channelId }: { channelId: string }) {
@@ -574,7 +575,18 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                         setDictationText("");
                         updateMentionQuery(next);
                       }}
-                      onKeyDown={(e) => {
+                      onKeyDown={async (e) => {
+                        // Send shortcut: Cmd+Enter (macOS) / Ctrl+Enter (Win/Linux)
+                        if (isSendShortcut(e)) {
+                          e.preventDefault();
+                          if (!threadId) return;
+                          if (!composer.trim() || send.isPending) return;
+                          setError(null);
+                          await send.mutateAsync({ threadId, body: composer.trim() });
+                          return;
+                        }
+
+                        // Mention autocomplete UX
                         if (!mentionQuery) return;
                         if (e.key === "Escape") {
                           setMentionQuery(null);
