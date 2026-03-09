@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { Plus, Hash } from "lucide-react";
+
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,37 +41,46 @@ export function MessagesPage() {
   const list = useMemo(() => channels.data ?? [], [channels.data]);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-end justify-between">
-        <div>
+    <div className="flex h-[calc(100svh-3.5rem)] flex-col gap-4 overflow-hidden">
+      <div className="shrink-0 flex items-end justify-between px-1">
+        <div className="min-w-0">
           <h1 className="text-2xl font-semibold">Messages</h1>
-          <p className="text-sm text-muted-foreground">Pick a channel, then view the timeline and send messages.</p>
+          <p className="text-sm text-muted-foreground truncate">Pick a channel, then message @command.</p>
         </div>
-        <Button variant="outline" onClick={() => setShowCreateChannel(true)}>
-          New channel
+        <Button size="sm" variant="outline" onClick={() => setShowCreateChannel(true)} className="gap-2">
+          <Plus className="h-4 w-4" />
+          <span className="hidden sm:inline">New channel</span>
+          <span className="sm:hidden">New</span>
         </Button>
       </div>
 
-      {error ? <Alert className="border-destructive text-destructive">{error}</Alert> : null}
+      {error ? <Alert className="shrink-0 border-destructive text-destructive">{error}</Alert> : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Channels</CardTitle>
+      <Card className="flex-1 min-h-0 overflow-hidden">
+        <CardHeader className="shrink-0 py-3">
+          <CardTitle className="text-base">Channels</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-1">
-          {list.map((c) => (
-            <Link
-              key={c.id}
-              href={`/messages/${c.id}`}
-              className="block rounded-md px-3 py-3 hover:bg-muted"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="truncate font-medium">#{c.name}</span>
-                {c.name === "general" ? <Badge className="bg-muted text-muted-foreground">default</Badge> : null}
-              </div>
-              {c.description ? <div className="mt-0.5 text-xs text-muted-foreground truncate">{c.description}</div> : null}
-            </Link>
-          ))}
+        <CardContent className="min-h-0 overflow-auto p-2">
+          <div className="space-y-1">
+            {list.map((c) => (
+              <Link
+                key={c.id}
+                href={`/messages/${c.id}`}
+                className="flex items-center justify-between gap-2 rounded-xl px-3 py-2 hover:bg-muted"
+              >
+                <div className="min-w-0 flex items-center gap-2">
+                  <Hash className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <span className="truncate font-medium">{c.name}</span>
+                  {c.name === "general" ? <Badge className="bg-muted text-muted-foreground shrink-0">default</Badge> : null}
+                </div>
+                {c.description ? (
+                  <span className="hidden sm:block max-w-[45%] truncate text-xs text-muted-foreground">{c.description}</span>
+                ) : (
+                  <span className="hidden sm:block text-xs text-muted-foreground">&nbsp;</span>
+                )}
+              </Link>
+            ))}
+          </div>
         </CardContent>
       </Card>
 
