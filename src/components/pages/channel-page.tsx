@@ -81,7 +81,7 @@ export function ChannelPage({ channelId }: { channelId: string }) {
   return (
     // Use a fixed viewport-based layout so the composer stays visible on mobile
     // and only the message history pane scrolls.
-    <div className="flex h-[calc(100dvh-8rem)] flex-col overflow-hidden">
+    <div className="flex h-[calc(100svh-8rem)] flex-col overflow-hidden pb-[env(safe-area-inset-bottom)]">
       {error ? <Alert className="mb-4 border-destructive text-destructive">{error}</Alert> : null}
 
       <Card className="flex-1 min-h-0 overflow-hidden">
@@ -127,7 +127,7 @@ export function ChannelPage({ channelId }: { channelId: string }) {
               ) : null}
             </div>
 
-            <div className="shrink-0 border-t bg-background p-3">
+            <div className="shrink-0 border-t bg-background p-3 sticky bottom-0">
               <div className="space-y-2">
                 <Textarea
                   value={composer}
