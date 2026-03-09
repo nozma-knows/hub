@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,6 +18,9 @@ export function ChannelPage({ channelId }: { channelId: string }) {
   const [composer, setComposer] = useState("");
   const [keyboardInsetPx, setKeyboardInsetPx] = useState(0);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
 
   const agents = trpc.agents.list.useQuery();
   const [showTicket, setShowTicket] = useState(false);
@@ -79,6 +83,55 @@ export function ChannelPage({ channelId }: { channelId: string }) {
   }, [thread.data?.messages?.length]);
 
   const title = channel ? `#${channel.name}` : "Channel";
+
+  function updateMentionQuery(nextText: string) {
+    const el = composerRef.current;
+    const cursor = el ? el.selectionStart ?? nextText.length : nextText.length;
+    const before = nextText.slice(0, cursor);
+    const match = before.match(/(^|\s)@([a-zA-Z0-9_-]*)$/);
+    if (!match) {
+      setMentionQuery(null);
+      return;
+    }
+    // Only expose @command for now.
+    const q = (match[2] ?? "").toLowerCase();
+    setMentionQuery(q);
+  }
+
+  function insertMention(value: string) {
+    const el = composerRef.current;
+    if (!el) {
+      setComposer((prev) => `${prev}${value} `);
+      setMentionQuery(null);
+      return;
+    }
+
+    const text = el.value;
+    const cursor = el.selectionStart ?? text.length;
+    const before = text.slice(0, cursor);
+    const after = text.slice(cursor);
+
+    const match = before.match(/(^|\s)@([a-zA-Z0-9_-]*)$/);
+    if (!match) return;
+
+    const prefixLen = before.length - match[0].length;
+    const replaced = `${before.slice(0, prefixLen)}${match[1] ?? ""}${value} `;
+    const next = replaced + after;
+
+    setComposer(next);
+    setMentionQuery(null);
+
+    // Restore cursor just after inserted mention
+    window.setTimeout(() => {
+      try {
+        el.focus();
+        const pos = replaced.length;
+        el.setSelectionRange(pos, pos);
+      } catch {
+        // ignore
+      }
+    }, 0);
+  }
 
   useEffect(() => {
     // Hard-lock scrolling at the document level (iOS Safari will otherwise scroll the page)
@@ -205,14 +258,48 @@ export function ChannelPage({ channelId }: { channelId: string }) {
             <div className="shrink-0 border-t bg-background/80 backdrop-blur p-3">
               <div className="space-y-2">
                 <Textarea
+                  ref={composerRef}
                   value={composer}
-                  onChange={(e) => setComposer(e.target.value)}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setComposer(next);
+                    updateMentionQuery(next);
+                  }}
+                  onKeyDown={(e) => {
+                    if (!mentionQuery) return;
+                    if (e.key === "Escape") {
+                      setMentionQuery(null);
+                      return;
+                    }
+                    if (e.key === "Tab" || e.key === "Enter") {
+                      // If user is typing @c..., accept autocomplete.
+                      if ("command".startsWith(mentionQuery)) {
+                        e.preventDefault();
+                        insertMention("@command");
+                      }
+                    }
+                  }}
                   placeholder="Message…"
                   className="min-h-14 rounded-xl text-base"
                   inputMode="text"
                   autoCorrect="on"
                   autoCapitalize="sentences"
                 />
+
+                {mentionQuery !== null ? (
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => insertMention("@command")}
+                      className="inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-xs hover:bg-muted"
+                    >
+                      <Badge className="bg-primary text-primary-foreground">@</Badge>
+                      <span className="font-medium">command</span>
+                      <span className="text-muted-foreground">(tap to insert)</span>
+                    </button>
+                  </div>
+                ) : null}
+
                 <div className="flex justify-end">
                   <Button
                     disabled={!threadId || send.isPending || !composer.trim()}
