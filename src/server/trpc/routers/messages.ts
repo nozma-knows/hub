@@ -268,8 +268,9 @@ export const messagesRouter = createTrpcRouter({
         await ctx.db.insert(hubMessages).values({
           workspaceId: ctx.workspace.id,
           threadId: input.threadId,
-          authorType: "system",
-          body: `@command is thinking… (${runId.slice(0, 6)})`,
+          authorType: "agent",
+          authorAgentId: "cos",
+          body: `Thinking… (${runId.slice(0, 6)})`,
           createdAt: new Date()
         });
 
@@ -281,8 +282,9 @@ export const messagesRouter = createTrpcRouter({
               await ctx.db.insert(hubMessages).values({
                 workspaceId: ctx.workspace.id,
                 threadId: input.threadId,
-                authorType: "system",
-                body: `@command is still thinking… (${prefix})`,
+                authorType: "agent",
+                authorAgentId: "cos",
+                body: `Still thinking… (${prefix})`,
                 createdAt: new Date()
               });
               await ctx.db
@@ -342,11 +344,9 @@ Rules:
                   and(
                     eq(hubMessages.workspaceId, ctx.workspace.id),
                     eq(hubMessages.threadId, input.threadId),
-                    eq(hubMessages.authorType, "system"),
-                    inArray(hubMessages.body, [
-                      `@command is thinking… (${prefix})`,
-                      `@command is still thinking… (${prefix})`
-                    ])
+                    eq(hubMessages.authorType, "agent"),
+                    eq(hubMessages.authorAgentId, "cos"),
+                    inArray(hubMessages.body, [`Thinking… (${prefix})`, `Still thinking… (${prefix})`])
                   )
                 );
             } catch {

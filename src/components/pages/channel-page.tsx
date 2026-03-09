@@ -217,6 +217,7 @@ export function ChannelPage({ channelId }: { channelId: string }) {
             <div ref={listRef} className="flex-1 min-h-0 overflow-auto overscroll-contain px-3 py-4 space-y-2 bg-muted/10">
               {(thread.data?.messages ?? []).filter((m) => m.body.trim().length > 0).map((m) => {
                 const isAgent = m.authorType === "agent";
+                const label = isAgent ? (m.authorAgentId === "cos" ? "command" : m.authorAgentId || "agent") : "you";
                 return (
                   <div key={m.id} className={isAgent ? "flex justify-start" : "flex justify-end"}>
                     <button
@@ -241,7 +242,7 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                     >
                       <div className="mb-1 flex items-center justify-between gap-2 text-[10px] opacity-70">
                         <span>
-                          {isAgent ? "command" : "you"} · {new Date(m.createdAt).toLocaleTimeString()}
+                          {label} · {new Date(m.createdAt).toLocaleTimeString()}
                         </span>
                         {copiedMessageId === m.id ? <span className="font-medium">Copied</span> : null}
                       </div>
