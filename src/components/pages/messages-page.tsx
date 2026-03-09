@@ -61,7 +61,7 @@ export function MessagesPage() {
           <CardTitle className="text-base">Channels</CardTitle>
         </CardHeader>
         <CardContent
-          className="min-h-0 overflow-auto p-2 overscroll-contain"
+          className={"min-h-0 p-2 overscroll-contain " + ((list.length > 6) ? "overflow-auto" : "overflow-hidden")}
           style={{ WebkitOverflowScrolling: "touch" }}
         >
           <div className="space-y-1">
