@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+
+import { LineChart } from "@/components/ui/line-chart";
 import { trpc } from "@/lib/trpc-client";
 
 export function MonitoringPage() {
@@ -27,9 +29,16 @@ export function MonitoringPage() {
     { refetchInterval: realTimeEnabled ? refreshInterval : false }
   );
 
+  const [timeRange, setTimeRange] = useState<'1h' | '6h' | '24h' | '7d'>('1h');
+
   const { data: performance, isLoading: performanceLoading } = trpc.monitoring.getPerformanceMetrics.useQuery(
-    { timeRange: '1h' },
+    { timeRange },
     { refetchInterval: realTimeEnabled ? refreshInterval : false }
+  );
+
+  const { data: vpsMetrics, isLoading: vpsLoading, error: vpsError } = trpc.monitoring.getVpsMetrics.useQuery(
+    { timeRange },
+    { refetchInterval: realTimeEnabled ? refreshInterval : 60_000 }
   );
 
   const { data: hostInfo } = trpc.monitoring.getSystemInfo.useQuery(undefined, {
@@ -90,6 +99,17 @@ export function MonitoringPage() {
         </div>
 
         <div className="grid grid-cols-1 gap-2 sm:flex sm:items-center sm:gap-4">
+          <select
+            value={timeRange}
+            onChange={(e) => setTimeRange(e.target.value as any)}
+            className="w-full px-3 py-2 border rounded-md sm:w-auto"
+          >
+            <option value={'1h'}>Last 1h</option>
+            <option value={'6h'}>Last 6h</option>
+            <option value={'24h'}>Last 24h</option>
+            <option value={'7d'}>Last 7d</option>
+          </select>
+
           <select
             value={refreshInterval}
             onChange={(e) => setRefreshInterval(Number(e.target.value))}
@@ -217,6 +237,74 @@ export function MonitoringPage() {
             enabled, {cronJobs?.filter(j => j.lastStatus === 'failure').length || 0} failed
           </div>
         </div>
+      </div>
+
+      {/* VPS Charts */}
+      <div className="space-y-3">
+        <div className="flex items-baseline justify-between gap-2">
+          <h2 className="text-lg font-bold">VPS Metrics</h2>
+          <div className="text-xs text-gray-600">Range: {timeRange}</div>
+        </div>
+
+        {vpsError ? (
+          <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-700">
+            Failed to load VPS metrics: {vpsError.message}
+          </div>
+        ) : null}
+
+        {vpsLoading ? (
+          <div className="rounded-md border border-dashed p-6 text-sm text-gray-600">Loading metrics…</div>
+        ) : null}
+
+        {vpsMetrics?.points?.length ? (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <LineChart
+              title="CPU usage (%)"
+              points={vpsMetrics.points.map((p: any) => ({
+                x: new Date(p.ts).getTime(),
+                y: p.cpuUsage,
+                label: new Date(p.ts).toLocaleString()
+              }))}
+              valueLabel={(y) => `${(y * 100).toFixed(1)}%`}
+            />
+
+            <LineChart
+              title="Memory used (GB)"
+              points={vpsMetrics.points.map((p: any) => ({
+                x: new Date(p.ts).getTime(),
+                y: p.memUsed / (1024 ** 3),
+                label: new Date(p.ts).toLocaleString()
+              }))}
+              valueLabel={(y) => `${y.toFixed(2)} GB`}
+            />
+
+            <LineChart
+              title="Load average (1m)"
+              points={vpsMetrics.points.map((p: any) => ({
+                x: new Date(p.ts).getTime(),
+                y: p.load1,
+                label: new Date(p.ts).toLocaleString()
+              }))}
+              valueLabel={(y) => y.toFixed(2)}
+            />
+
+            <LineChart
+              title="Network (rx+tx MB)"
+              points={vpsMetrics.points.map((p: any) => ({
+                x: new Date(p.ts).getTime(),
+                y: ((p.netRxBytes ?? 0) + (p.netTxBytes ?? 0)) / (1024 ** 2),
+                label: new Date(p.ts).toLocaleString()
+              }))}
+              valueLabel={(y) => `${y.toFixed(1)} MB`}
+            />
+          </div>
+        ) : null}
+
+        {!vpsLoading && !vpsError && (!vpsMetrics?.points?.length) ? (
+          <div className="rounded-md border border-dashed p-6 text-sm text-gray-600">
+            No time-series data yet. Charts will populate after the server collects a few samples.
+          </div>
+        ) : null}
       </div>
 
       {/* Performance Metrics */}

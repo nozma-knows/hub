@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { createTrpcRouter, protectedProcedure } from "../init";
 import { openClawMonitor } from "@/lib/openclaw/monitoring";
+import { vpsMetricsStore } from "@/lib/monitoring/vps-metrics-store";
 
 export const monitoringRouter = createTrpcRouter({
   getCurrentSnapshot: protectedProcedure.query(async () => {
@@ -208,5 +209,38 @@ export const monitoringRouter = createTrpcRouter({
   getSystemInfo: protectedProcedure.query(async () => {
     const { getHostInfo } = await import("@/lib/system-info");
     return getHostInfo();
-  })
+  }),
+
+  getVpsMetrics: protectedProcedure
+    .input(
+      z.object({
+        timeRange: z.enum(["1h", "6h", "24h", "7d"]).optional().default("1h")
+      })
+    )
+    .query(async ({ input }) => {
+      // Start background sampling if not already running
+      const intervalMs = Number(process.env.HUB_VPS_METRICS_INTERVAL_MS ?? 60_000);
+      vpsMetricsStore.start(intervalMs);
+
+      const points = vpsMetricsStore.getPoints();
+      const now = Date.now();
+      const windowMs =
+        input.timeRange === "1h"
+          ? 60 * 60_000
+          : input.timeRange === "6h"
+            ? 6 * 60 * 60_000
+            : input.timeRange === "24h"
+              ? 24 * 60 * 60_000
+              : 7 * 24 * 60 * 60_000;
+
+      const since = now - windowMs;
+      const filtered = points.filter((p) => new Date(p.ts).getTime() >= since);
+
+      // Lightweight downsample for UI safety
+      const max = Number(process.env.HUB_VPS_METRICS_MAX_RETURN_POINTS ?? 600);
+      const step = Math.max(1, Math.ceil(filtered.length / max));
+      const sampled = filtered.filter((_p, idx) => idx % step === 0);
+
+      return { timeRange: input.timeRange, points: sampled };
+    })
 });
