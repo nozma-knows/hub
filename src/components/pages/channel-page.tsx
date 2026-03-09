@@ -81,7 +81,7 @@ export function ChannelPage({ channelId }: { channelId: string }) {
   return (
     // Use a fixed viewport-based layout so the composer stays visible on mobile
     // and only the message history pane scrolls.
-    <div className="flex h-[calc(100svh-8rem)] flex-col overflow-hidden pb-[env(safe-area-inset-bottom)]">
+    <div className="flex h-full flex-col overflow-hidden pb-[env(safe-area-inset-bottom)]">
       {error ? <Alert className="mb-4 border-destructive text-destructive">{error}</Alert> : null}
 
       <Card className="flex-1 min-h-0 overflow-hidden">

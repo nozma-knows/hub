@@ -21,14 +21,20 @@ const links = [
   { href: "/workspace", label: "Workspace" }
 ];
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({
+  children,
+  mainClassName
+}: {
+  children: React.ReactNode;
+  mainClassName?: string;
+}) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
     <div className="min-h-screen">
-      <header className="sticky top-0 z-10 border-b bg-background/90 backdrop-blur">
-        <div className="relative mx-auto w-full max-w-7xl px-4 py-3 sm:px-6">
+      <header className="sticky top-0 z-10 border-b bg-background/90 backdrop-blur h-14">
+        <div className="relative mx-auto flex h-14 w-full max-w-7xl items-center px-4 sm:px-6">
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2 text-sm font-semibold">
               <span className="shrink-0 rounded-md bg-primary px-2 py-1 text-primary-foreground">Hub</span>
@@ -109,7 +115,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8">{children}</main>
+      <main
+        className={cn(
+          "mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8",
+          mainClassName
+        )}
+      >
+        {children}
+      </main>
     </div>
   );
 }
