@@ -78,14 +78,26 @@ export function ChannelPage({ channelId }: { channelId: string }) {
 
   const title = channel ? `#${channel.name}` : "Channel";
 
+  useEffect(() => {
+    // Lock body scroll on the channel view so only the history pane scrolls.
+    const prevOverflow = document.body.style.overflow;
+    const prevOverscroll = (document.body.style as any).overscrollBehavior;
+    document.body.style.overflow = "hidden";
+    (document.body.style as any).overscrollBehavior = "none";
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      (document.body.style as any).overscrollBehavior = prevOverscroll;
+    };
+  }, []);
+
   return (
-    // Use a fixed viewport-based layout so the composer stays visible on mobile
+    // Use a fixed layout so the composer stays visible on mobile
     // and only the message history pane scrolls.
-    <div className="flex h-full flex-col overflow-hidden pb-[env(safe-area-inset-bottom)]">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden pb-[env(safe-area-inset-bottom)]">
       {error ? <Alert className="mb-4 border-destructive text-destructive">{error}</Alert> : null}
 
       <Card className="flex-1 min-h-0 overflow-hidden">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <CardHeader className="shrink-0 flex flex-row items-center justify-between space-y-0">
           <div className="min-w-0">
             <CardTitle className="truncate">{title}</CardTitle>
             {channel?.description ? (
