@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Plus, Hash } from "lucide-react";
 
@@ -39,6 +39,26 @@ export function MessagesPage() {
   });
 
   const list = useMemo(() => channels.data ?? [], [channels.data]);
+
+  useEffect(() => {
+    // Lock document scroll on /messages so only the channel list can scroll.
+    const html = document.documentElement;
+    const body = document.body;
+    const prevHtmlOverflow = html.style.overflow;
+    const prevBodyOverflow = body.style.overflow;
+    const prevHtmlOverscroll = (html.style as any).overscrollBehavior;
+    const prevBodyOverscroll = (body.style as any).overscrollBehavior;
+    html.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+    (html.style as any).overscrollBehavior = "none";
+    (body.style as any).overscrollBehavior = "none";
+    return () => {
+      html.style.overflow = prevHtmlOverflow;
+      body.style.overflow = prevBodyOverflow;
+      (html.style as any).overscrollBehavior = prevHtmlOverscroll;
+      (body.style as any).overscrollBehavior = prevBodyOverscroll;
+    };
+  }, []);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
