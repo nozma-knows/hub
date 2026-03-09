@@ -42,6 +42,7 @@ export function ChannelPage({ channelId }: { channelId: string }) {
 
   // Streaming dictation buffer (we append partial transcript while recording)
   const [dictationText, setDictationText] = useState("");
+  const dictationTextRef = useRef("");
   const [composerBase, setComposerBase] = useState<string | null>(null);
   const sttQueueRef = useRef(Promise.resolve());
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -132,6 +133,7 @@ export function ChannelPage({ channelId }: { channelId: string }) {
               else interim += t;
             }
             const merged = normalizeTranscript(`${finalText} ${interim}`);
+            dictationTextRef.current = merged;
             setDictationText(merged);
           } catch {
             // ignore
@@ -154,16 +156,19 @@ export function ChannelPage({ channelId }: { channelId: string }) {
           if (recordTimerRef.current) window.clearInterval(recordTimerRef.current);
           recordTimerRef.current = null;
 
-          const fullText = dictationText.trim();
+          // Use ref (not state) to avoid losing the last onresult due to React state timing.
+          const fullText = (dictationTextRef.current || "").trim();
           if (fullText) {
             setComposer((prev) => {
               const base = (prev ?? "").trim();
               return base ? `${base} ${fullText}` : fullText;
             });
+            setSttError(null);
           } else {
             setSttError("No speech detected");
           }
 
+          dictationTextRef.current = "";
           setDictationText("");
           setComposerBase(null);
           usingSpeechApiRef.current = false;
@@ -213,7 +218,9 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                 if (!partial) return;
                 setDictationText((prev) => {
                   const base = prev.trim();
-                  return base ? `${base} ${partial}` : partial;
+                  const next = base ? `${base} ${partial}` : partial;
+                  dictationTextRef.current = next;
+                  return next;
                 });
               } catch (err) {
                 const msg = err instanceof Error ? err.message : String(err);
