@@ -71,13 +71,18 @@ export function startDispatcher(): void {
       console.log("🤖 Dispatcher tick");
 
       // Heartbeat: record that the dispatcher loop is alive.
-      await db
-        .insert(hubDispatcherState)
-        .values({ key: "main", lastTickAt: new Date(), lastError: null, updatedAt: new Date() })
-        .onConflictDoUpdate({
-          target: hubDispatcherState.key,
-          set: { lastTickAt: new Date(), lastError: null, updatedAt: new Date() }
-        });
+      // Best-effort: never let health telemetry break the dispatcher.
+      try {
+        await db
+          .insert(hubDispatcherState)
+          .values({ key: "main", lastTickAt: new Date(), lastError: null, updatedAt: new Date() })
+          .onConflictDoUpdate({
+            target: hubDispatcherState.key,
+            set: { lastTickAt: new Date(), lastError: null, updatedAt: new Date() }
+          });
+      } catch {
+        // ignore
+      }
       const now = new Date();
       const lockExpiresAt = new Date(Date.now() + LOCK_TTL_MS);
 
