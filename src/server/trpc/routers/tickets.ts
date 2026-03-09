@@ -6,7 +6,7 @@ import { logAuditEvent } from "@/lib/audit";
 import { openClawAgentTurn } from "@/lib/openclaw/cli-adapter";
 import { adminProcedure, createTrpcRouter, protectedProcedure } from "@/server/trpc/init";
 
-const statusSchema = z.enum(["todo", "doing", "done"]);
+const statusSchema = z.enum(["backlog", "todo", "in_progress", "done", "canceled"]);
 const prioritySchema = z.enum(["low", "normal", "high", "urgent"]);
 
 export const ticketsRouter = createTrpcRouter({

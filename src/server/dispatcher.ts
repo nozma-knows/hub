@@ -50,7 +50,7 @@ export function startDispatcher(): void {
         where: and(
           or(
             eq(hubTickets.status, "todo"),
-            and(eq(hubTickets.status, "doing"), eq(hubTickets.dispatchState, "running"), lt(hubTickets.dispatchLockExpiresAt, now))
+            and(eq(hubTickets.status, "in_progress"), eq(hubTickets.dispatchState, "running"), lt(hubTickets.dispatchLockExpiresAt, now))
           ),
           or(isNull(hubTickets.dispatchLockExpiresAt), lt(hubTickets.dispatchLockExpiresAt, now))
         ),
@@ -80,7 +80,7 @@ export function startDispatcher(): void {
         const updated = await db
           .update(hubTickets)
           .set({
-            status: "doing",
+            status: "in_progress",
             dispatchState: "running",
             dispatchLockId: lockId,
             dispatchLockExpiresAt: lockExpiresAt,
@@ -91,7 +91,7 @@ export function startDispatcher(): void {
           .where(
             and(
               eq(hubTickets.id, ticket.id),
-              or(eq(hubTickets.status, "todo"), eq(hubTickets.status, "doing")),
+              or(eq(hubTickets.status, "todo"), eq(hubTickets.status, "in_progress")),
               or(isNull(hubTickets.dispatchLockExpiresAt), lt(hubTickets.dispatchLockExpiresAt, now))
             )
           )

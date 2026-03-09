@@ -11,12 +11,14 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc-client";
 
-type Status = "todo" | "doing" | "done";
+type Status = "backlog" | "todo" | "in_progress" | "done" | "canceled";
 
 const columns: Array<{ key: Status; title: string }> = [
+  { key: "backlog", title: "Backlog" },
   { key: "todo", title: "Todo" },
-  { key: "doing", title: "Doing" },
-  { key: "done", title: "Done" }
+  { key: "in_progress", title: "In Progress" },
+  { key: "done", title: "Done" },
+  { key: "canceled", title: "Canceled" }
 ];
 
 export function TicketsPage() {
@@ -34,8 +36,9 @@ export function TicketsPage() {
   });
 
   const move = trpc.tickets.move.useMutation({
-    onSuccess: async () => {
+    onSuccess: async (_data, vars) => {
       await utils.tickets.list.invalidate();
+      if (vars?.ticketId) await utils.tickets.get.invalidate({ ticketId: vars.ticketId });
     },
     onError: (e) => setError(e.message)
   });
@@ -67,10 +70,11 @@ export function TicketsPage() {
   const [comment, setComment] = useState("");
 
   const grouped = useMemo(() => {
-    const map: Record<Status, any[]> = { todo: [], doing: [], done: [] };
+    const map: Record<Status, any[]> = { backlog: [], todo: [], in_progress: [], done: [], canceled: [] };
     for (const t of tickets.data ?? []) {
       const key = (t.status as Status) || "todo";
-      map[key].push(t);
+      if (map[key]) map[key].push(t);
+      else map.todo.push(t);
     }
     return map;
   }, [tickets.data]);
@@ -81,7 +85,7 @@ export function TicketsPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Tickets</h1>
-          <p className="text-sm text-muted-foreground">Hub-native Kanban board (Todo / Doing / Done).</p>
+          <p className="text-sm text-muted-foreground">Kanban board aligned with Linear workflow states.</p>
         </div>
       </div>
 
@@ -187,9 +191,28 @@ export function TicketsPage() {
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
         <div className="flex w-full max-w-2xl flex-col overflow-hidden rounded-lg bg-background shadow-lg max-h-[90dvh]">
           <div className="flex items-start justify-between gap-3 border-b p-4 shrink-0">
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <div className="text-lg font-semibold truncate">{ticketDetail.data?.ticket.title ?? "Ticket"}</div>
-              <div className="mt-1 text-xs text-muted-foreground">Status: {ticketDetail.data?.ticket.status}</div>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <div className="text-xs text-muted-foreground">State</div>
+                <select
+                  className="rounded-md border bg-background px-2 py-1 text-xs"
+                  value={(ticketDetail.data?.ticket.status as Status) ?? "todo"}
+                  onChange={(e) => {
+                    if (!openTicketId) return;
+                    setError(null);
+                    move.mutate({ ticketId: openTicketId, status: e.target.value as Status });
+                  }}
+                  disabled={move.isPending || ticketDetail.isLoading}
+                >
+                  {columns.map((c) => (
+                    <option key={c.key} value={c.key}>
+                      {c.title}
+                    </option>
+                  ))}
+                </select>
+                {move.isPending ? <span className="text-xs text-muted-foreground">Saving…</span> : null}
+              </div>
             </div>
             <Button variant="outline" onClick={() => setOpenTicketId(null)}>
               Close
