@@ -357,6 +357,7 @@ Rules:
               const action = extractCommandAction(output);
 
               if (action?.kind === "create_ticket") {
+                const ownerAgentId = action.ownerAgentId ?? "cos";
                 const [ticket] = await ctx.db
                   .insert(hubTickets)
                   .values({
@@ -365,7 +366,7 @@ Rules:
                     description: action.description ?? `Created by @command from channel thread: ${thread.title ?? "(no title)"}`,
                     status: "todo",
                     priority: "normal",
-                    ownerAgentId: action.ownerAgentId,
+                    ownerAgentId,
                     createdByUserId: ctx.user!.id
                   })
                   .returning();
@@ -391,7 +392,7 @@ Rules:
                     workspaceId: ctx.workspace.id,
                     threadId: input.threadId,
                     authorType: "system",
-                    body: `✅ Ticket created: "${ticket.title}" (Todo)${ticket.ownerAgentId ? ` · owner: ${ticket.ownerAgentId}` : ""}. See /tickets.`
+                    body: `✅ Ticket created: "${ticket.title}" (Todo) · owner: ${ticket.ownerAgentId}. See /tickets.`
                   });
                 }
               }
