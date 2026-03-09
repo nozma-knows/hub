@@ -11,14 +11,20 @@ export async function logAuditEvent(input: {
   result: "success" | "failure";
   details?: Record<string, unknown>;
 }): Promise<void> {
-  await db.insert(auditEvents).values({
-    workspaceId: input.workspaceId,
-    correlationId: input.correlationId,
-    eventType: input.eventType,
-    actorUserId: input.actorUserId,
-    agentId: input.agentId,
-    providerKey: input.providerKey,
-    result: input.result,
-    details: input.details ?? {}
-  });
+  // Auditing should never break product flows.
+  try {
+    await db.insert(auditEvents).values({
+      workspaceId: input.workspaceId,
+      correlationId: input.correlationId,
+      eventType: input.eventType,
+      actorUserId: input.actorUserId,
+      agentId: input.agentId,
+      providerKey: input.providerKey,
+      result: input.result,
+      details: input.details ?? {}
+    });
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn("Failed to write audit event", { err, eventType: input.eventType });
+  }
 }
