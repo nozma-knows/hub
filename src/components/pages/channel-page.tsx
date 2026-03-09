@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { isSendShortcut } from "@/lib/keyboard";
+import { acquireStream, getMicPermissionState, release as releaseMic, stop as stopMic } from "@/lib/mic-manager";
 import { trpc } from "@/lib/trpc-client";
 
 export function ChannelPage({ channelId }: { channelId: string }) {
@@ -196,7 +197,13 @@ export function ChannelPage({ channelId }: { channelId: string }) {
     }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const perm = await getMicPermissionState();
+      if (perm === "denied") {
+        setSttError("Microphone permission denied. Enable it in browser settings and reload.");
+        return;
+      }
+
+      const stream = await acquireStream();
       mediaStreamRef.current = stream;
 
             const types = ["audio/mp4", "audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/ogg"];
@@ -241,7 +248,8 @@ export function ChannelPage({ channelId }: { channelId: string }) {
           if (recordTimerRef.current) window.clearInterval(recordTimerRef.current);
           recordTimerRef.current = null;
 
-          for (const t of mediaStreamRef.current?.getTracks?.() ?? []) t.stop();
+          // Release mic ASAP for privacy, but keep permission/stream reusable.
+          releaseMic();
           mediaStreamRef.current = null;
 
           await sttQueueRef.current.catch(() => {});
@@ -307,8 +315,9 @@ export function ChannelPage({ channelId }: { channelId: string }) {
       const text = `${name}: ${msg}`;
       setSttError(text);
       if (String(name).toLowerCase().includes("notallowed")) {
-              }
-      for (const t of mediaStreamRef.current?.getTracks?.() ?? []) t.stop();
+        // likely permission denied / blocked
+      }
+      stopMic();
       mediaStreamRef.current = null;
       mediaRecorderRef.current = null;
     } finally {
@@ -477,7 +486,7 @@ export function ChannelPage({ channelId }: { channelId: string }) {
       } catch {
         // ignore
       }
-      for (const t of mediaStreamRef.current?.getTracks?.() ?? []) t.stop();
+      stopMic();
       mediaStreamRef.current = null;
       mediaRecorderRef.current = null;
     };
