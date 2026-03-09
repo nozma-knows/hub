@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { Mic } from "lucide-react";
+
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,6 +23,80 @@ export function ChannelPage({ channelId }: { channelId: string }) {
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
 
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordSeconds, setRecordSeconds] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const recordChunksRef = useRef<BlobPart[]>([]);
+  const recordTimerRef = useRef<number | null>(null);
+
+  async function stopRecordingAndSend() {
+    const mr = mediaRecorderRef.current;
+    if (!mr) return;
+
+    if (mr.state !== "inactive") mr.stop();
+  }
+
+  async function startRecording() {
+    if (isRecording) return;
+
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaStreamRef.current = stream;
+
+    // Pick a MIME type Safari can handle.
+    const types = ["audio/mp4", "audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/ogg"];
+    const mimeType = types.find((t) => (window as any).MediaRecorder?.isTypeSupported?.(t)) ?? "";
+
+    const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+    mediaRecorderRef.current = mr;
+    recordChunksRef.current = [];
+
+    mr.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) recordChunksRef.current.push(e.data);
+    };
+
+    mr.onstop = async () => {
+      try {
+        setIsRecording(false);
+        setRecordSeconds(0);
+        if (recordTimerRef.current) window.clearInterval(recordTimerRef.current);
+        recordTimerRef.current = null;
+
+        // stop mic
+        for (const t of mediaStreamRef.current?.getTracks?.() ?? []) t.stop();
+        mediaStreamRef.current = null;
+
+        const blob = new Blob(recordChunksRef.current, { type: mr.mimeType || "audio/webm" });
+        recordChunksRef.current = [];
+
+        // Upload + transcribe
+        const form = new FormData();
+        form.append("file", blob, `recording.${(blob.type.includes("mp4") ? "m4a" : blob.type.includes("ogg") ? "ogg" : "webm")}`);
+
+        const resp = await fetch("/api/stt/transcribe", { method: "POST", body: form });
+        if (!resp.ok) return;
+        const data = (await resp.json()) as { text?: string };
+        const text = (data.text ?? "").trim();
+        if (!text) return;
+
+        if (threadId) {
+          setError(null);
+          await send.mutateAsync({ threadId, body: text });
+        } else {
+          setComposer(text);
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    setIsRecording(true);
+    setRecordSeconds(0);
+    recordTimerRef.current = window.setInterval(() => setRecordSeconds((s) => s + 1), 1000);
+
+    mr.start();
+  }
 
   const agents = trpc.agents.list.useQuery();
   const [showTicket, setShowTicket] = useState(false);
@@ -175,6 +251,17 @@ export function ChannelPage({ channelId }: { channelId: string }) {
       body.style.overflow = prevBodyOverflow;
       (html.style as any).overscrollBehavior = prevHtmlOverscroll;
       (body.style as any).overscrollBehavior = prevBodyOverscroll;
+
+      if (recordTimerRef.current) window.clearInterval(recordTimerRef.current);
+      recordTimerRef.current = null;
+      try {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") mediaRecorderRef.current.stop();
+      } catch {
+        // ignore
+      }
+      for (const t of mediaStreamRef.current?.getTracks?.() ?? []) t.stop();
+      mediaStreamRef.current = null;
+      mediaRecorderRef.current = null;
     };
   }, []);
 
@@ -258,34 +345,71 @@ export function ChannelPage({ channelId }: { channelId: string }) {
 
             <div className="shrink-0 border-t bg-background/80 backdrop-blur p-3">
               <div className="space-y-2">
-                <Textarea
-                  ref={composerRef}
-                  value={composer}
-                  onChange={(e) => {
-                    const next = e.target.value;
-                    setComposer(next);
-                    updateMentionQuery(next);
-                  }}
-                  onKeyDown={(e) => {
-                    if (!mentionQuery) return;
-                    if (e.key === "Escape") {
-                      setMentionQuery(null);
-                      return;
-                    }
-                    if (e.key === "Tab" || e.key === "Enter") {
-                      // If user is typing @c..., accept autocomplete.
-                      if ("command".startsWith(mentionQuery)) {
-                        e.preventDefault();
-                        insertMention("@command");
+                <div className="flex items-end gap-2">
+                  <div className="flex-1">
+                    <Textarea
+                      ref={composerRef}
+                      value={composer}
+                      onChange={(e) => {
+                        const next = e.target.value;
+                        setComposer(next);
+                        updateMentionQuery(next);
+                      }}
+                      onKeyDown={(e) => {
+                        if (!mentionQuery) return;
+                        if (e.key === "Escape") {
+                          setMentionQuery(null);
+                          return;
+                        }
+                        if (e.key === "Tab" || e.key === "Enter") {
+                          // If user is typing @c..., accept autocomplete.
+                          if ("command".startsWith(mentionQuery)) {
+                            e.preventDefault();
+                            insertMention("@command");
+                          }
+                        }
+                      }}
+                      placeholder={isRecording ? "Recording…" : "Message…"}
+                      className="min-h-14 rounded-xl text-base"
+                      inputMode="text"
+                      autoCorrect="on"
+                      autoCapitalize="sentences"
+                      disabled={isRecording}
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onPointerDown={async (e) => {
+                      e.preventDefault();
+                      try {
+                        await startRecording();
+                      } catch {
+                        // ignore
                       }
+                    }}
+                    onPointerUp={async (e) => {
+                      e.preventDefault();
+                      await stopRecordingAndSend();
+                    }}
+                    onPointerCancel={async (e) => {
+                      e.preventDefault();
+                      await stopRecordingAndSend();
+                    }}
+                    className={
+                      "inline-flex h-12 w-12 items-center justify-center rounded-xl border shadow-sm transition " +
+                      (isRecording ? "bg-destructive text-destructive-foreground" : "bg-background hover:bg-muted")
                     }
-                  }}
-                  placeholder="Message…"
-                  className="min-h-14 rounded-xl text-base"
-                  inputMode="text"
-                  autoCorrect="on"
-                  autoCapitalize="sentences"
-                />
+                    aria-label="Hold to record"
+                    title="Hold to talk"
+                  >
+                    <Mic className="h-5 w-5" />
+                  </button>
+                </div>
+
+                {isRecording ? (
+                  <div className="text-xs text-muted-foreground">Recording… {Math.floor(recordSeconds / 60)}:{String(recordSeconds % 60).padStart(2, "0")}</div>
+                ) : null}
 
                 {mentionQuery !== null ? (
                   <div className="flex flex-wrap gap-2">

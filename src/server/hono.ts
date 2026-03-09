@@ -33,6 +33,40 @@ honoApp.use(
   })
 );
 
+honoApp.post("/stt/transcribe", async (c) => {
+  const ctx = await createTrpcContext(c);
+  if (!ctx.user || !ctx.workspace) return c.json({ error: "unauthorized" }, 401);
+  if (!env.OPENAI_API_KEY) return c.json({ error: "OPENAI_API_KEY not configured" }, 500);
+
+  const body = await c.req.parseBody();
+  const file = body["file"] as unknown as File | undefined;
+  if (!file) return c.json({ error: "missing file" }, 400);
+
+  // Convert to a Blob for Node fetch FormData
+  const ab = await file.arrayBuffer();
+  const blob = new Blob([ab], { type: file.type || "application/octet-stream" });
+
+  const form = new FormData();
+  form.append("file", blob, file.name || "audio");
+  form.append("model", "whisper-1");
+
+  const resp = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${env.OPENAI_API_KEY}`
+    },
+    body: form as any
+  });
+
+  if (!resp.ok) {
+    const txt = await resp.text();
+    return c.json({ error: "transcription_failed", detail: txt }, 500);
+  }
+
+  const text = await resp.text();
+  return c.json({ text });
+});
+
 honoApp.get("/oauth/:provider/callback", async (c) => {
   const providerKey = c.req.param("provider");
   const state = c.req.query("state");
