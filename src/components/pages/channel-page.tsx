@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MarkdownMessage } from "@/components/markdown";
 import { Textarea } from "@/components/ui/textarea";
 import { isSendShortcut } from "@/lib/keyboard";
 import { acquireStream, getMicPermissionState, release as releaseMic, stop as stopMic } from "@/lib/mic-manager";
@@ -560,7 +561,9 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                         </span>
                         {copiedMessageId === m.id ? <span className="font-medium">Copied</span> : null}
                       </div>
-                      <div className="whitespace-pre-wrap break-words overflow-hidden">{m.body}</div>
+                      <div className="break-words overflow-hidden">
+                        <MarkdownMessage body={m.body} />
+                      </div>
                     </button>
                   </div>
                 );

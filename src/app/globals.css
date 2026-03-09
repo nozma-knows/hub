@@ -54,3 +54,36 @@ body {
   background-image: radial-gradient(circle at 10% 5%, rgba(74, 222, 128, 0.08), transparent 32%),
     radial-gradient(circle at 90% 0%, rgba(250, 204, 21, 0.1), transparent 28%);
 }
+
+/* Syntax highlighting (rehype-highlight / highlight.js)
+   Keep subtle + theme-compatible.
+*/
+.hljs {
+  background: transparent;
+}
+.hljs-comment,
+.hljs-quote {
+  color: color-mix(in oklch, var(--muted-foreground) 85%, black);
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-subst {
+  color: color-mix(in oklch, var(--primary) 75%, black);
+}
+.hljs-string,
+.hljs-title,
+.hljs-section,
+.hljs-attr,
+.hljs-attribute {
+  color: color-mix(in oklch, var(--accent) 65%, black);
+}
+.hljs-number,
+.hljs-literal,
+.hljs-symbol,
+.hljs-bullet {
+  color: color-mix(in oklch, var(--primary) 60%, black);
+}
+.hljs-name,
+.hljs-tag {
+  color: color-mix(in oklch, var(--foreground) 85%, black);
+}
