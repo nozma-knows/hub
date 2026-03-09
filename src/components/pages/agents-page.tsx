@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect } from "react";
 
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +18,30 @@ export function AgentsPage() {
       await utils.agents.list.invalidate();
     }
   });
+
+  // Auto-sync on page entry if it's been a while. Keeps counts correct without constant polling.
+  useEffect(() => {
+    const KEY = "hub.agents.lastAutoSyncAt";
+    const COOLDOWN_MS = 10 * 60 * 1000;
+
+    const maybeSync = () => {
+      if (syncMutation.isPending) return;
+      const last = Number(sessionStorage.getItem(KEY) ?? "0");
+      if (Date.now() - last < COOLDOWN_MS) return;
+      sessionStorage.setItem(KEY, String(Date.now()));
+      syncMutation.mutate();
+    };
+
+    // On mount + when returning to tab
+    maybeSync();
+
+    const onVis = () => {
+      if (document.visibilityState === "visible") maybeSync();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="space-y-6">
