@@ -41,7 +41,7 @@ export function MessagesPage() {
   const list = useMemo(() => channels.data ?? [], [channels.data]);
 
   return (
-    <div className="flex h-[calc(100svh-3.5rem)] flex-col gap-4 overflow-hidden">
+    <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
       <div className="shrink-0 flex items-end justify-between px-1">
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold">Messages</h1>
