@@ -28,6 +28,14 @@ export function ChannelPage({ channelId }: { channelId: string }) {
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [sttError, setSttError] = useState<string | null>(null);
   const [recordSeconds, setRecordSeconds] = useState(0);
+  const [showMicGate, setShowMicGate] = useState(false);
+  const [micGranted, setMicGranted] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("hub.mic.granted") === "true";
+    } catch {
+      return false;
+    }
+  });
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const recordChunksRef = useRef<BlobPart[]>([]);
@@ -41,17 +49,44 @@ export function ChannelPage({ channelId }: { channelId: string }) {
     if (mr.state !== "inactive") mr.stop();
   }
 
+  async function requestMicAccess() {
+    setSttError(null);
+
+    if (!window.isSecureContext) {
+      setSttError("Microphone requires HTTPS (secure context)");
+      return false;
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setSttError("Microphone not supported in this browser");
+      return false;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      for (const t of stream.getTracks()) t.stop();
+      setMicGranted(true);
+      try {
+        localStorage.setItem("hub.mic.granted", "true");
+      } catch {
+        // ignore
+      }
+      return true;
+    } catch (err) {
+      const e = err as any;
+      const name = typeof e?.name === "string" ? e.name : "Error";
+      const msg = typeof e?.message === "string" ? e.message : String(err);
+      setSttError(`${name}: ${msg}`);
+      return false;
+    }
+  }
+
   async function startRecording() {
     if (isRecording || isTranscribing) return;
     if (recordStartPendingRef.current) return;
 
-    // Must be secure context + user gesture; also show clear errors.
-    if (!window.isSecureContext) {
-      setSttError("Microphone requires HTTPS (secure context)");
-      return;
-    }
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setSttError("Microphone not supported in this browser");
+    // Gate: first use should explicitly request mic access via a clear prompt.
+    if (!micGranted) {
+      setShowMicGate(true);
       return;
     }
 
@@ -59,17 +94,6 @@ export function ChannelPage({ channelId }: { channelId: string }) {
     setSttError(null);
 
     try {
-      // Permission hint (Chrome/Safari)
-      try {
-        const perm = await (navigator as any).permissions?.query?.({ name: "microphone" });
-        if (perm && perm.state === "denied") {
-          setSttError("Microphone permission denied. Enable it in the browser site settings.");
-          return;
-        }
-      } catch {
-        // ignore
-      }
-
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStreamRef.current = stream;
 
@@ -145,7 +169,19 @@ export function ChannelPage({ channelId }: { channelId: string }) {
       const e = err as any;
       const name = typeof e?.name === "string" ? e.name : "Error";
       const msg = typeof e?.message === "string" ? e.message : String(err);
-      setSttError(`${name}: ${msg}`);
+      const text = `${name}: ${msg}`;
+      setSttError(text);
+
+      // If browser says not allowed, re-open the mic gate prompt.
+      if (String(name).toLowerCase().includes("notallowed")) {
+        setShowMicGate(true);
+        setMicGranted(false);
+        try {
+          localStorage.removeItem("hub.mic.granted");
+        } catch {
+          // ignore
+        }
+      }
 
       for (const t of mediaStreamRef.current?.getTracks?.() ?? []) t.stop();
       mediaStreamRef.current = null;
@@ -509,6 +545,42 @@ export function ChannelPage({ channelId }: { channelId: string }) {
           </div>
         </CardContent>
       </Card>
+
+      {showMicGate ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-background shadow-lg">
+            <div className="border-b p-4">
+              <div className="text-lg font-semibold">Enable microphone</div>
+              <div className="mt-1 text-sm text-muted-foreground">
+                To use push-to-talk, your browser needs microphone access.
+              </div>
+            </div>
+            <div className="space-y-3 p-4">
+              <div className="text-sm text-muted-foreground">
+                When you tap <span className="font-medium">Allow microphone</span>, your browser should show a permission prompt.
+              </div>
+              {sttError ? <Alert className="border-destructive text-destructive">{sttError}</Alert> : null}
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setShowMicGate(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={async () => {
+                    const ok = await requestMicAccess();
+                    if (ok) setShowMicGate(false);
+                  }}
+                >
+                  Allow microphone
+                </Button>
+              </div>
+              <div className="text-xs text-muted-foreground">
+                If you previously denied it, you may need to enable it in your browser site settings and reload.
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
 
       {showTicket ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
