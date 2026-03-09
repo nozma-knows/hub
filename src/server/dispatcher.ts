@@ -43,18 +43,14 @@ export function startDispatcher(): void {
       const lockExpiresAt = new Date(Date.now() + LOCK_TTL_MS);
 
       // Pull a small batch of candidate tickets.
+      // Also recover tickets that were moved to Doing but have an expired lock (crash/restart mid-run).
       const candidates = await db.query.hubTickets.findMany({
         where: and(
-          eq(hubTickets.status, "todo"),
-          // must have owner
-          // (null owner means it won't be picked up automatically)
-          // drizzle doesn't have isNotNull helper here; use != null by OR
-          // We'll filter in JS.
-          // lock must be free or expired
           or(
-            isNull(hubTickets.dispatchLockExpiresAt),
-            lt(hubTickets.dispatchLockExpiresAt, now)
-          )
+            eq(hubTickets.status, "todo"),
+            and(eq(hubTickets.status, "doing"), eq(hubTickets.dispatchState, "running"), lt(hubTickets.dispatchLockExpiresAt, now))
+          ),
+          or(isNull(hubTickets.dispatchLockExpiresAt), lt(hubTickets.dispatchLockExpiresAt, now))
         ),
         orderBy: (t, { asc }) => [asc(t.updatedAt)],
         limit: 25
@@ -62,13 +58,20 @@ export function startDispatcher(): void {
 
       const due = candidates
         .filter((t) => Boolean(t.ownerAgentId))
-        .filter((t) => !t.lastDispatchedAt || Date.now() - new Date(t.lastDispatchedAt).getTime() > COOLDOWN_MS)
+        // Don't spam the same ticket unless the previous lock expired (recovery)
+        .filter((t) => {
+          const last = t.lastDispatchedAt ? new Date(t.lastDispatchedAt).getTime() : null;
+          const lockExpired = !t.dispatchLockExpiresAt || new Date(t.dispatchLockExpiresAt).getTime() < Date.now();
+          if (lockExpired && t.dispatchState === "running") return true;
+          if (!last) return true;
+          return Date.now() - last > COOLDOWN_MS;
+        })
         .slice(0, MAX_PER_TICK);
 
       for (const ticket of due) {
         const lockId = randomUUID();
 
-        // Attempt to lock (best-effort optimistic) and immediately move to Doing so it doesn't look stuck.
+        // Attempt to lock (best-effort optimistic) and move to Doing so it doesn't look stuck.
         const updated = await db
           .update(hubTickets)
           .set({
@@ -83,7 +86,7 @@ export function startDispatcher(): void {
           .where(
             and(
               eq(hubTickets.id, ticket.id),
-              eq(hubTickets.status, "todo"),
+              or(eq(hubTickets.status, "todo"), eq(hubTickets.status, "doing")),
               or(isNull(hubTickets.dispatchLockExpiresAt), lt(hubTickets.dispatchLockExpiresAt, now))
             )
           )
