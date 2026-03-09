@@ -30,6 +30,12 @@ export function startReconciliationSync(): void {
     isRunning = true;
     try {
       const live = await openClawCliAdapter.listAgents();
+      // Safety: if OpenClaw CLI returns an empty list, treat as unhealthy rather than "all agents removed".
+      // This prevents flapping UX where agents disappear when the CLI is slow/unavailable.
+      if (live.length === 0) {
+        return;
+      }
+
       const workspaceRows = await db.query.workspaces.findMany({
         columns: {
           id: true

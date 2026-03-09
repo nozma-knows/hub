@@ -296,6 +296,9 @@ export const agentsRouter = createTrpcRouter({
 
   sync: protectedProcedure.mutation(async ({ ctx }) => {
     const liveAgents = await openClawCliAdapter.listAgents();
+    if (liveAgents.length === 0) {
+      throw new Error("OpenClaw CLI returned no agents. Try again in a moment.");
+    }
 
     await upsertWorkspaceAgents({
       workspaceId: ctx.workspace.id,
