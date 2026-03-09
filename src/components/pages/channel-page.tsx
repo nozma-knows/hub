@@ -59,11 +59,11 @@ export function ChannelPage({ channelId }: { channelId: string }) {
     setSttError(null);
 
     try {
-      // Prime permission check first (more reliable on iOS)
+      // Permission hint (Chrome/Safari)
       try {
         const perm = await (navigator as any).permissions?.query?.({ name: "microphone" });
         if (perm && perm.state === "denied") {
-          setSttError("Microphone permission denied. Enable it in Safari site settings.");
+          setSttError("Microphone permission denied. Enable it in the browser site settings.");
           return;
         }
       } catch {
@@ -483,7 +483,7 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                   <div className="text-xs text-destructive">
                     STT failed: {sttError}
                     <div className="mt-1 text-[11px] text-muted-foreground">
-                      Tip: iOS Safari → aA → Website Settings → Microphone → Allow.
+                      Tip: In Chrome iOS: tap the address bar “…” → Site settings → Microphone → Allow, then reload.
                     </div>
                   </div>
                 ) : null}
