@@ -416,8 +416,20 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                       e.preventDefault();
                       await stopRecordingAndSend();
                     }}
+                    onTouchStart={async (e) => {
+                      e.preventDefault();
+                      try {
+                        await startRecording();
+                      } catch (err) {
+                        setSttError(err instanceof Error ? err.message : String(err));
+                      }
+                    }}
+                    onTouchEnd={async (e) => {
+                      e.preventDefault();
+                      await stopRecordingAndSend();
+                    }}
                     className={
-                      "inline-flex h-12 w-12 items-center justify-center rounded-xl border shadow-sm transition " +
+                      "inline-flex h-12 w-12 items-center justify-center rounded-xl border shadow-sm transition select-none touch-none " +
                       (isRecording
                         ? "bg-destructive text-destructive-foreground"
                         : isTranscribing
