@@ -5,7 +5,34 @@ import { z } from "zod";
 
 const activeCommandRuns = new Map<string, { runId: string; startedAt: number }>();
 
-import { hubChannelAgents, hubChannels, hubMessages, hubThreads } from "@/db/schema";
+function extractCommandAction(output: string):
+  | { kind: "create_ticket"; title: string; ownerAgentId?: string; description?: string }
+  | null {
+  // Expected format from @command:
+  // ```hub-action
+  // {"kind":"create_ticket","title":"...","ownerAgentId":"dev","description":"..."}
+  // ```
+  const match = output.match(/```hub-action\s*([\s\S]*?)```/i);
+  if (!match) return null;
+  const raw = match[1]?.trim();
+  if (!raw) return null;
+
+  try {
+    const parsed = JSON.parse(raw) as any;
+    if (parsed?.kind !== "create_ticket") return null;
+    if (typeof parsed.title !== "string" || parsed.title.trim().length === 0) return null;
+    return {
+      kind: "create_ticket",
+      title: parsed.title.trim(),
+      ownerAgentId: typeof parsed.ownerAgentId === "string" && parsed.ownerAgentId.trim() ? parsed.ownerAgentId.trim() : undefined,
+      description: typeof parsed.description === "string" && parsed.description.trim() ? parsed.description.trim() : undefined
+    };
+  } catch {
+    return null;
+  }
+}
+
+import { hubChannelAgents, hubChannels, hubMessages, hubThreads, hubThreadTickets, hubTickets } from "@/db/schema";
 import { openClawAgentTurn } from "@/lib/openclaw/cli-adapter";
 import { logAuditEvent } from "@/lib/audit";
 import { adminProcedure, createTrpcRouter, protectedProcedure } from "@/server/trpc/init";
@@ -282,7 +309,7 @@ export const messagesRouter = createTrpcRouter({
               )
               .join("\n");
 
-            const prompt = `You are @command (Chief of Staff) inside OpenClaw Hub. Reply in-channel.
+            const prompt = `You are @command (Chief of Staff) inside OpenClaw Hub.
 
 Thread title: ${thread.title ?? "(none)"}
 
@@ -291,7 +318,16 @@ ${context}
 
 Instructions:
 - Be concise and action-oriented.
-- If this should become a ticket, say so and propose: title + owner agent (ops/dev/pm/research).
+- If this should become a ticket, you have two options:
+  1) Suggest only: propose a title + owner agent id (ops/dev/pm/research) and ask for confirmation.
+  2) Create it now: include EXACTLY ONE action block in your reply.
+
+Format for creating:
+- Include a fenced code block with language "hub-action" containing JSON:
+  {"kind":"create_ticket","title":"...","ownerAgentId":"dev","description":"..."}
+
+Rules:
+- NEVER claim you created a ticket unless you include the hub-action block.
 - If you need clarification, ask at most 1-2 questions.`;
 
             const result = await openClawAgentTurn({ agentId: "cos", message: prompt, timeoutSeconds: 120 });
@@ -318,6 +354,48 @@ Instructions:
             }
 
             if (output) {
+              const action = extractCommandAction(output);
+
+              if (action?.kind === "create_ticket") {
+                const [ticket] = await ctx.db
+                  .insert(hubTickets)
+                  .values({
+                    workspaceId: ctx.workspace.id,
+                    title: action.title,
+                    description: action.description ?? `Created by @command from channel thread: ${thread.title ?? "(no title)"}`,
+                    status: "todo",
+                    priority: "normal",
+                    ownerAgentId: action.ownerAgentId,
+                    createdByUserId: ctx.user!.id
+                  })
+                  .returning();
+
+                if (ticket) {
+                  await ctx.db.insert(hubThreadTickets).values({
+                    workspaceId: ctx.workspace.id,
+                    threadId: input.threadId,
+                    ticketId: ticket.id
+                  });
+
+                  await logAuditEvent({
+                    workspaceId: ctx.workspace.id,
+                    eventType: "tickets.createFromCommand",
+                    actorUserId: ctx.user!.id,
+                    agentId: "cos",
+                    result: "success",
+                    details: { ticketId: ticket.id, threadId: input.threadId }
+                  });
+
+                  // Post a confirmation message.
+                  await ctx.db.insert(hubMessages).values({
+                    workspaceId: ctx.workspace.id,
+                    threadId: input.threadId,
+                    authorType: "system",
+                    body: `✅ Ticket created: "${ticket.title}" (Todo)${ticket.ownerAgentId ? ` · owner: ${ticket.ownerAgentId}` : ""}. See /tickets.`
+                  });
+                }
+              }
+
               await ctx.db.insert(hubMessages).values({
                 workspaceId: ctx.workspace.id,
                 threadId: input.threadId,
