@@ -185,8 +185,8 @@ export function TicketsPage() {
 
       {openTicketId ? (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-        <div className="w-full max-w-2xl rounded-lg bg-background shadow-lg">
-          <div className="flex items-start justify-between gap-3 border-b p-4">
+        <div className="flex w-full max-w-2xl flex-col overflow-hidden rounded-lg bg-background shadow-lg max-h-[90dvh]">
+          <div className="flex items-start justify-between gap-3 border-b p-4 shrink-0">
             <div className="min-w-0">
               <div className="text-lg font-semibold truncate">{ticketDetail.data?.ticket.title ?? "Ticket"}</div>
               <div className="mt-1 text-xs text-muted-foreground">Status: {ticketDetail.data?.ticket.status}</div>
@@ -196,7 +196,7 @@ export function TicketsPage() {
             </Button>
           </div>
 
-          <div className="space-y-4 p-4">
+          <div className="flex-1 overflow-auto space-y-4 p-4">
             {ticketDetail.error ? (
               <Alert className="border-destructive text-destructive">{ticketDetail.error.message}</Alert>
             ) : null}
@@ -223,7 +223,7 @@ export function TicketsPage() {
 
             <div className="space-y-2">
               <div className="text-sm font-medium">Comments</div>
-              <div className="max-h-[35vh] overflow-auto space-y-2 rounded-md border p-3">
+              <div className="space-y-2 rounded-md border p-3">
                 {(ticketDetail.data?.comments ?? []).map((c) => (
                   <div key={c.id} className="rounded-md border bg-background p-2">
                     <div className="text-[11px] text-muted-foreground">
