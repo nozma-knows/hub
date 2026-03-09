@@ -116,7 +116,9 @@ export function ChannelPage({ channelId }: { channelId: string }) {
         setIsRecording(true);
         setRecordSeconds(0);
         setDictationText("");
-        setComposerBase((prev) => prev ?? composer);
+        // Snapshot the *actual* current textarea value (state can lag on mobile)
+        // so we never "lose" what you typed right before tapping the mic.
+        setComposerBase(composerRef.current?.value ?? composer);
         recordTimerRef.current = window.setInterval(() => setRecordSeconds((s) => s + 1), 1000);
 
         rec.onresult = (ev: any) => {
@@ -286,7 +288,8 @@ export function ChannelPage({ channelId }: { channelId: string }) {
       setIsRecording(true);
       setRecordSeconds(0);
       setDictationText("");
-      setComposerBase((prev) => prev ?? composer);
+      // Snapshot the *actual* current textarea value (state can lag on mobile)
+      setComposerBase(composerRef.current?.value ?? composer);
       recordTimerRef.current = window.setInterval(() => setRecordSeconds((s) => s + 1), 1000);
       mr.start(2000);
     } catch (err) {
