@@ -381,63 +381,77 @@ export function ChannelPage({ channelId }: { channelId: string }) {
 
             <div className="shrink-0 border-t bg-background/80 backdrop-blur p-3">
               <div className="space-y-2">
-                <div className="flex items-end gap-2">
-                  <div className="flex-1">
-                    <Textarea
-                      ref={composerRef}
-                      value={composer}
-                      onChange={(e) => {
-                        const next = e.target.value;
-                        setComposer(next);
-                        updateMentionQuery(next);
-                      }}
-                      onKeyDown={(e) => {
-                        if (!mentionQuery) return;
-                        if (e.key === "Escape") {
-                          setMentionQuery(null);
-                          return;
+                <div className="grid grid-cols-[1fr,3rem] items-end gap-2">
+                  <Textarea
+                    ref={composerRef}
+                    value={composer}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setComposer(next);
+                      updateMentionQuery(next);
+                    }}
+                    onKeyDown={(e) => {
+                      if (!mentionQuery) return;
+                      if (e.key === "Escape") {
+                        setMentionQuery(null);
+                        return;
+                      }
+                      if (e.key === "Tab" || e.key === "Enter") {
+                        // If user is typing @c..., accept autocomplete.
+                        if ("command".startsWith(mentionQuery)) {
+                          e.preventDefault();
+                          insertMention("@command");
                         }
-                        if (e.key === "Tab" || e.key === "Enter") {
-                          // If user is typing @c..., accept autocomplete.
-                          if ("command".startsWith(mentionQuery)) {
-                            e.preventDefault();
-                            insertMention("@command");
-                          }
-                        }
-                      }}
-                      placeholder={isRecording ? "Recording…" : isTranscribing ? "Transcribing…" : "Message…"}
-                      className="min-h-14 rounded-xl text-base"
-                      inputMode="text"
-                      autoCorrect="on"
-                      autoCapitalize="sentences"
-                      disabled={isRecording || isTranscribing}
-                    />
-                  </div>
+                      }
+                    }}
+                    placeholder={isRecording ? "Recording…" : isTranscribing ? "Transcribing…" : "Message…"}
+                    className="min-h-[104px] rounded-xl text-base"
+                    inputMode="text"
+                    autoCorrect="on"
+                    autoCapitalize="sentences"
+                    disabled={isRecording || isTranscribing}
+                  />
 
-                  <button
-                    type="button"
-                    onPointerDown={async () => {
-                      await startRecording();
-                    }}
-                    onPointerUp={async () => {
-                      await stopRecordingAndSend();
-                    }}
-                    onPointerCancel={async () => {
-                      await stopRecordingAndSend();
-                    }}
-                    className={
-                      "inline-flex h-12 w-12 items-center justify-center rounded-xl border shadow-sm transition select-none touch-none " +
-                      (isRecording
-                        ? "bg-destructive text-destructive-foreground"
-                        : isTranscribing
-                          ? "bg-muted text-muted-foreground"
-                          : "bg-background hover:bg-muted")
-                    }
-                    aria-label="Hold to record"
-                    title="Hold to talk"
-                  >
-                    <Mic className="h-5 w-5" />
-                  </button>
+                  <div className="grid grid-rows-2 gap-2">
+                    <button
+                      type="button"
+                      onPointerDown={async () => {
+                        await startRecording();
+                      }}
+                      onPointerUp={async () => {
+                        await stopRecordingAndSend();
+                      }}
+                      onPointerCancel={async () => {
+                        await stopRecordingAndSend();
+                      }}
+                      className={
+                        "inline-flex h-12 w-12 items-center justify-center rounded-xl border shadow-sm transition select-none touch-none " +
+                        (isRecording
+                          ? "bg-destructive text-destructive-foreground"
+                          : isTranscribing
+                            ? "bg-muted text-muted-foreground"
+                            : "bg-background hover:bg-muted")
+                      }
+                      aria-label="Hold to record"
+                      title="Hold to talk"
+                    >
+                      <Mic className="h-5 w-5" />
+                    </button>
+
+                    <Button
+                      disabled={!threadId || send.isPending || !composer.trim()}
+                      onClick={async () => {
+                        if (!threadId) return;
+                        setError(null);
+                        await send.mutateAsync({ threadId, body: composer.trim() });
+                      }}
+                      className="h-12 w-12 rounded-xl p-0"
+                      aria-label="Send"
+                      title="Send"
+                    >
+                      <span className="text-base font-semibold">→</span>
+                    </Button>
+                  </div>
                 </div>
 
                 {isRecording ? (
@@ -462,18 +476,6 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                   </div>
                 ) : null}
 
-                <div className="flex justify-end">
-                  <Button
-                    disabled={!threadId || send.isPending || !composer.trim()}
-                    onClick={async () => {
-                      if (!threadId) return;
-                      setError(null);
-                      await send.mutateAsync({ threadId, body: composer.trim() });
-                    }}
-                  >
-                    {send.isPending ? "Sending…" : "Send"}
-                  </Button>
-                </div>
               </div>
             </div>
           </div>
