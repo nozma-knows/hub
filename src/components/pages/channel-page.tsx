@@ -16,6 +16,7 @@ export function ChannelPage({ channelId }: { channelId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [composer, setComposer] = useState("");
   const [keyboardInsetPx, setKeyboardInsetPx] = useState(0);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
 
   const agents = trpc.agents.list.useQuery();
   const [showTicket, setShowTicket] = useState(false);
@@ -170,6 +171,10 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                       onClick={async () => {
                         try {
                           await navigator.clipboard.writeText(m.body);
+                          setCopiedMessageId(m.id);
+                          window.setTimeout(() => {
+                            setCopiedMessageId((cur) => (cur === m.id ? null : cur));
+                          }, 800);
                         } catch {
                           // ignore
                         }
@@ -181,8 +186,11 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                           : "bg-primary text-primary-foreground")
                       }
                     >
-                      <div className={"mb-1 text-[10px] opacity-70"}>
-                        {isAgent ? "command" : "you"} · {new Date(m.createdAt).toLocaleTimeString()}
+                      <div className="mb-1 flex items-center justify-between gap-2 text-[10px] opacity-70">
+                        <span>
+                          {isAgent ? "command" : "you"} · {new Date(m.createdAt).toLocaleTimeString()}
+                        </span>
+                        {copiedMessageId === m.id ? <span className="font-medium">Copied</span> : null}
                       </div>
                       <div className="whitespace-pre-wrap break-words overflow-hidden">{m.body}</div>
                     </button>
