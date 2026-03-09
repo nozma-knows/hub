@@ -68,10 +68,11 @@ export function startDispatcher(): void {
       for (const ticket of due) {
         const lockId = randomUUID();
 
-        // Attempt to lock (best-effort optimistic)
+        // Attempt to lock (best-effort optimistic) and immediately move to Doing so it doesn't look stuck.
         const updated = await db
           .update(hubTickets)
           .set({
+            status: "doing",
             dispatchState: "running",
             dispatchLockId: lockId,
             dispatchLockExpiresAt: lockExpiresAt,
@@ -132,7 +133,6 @@ Return:
           await db
             .update(hubTickets)
             .set({
-              status: "doing",
               dispatchState: "idle",
               dispatchLockId: null,
               dispatchLockExpiresAt: null,
@@ -152,6 +152,7 @@ Return:
           await db
             .update(hubTickets)
             .set({
+              status: "todo",
               dispatchState: "error",
               lastDispatchError: msg,
               dispatchLockId: null,

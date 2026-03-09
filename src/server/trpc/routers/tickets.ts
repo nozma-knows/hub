@@ -66,6 +66,7 @@ export const ticketsRouter = createTrpcRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const ownerAgentId = input.ownerAgentId ?? "cos";
       const [created] = await ctx.db
         .insert(hubTickets)
         .values({
@@ -74,7 +75,7 @@ export const ticketsRouter = createTrpcRouter({
           description: input.description,
           status: "todo",
           priority: "normal",
-          ownerAgentId: input.ownerAgentId,
+          ownerAgentId,
           createdByUserId: ctx.user!.id
         })
         .returning();
@@ -146,6 +147,7 @@ export const ticketsRouter = createTrpcRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const ownerAgentId = input.ownerAgentId ?? "cos";
       const [created] = await ctx.db
         .insert(hubTickets)
         .values({
@@ -154,7 +156,7 @@ export const ticketsRouter = createTrpcRouter({
           description: input.description,
           priority: input.priority,
           status: "todo",
-          ownerAgentId: input.ownerAgentId,
+          ownerAgentId,
           createdByUserId: ctx.user!.id
         })
         .returning();
