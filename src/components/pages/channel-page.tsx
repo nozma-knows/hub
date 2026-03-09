@@ -81,10 +81,10 @@ export function ChannelPage({ channelId }: { channelId: string }) {
   return (
     // Use a fixed viewport-based layout so the composer stays visible on mobile
     // and only the message history pane scrolls.
-    <div className="flex h-[calc(100dvh-8rem)] flex-col gap-4">
-      {error ? <Alert className="border-destructive text-destructive">{error}</Alert> : null}
+    <div className="flex h-[calc(100dvh-8rem)] flex-col overflow-hidden">
+      {error ? <Alert className="mb-4 border-destructive text-destructive">{error}</Alert> : null}
 
-      <Card className="flex-1 overflow-hidden">
+      <Card className="flex-1 min-h-0 overflow-hidden">
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <div className="min-w-0">
             <CardTitle className="truncate">{title}</CardTitle>
@@ -111,9 +111,9 @@ export function ChannelPage({ channelId }: { channelId: string }) {
           </div>
         </CardHeader>
 
-        <CardContent className="p-0 h-full">
-          <div className="flex h-full flex-col">
-            <div ref={listRef} className="flex-1 overflow-auto p-3 space-y-2 bg-muted/10">
+        <CardContent className="flex-1 min-h-0 p-0">
+          <div className="flex h-full min-h-0 flex-col">
+            <div ref={listRef} className="flex-1 min-h-0 overflow-auto overscroll-contain p-3 space-y-2 bg-muted/10">
               {(thread.data?.messages ?? []).filter((m) => m.body.trim().length > 0).map((m) => (
                 <div key={m.id} className="rounded-md border bg-background p-2">
                   <div className="text-[11px] text-muted-foreground">
