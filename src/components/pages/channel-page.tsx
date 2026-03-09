@@ -402,38 +402,40 @@ export function ChannelPage({ channelId }: { channelId: string }) {
 
             <div className="shrink-0 border-t bg-background/80 backdrop-blur p-3">
               <div className="space-y-2">
-                <div className="grid grid-cols-[1fr,3rem] items-end gap-2">
-                  <Textarea
-                    ref={composerRef}
-                    value={composer}
-                    onChange={(e) => {
-                      const next = e.target.value;
-                      setComposer(next);
-                      updateMentionQuery(next);
-                    }}
-                    onKeyDown={(e) => {
-                      if (!mentionQuery) return;
-                      if (e.key === "Escape") {
-                        setMentionQuery(null);
-                        return;
-                      }
-                      if (e.key === "Tab" || e.key === "Enter") {
-                        // If user is typing @c..., accept autocomplete.
-                        if ("command".startsWith(mentionQuery)) {
-                          e.preventDefault();
-                          insertMention("@command");
+                <div className="flex items-stretch gap-2">
+                  <div className="flex-1 min-w-0">
+                    <Textarea
+                      ref={composerRef}
+                      value={composer}
+                      onChange={(e) => {
+                        const next = e.target.value;
+                        setComposer(next);
+                        updateMentionQuery(next);
+                      }}
+                      onKeyDown={(e) => {
+                        if (!mentionQuery) return;
+                        if (e.key === "Escape") {
+                          setMentionQuery(null);
+                          return;
                         }
-                      }
-                    }}
-                    placeholder={isRecording ? "Recording…" : isTranscribing ? "Transcribing…" : "Message…"}
-                    className="min-h-[104px] rounded-xl text-base"
-                    inputMode="text"
-                    autoCorrect="on"
-                    autoCapitalize="sentences"
-                    disabled={isRecording || isTranscribing}
-                  />
+                        if (e.key === "Tab" || e.key === "Enter") {
+                          // If user is typing @c..., accept autocomplete.
+                          if ("command".startsWith(mentionQuery)) {
+                            e.preventDefault();
+                            insertMention("@command");
+                          }
+                        }
+                      }}
+                      placeholder={isRecording ? "Recording…" : isTranscribing ? "Transcribing…" : "Message…"}
+                      className="min-h-[104px] rounded-xl text-base"
+                      inputMode="text"
+                      autoCorrect="on"
+                      autoCapitalize="sentences"
+                      disabled={isRecording || isTranscribing}
+                    />
+                  </div>
 
-                  <div className="grid grid-rows-2 gap-2">
+                  <div className="flex flex-col gap-2">
                     <button
                       type="button"
                       onPointerDown={async () => {
