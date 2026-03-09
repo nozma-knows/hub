@@ -150,7 +150,7 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                       <div className={"mb-1 text-[10px] opacity-70"}>
                         {isAgent ? "command" : "you"} · {new Date(m.createdAt).toLocaleTimeString()}
                       </div>
-                      <div className="whitespace-pre-wrap">{m.body}</div>
+                      <div className="whitespace-pre-wrap break-words overflow-hidden">{m.body}</div>
                     </div>
                   </div>
                 );
