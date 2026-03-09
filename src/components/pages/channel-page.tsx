@@ -191,7 +191,24 @@ export function ChannelPage({ channelId }: { channelId: string }) {
         // Wait for any in-flight chunk transcriptions to finish.
         await sttQueueRef.current.catch(() => {});
 
-        const fullText = dictationText.trim();
+        let fullText = dictationText.trim();
+
+        // Reliability fallback: if streaming chunks produced nothing (common on iOS with short chunks),
+        // do a final transcription of the full recording.
+        if (fullText.length < 2) {
+          const blob = new Blob(recordChunksRef.current, { type: mr.mimeType || "audio/webm" });
+          recordChunksRef.current = [];
+          setIsTranscribing(true);
+          try {
+            fullText = await transcribeBlob(blob);
+          } catch (e) {
+            setSttError(e instanceof Error ? e.message : String(e));
+            return;
+          } finally {
+            setIsTranscribing(false);
+          }
+        }
+
         if (!fullText) {
           setSttError("No speech detected");
           return;
@@ -232,8 +249,9 @@ export function ChannelPage({ channelId }: { channelId: string }) {
 
       recordTimerRef.current = window.setInterval(() => setRecordSeconds((s) => s + 1), 1000);
 
-      // timeslice -> dataavailable every second for near-realtime transcription
-      mr.start(1000);
+      // timeslice -> dataavailable every ~2s for near-realtime transcription
+      // (1s chunks are often too short for reliable Whisper output, especially on iOS)
+      mr.start(2000);
     } catch (err) {
       const e = err as any;
       const name = typeof e?.name === "string" ? e.name : "Error";
