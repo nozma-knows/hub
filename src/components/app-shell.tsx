@@ -74,9 +74,15 @@ export function AppShell({
               </Button>
 
               <form action="/api/auth/sign-out" method="post">
-                <Button size="sm" variant="outline" type="submit" className="px-2">
-                  <span className="hidden sm:inline">Sign out</span>
-                  <span className="sm:hidden">Out</span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  type="submit"
+                  className="h-9 w-9 rounded-md p-0"
+                  aria-label="Sign out"
+                  title="Sign out"
+                >
+                  <LogOut className="h-4 w-4" />
                 </Button>
               </form>
             </div>
