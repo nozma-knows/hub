@@ -15,6 +15,7 @@ export function ChannelPage({ channelId }: { channelId: string }) {
   const utils = trpc.useUtils();
   const [error, setError] = useState<string | null>(null);
   const [composer, setComposer] = useState("");
+  const [keyboardInsetPx, setKeyboardInsetPx] = useState(0);
 
   const agents = trpc.agents.list.useQuery();
   const [showTicket, setShowTicket] = useState(false);
@@ -97,9 +98,18 @@ export function ChannelPage({ channelId }: { channelId: string }) {
     const vv = (window as any).visualViewport as VisualViewport | undefined;
     const onVV = () => {
       // Prevent iOS from shifting/zooming the whole page when keyboard appears.
-      // We just keep the scroll position pinned.
       if (typeof window.scrollTo === "function") window.scrollTo(0, 0);
+
+      // Keep the composer visible above the keyboard.
+      // iOS reports the shrunken visual viewport; the difference is the keyboard height.
+      if (vv) {
+        const inset = Math.max(0, Math.round(window.innerHeight - (vv.height + vv.offsetTop)));
+        setKeyboardInsetPx(inset);
+      }
     };
+
+    // initialize once
+    onVV();
 
     vv?.addEventListener?.("resize", onVV);
     vv?.addEventListener?.("scroll", onVV);
@@ -115,7 +125,10 @@ export function ChannelPage({ channelId }: { channelId: string }) {
   }, []);
 
   return (
-    <div className="fixed inset-x-0 bottom-0 top-14 mx-auto w-full max-w-7xl px-2 py-2 sm:px-6 overflow-hidden">
+    <div
+      className="fixed inset-x-0 bottom-0 top-14 mx-auto w-full max-w-7xl px-2 py-2 sm:px-6 overflow-hidden"
+      style={{ paddingBottom: `calc(env(safe-area-inset-bottom) + ${keyboardInsetPx}px)` }}
+    >
       {error ? <Alert className="mb-4 border-destructive text-destructive">{error}</Alert> : null}
 
       <Card className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border bg-background/80 shadow-sm backdrop-blur">
