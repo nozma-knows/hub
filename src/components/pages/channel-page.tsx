@@ -5,6 +5,17 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Mic } from "lucide-react";
 
+type SpeechRecognitionLike = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((ev: any) => void) | null;
+  onerror: ((ev: any) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -47,7 +58,20 @@ export function ChannelPage({ channelId }: { channelId: string }) {
   const recordTimerRef = useRef<number | null>(null);
   const recordStartPendingRef = useRef(false);
 
+  const speechRecRef = useRef<SpeechRecognitionLike | null>(null);
+  const usingSpeechApiRef = useRef(false);
+
   async function stopRecordingAndSend() {
+    // If using browser speech API, stop it.
+    if (usingSpeechApiRef.current && speechRecRef.current) {
+      try {
+        speechRecRef.current.stop();
+      } catch {
+        // ignore
+      }
+      return;
+    }
+
     const mr = mediaRecorderRef.current;
     if (!mr) return;
 
@@ -112,6 +136,87 @@ export function ChannelPage({ channelId }: { channelId: string }) {
     if (isRecording || isTranscribing) return;
     if (recordStartPendingRef.current) return;
 
+    recordStartPendingRef.current = true;
+    setSttError(null);
+
+    // Prefer free, browser-native streaming speech API when available.
+    try {
+      const w = window as any;
+      const Ctor = w.SpeechRecognition || w.webkitSpeechRecognition;
+      if (Ctor) {
+        const rec: SpeechRecognitionLike = new Ctor();
+        usingSpeechApiRef.current = true;
+        speechRecRef.current = rec;
+
+        rec.continuous = true;
+        rec.interimResults = true;
+        rec.lang = "en-US";
+
+        setIsRecording(true);
+        setRecordSeconds(0);
+        setDictationText("");
+        setComposerBase((prev) => prev ?? composer);
+        recordTimerRef.current = window.setInterval(() => setRecordSeconds((s) => s + 1), 1000);
+
+        rec.onresult = (ev: any) => {
+          try {
+            let interim = "";
+            let finalText = "";
+            for (let i = ev.resultIndex; i < ev.results.length; i++) {
+              const r = ev.results[i];
+              const t = String(r[0]?.transcript ?? "");
+              if (r.isFinal) finalText += t;
+              else interim += t;
+            }
+            const merged = normalizeTranscript(`${finalText} ${interim}`);
+            setDictationText(merged);
+          } catch {
+            // ignore
+          }
+        };
+
+        rec.onerror = (ev: any) => {
+          const msg = String(ev?.error || ev?.message || "speech_error");
+          setSttError(msg);
+          setIsRecording(false);
+          if (recordTimerRef.current) window.clearInterval(recordTimerRef.current);
+          recordTimerRef.current = null;
+          usingSpeechApiRef.current = false;
+          speechRecRef.current = null;
+        };
+
+        rec.onend = () => {
+          // onend fires after stop() too.
+          setIsRecording(false);
+          if (recordTimerRef.current) window.clearInterval(recordTimerRef.current);
+          recordTimerRef.current = null;
+
+          const fullText = dictationText.trim();
+          if (fullText) {
+            setComposer((prev) => {
+              const base = (prev ?? "").trim();
+              return base ? `${base} ${fullText}` : fullText;
+            });
+          } else {
+            setSttError("No speech detected");
+          }
+
+          setDictationText("");
+          setComposerBase(null);
+          usingSpeechApiRef.current = false;
+          speechRecRef.current = null;
+        };
+
+        rec.start();
+
+        // if we got here, we're done.
+        return;
+      }
+    } catch {
+      // fall through to Whisper
+    }
+
+    // Fallback to Whisper recording/transcribe when SpeechRecognition isn't available.
     if (!window.isSecureContext) {
       setSttError("Microphone requires HTTPS (secure context)");
       return;
@@ -121,11 +226,7 @@ export function ChannelPage({ channelId }: { channelId: string }) {
       return;
     }
 
-    recordStartPendingRef.current = true;
-    setSttError(null);
-
     try {
-      // Always try directly first. If permission is needed/denied, we'll show the gate.
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStreamRef.current = stream;
 
@@ -138,119 +239,103 @@ export function ChannelPage({ channelId }: { channelId: string }) {
         }
       }
 
-    // Pick a MIME type Safari can handle.
-    const types = ["audio/mp4", "audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/ogg"];
-    const mimeType = types.find((t) => (window as any).MediaRecorder?.isTypeSupported?.(t)) ?? "";
+      const types = ["audio/mp4", "audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/ogg"];
+      const mimeType = types.find((t) => (window as any).MediaRecorder?.isTypeSupported?.(t)) ?? "";
 
-    const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
-    mediaRecorderRef.current = mr;
-    recordChunksRef.current = [];
+      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      mediaRecorderRef.current = mr;
+      recordChunksRef.current = [];
 
-    mr.ondataavailable = (e) => {
-      if (!e.data || e.data.size === 0) return;
+      mr.ondataavailable = (e) => {
+        if (!e.data || e.data.size === 0) return;
+        recordChunksRef.current.push(e.data);
+        if (mr.state === "recording") {
+          const chunk = e.data;
+          sttQueueRef.current = sttQueueRef.current
+            .then(async () => {
+              try {
+                setIsTranscribing(true);
+                const partial = await transcribeBlob(chunk);
+                if (!partial) return;
+                setDictationText((prev) => {
+                  const base = prev.trim();
+                  return base ? `${base} ${partial}` : partial;
+                });
+              } catch (err) {
+                const msg = err instanceof Error ? err.message : String(err);
+                setSttError(msg);
+              } finally {
+                setIsTranscribing(false);
+              }
+            })
+            .catch(() => {});
+        }
+      };
 
-      // Collect full recording too (for a final pass if we want).
-      recordChunksRef.current.push(e.data);
+      mr.onstop = async () => {
+        try {
+          setIsRecording(false);
+          setRecordSeconds(0);
+          if (recordTimerRef.current) window.clearInterval(recordTimerRef.current);
+          recordTimerRef.current = null;
 
-      // Streaming-ish: transcribe chunks while recording.
-      if (mr.state === "recording") {
-        const chunk = e.data;
-        sttQueueRef.current = sttQueueRef.current
-          .then(async () => {
+          for (const t of mediaStreamRef.current?.getTracks?.() ?? []) t.stop();
+          mediaStreamRef.current = null;
+
+          await sttQueueRef.current.catch(() => {});
+
+          let fullText = dictationText.trim();
+          if (fullText.length < 2) {
+            const blob = new Blob(recordChunksRef.current, { type: mr.mimeType || "audio/webm" });
+            recordChunksRef.current = [];
+            setIsTranscribing(true);
             try {
-              setIsTranscribing(true);
-              const partial = await transcribeBlob(chunk);
-              if (!partial) return;
-
-              setDictationText((prev) => {
-                const base = prev.trim();
-                return base ? `${base} ${partial}` : partial;
-              });
-            } catch (err) {
-              const msg = err instanceof Error ? err.message : String(err);
-              setSttError(msg);
+              fullText = await transcribeBlob(blob);
+            } catch (e) {
+              setSttError(e instanceof Error ? e.message : String(e));
+              return;
             } finally {
               setIsTranscribing(false);
             }
-          })
-          .catch(() => {});
-      }
-    };
+          }
 
-    mr.onstop = async () => {
-      try {
-        setIsRecording(false);
-        setRecordSeconds(0);
-        if (recordTimerRef.current) window.clearInterval(recordTimerRef.current);
-        recordTimerRef.current = null;
-
-        // stop mic
-        for (const t of mediaStreamRef.current?.getTracks?.() ?? []) t.stop();
-        mediaStreamRef.current = null;
-
-        // Wait for any in-flight chunk transcriptions to finish.
-        await sttQueueRef.current.catch(() => {});
-
-        let fullText = dictationText.trim();
-
-        // Reliability fallback: if streaming chunks produced nothing (common on iOS with short chunks),
-        // do a final transcription of the full recording.
-        if (fullText.length < 2) {
-          const blob = new Blob(recordChunksRef.current, { type: mr.mimeType || "audio/webm" });
-          recordChunksRef.current = [];
-          setIsTranscribing(true);
-          try {
-            fullText = await transcribeBlob(blob);
-          } catch (e) {
-            setSttError(e instanceof Error ? e.message : String(e));
+          if (!fullText) {
+            setSttError("No speech detected");
             return;
-          } finally {
-            setIsTranscribing(false);
           }
-        }
 
-        if (!fullText) {
-          setSttError("No speech detected");
-          return;
-        }
+          setComposer((prev) => {
+            const base = (prev ?? "").trim();
+            return base ? `${base} ${fullText}` : fullText;
+          });
 
-        // Merge dictation buffer into composer (no auto-send)
-        setComposer((prev) => {
-          const base = (prev ?? "").trim();
-          return base ? `${base} ${fullText}` : fullText;
-        });
+          setDictationText("");
+          setComposerBase(null);
 
-        setDictationText("");
-        setComposerBase(null);
-
-        window.setTimeout(() => {
-          try {
-            composerRef.current?.focus();
-            const el = composerRef.current;
-            if (el) {
-              const pos = el.value.length;
-              el.setSelectionRange(pos, pos);
+          window.setTimeout(() => {
+            try {
+              composerRef.current?.focus();
+              const el = composerRef.current;
+              if (el) {
+                const pos = el.value.length;
+                el.setSelectionRange(pos, pos);
+              }
+            } catch {
+              // ignore
             }
-          } catch {
-            // ignore
-          }
-        }, 0);
-      } catch (e) {
-        setSttError(e instanceof Error ? e.message : String(e));
-      } finally {
-        setIsTranscribing(false);
-      }
-    };
+          }, 0);
+        } catch (e) {
+          setSttError(e instanceof Error ? e.message : String(e));
+        } finally {
+          setIsTranscribing(false);
+        }
+      };
 
       setIsRecording(true);
       setRecordSeconds(0);
       setDictationText("");
       setComposerBase((prev) => prev ?? composer);
-
       recordTimerRef.current = window.setInterval(() => setRecordSeconds((s) => s + 1), 1000);
-
-      // timeslice -> dataavailable every ~2s for near-realtime transcription
-      // (1s chunks are often too short for reliable Whisper output, especially on iOS)
       mr.start(2000);
     } catch (err) {
       const e = err as any;
@@ -258,13 +343,9 @@ export function ChannelPage({ channelId }: { channelId: string }) {
       const msg = typeof e?.message === "string" ? e.message : String(err);
       const text = `${name}: ${msg}`;
       setSttError(text);
-
-      // If browser says not allowed, open the mic gate prompt with guidance.
-      // Don't clear micGranted here; iOS/WebKit can throw NotAllowedError transiently.
       if (String(name).toLowerCase().includes("notallowed")) {
         setShowMicGate(true);
       }
-
       for (const t of mediaStreamRef.current?.getTracks?.() ?? []) t.stop();
       mediaStreamRef.current = null;
       mediaRecorderRef.current = null;
