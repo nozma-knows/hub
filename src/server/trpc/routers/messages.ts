@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 
@@ -225,6 +227,15 @@ export const messagesRouter = createTrpcRouter({
 
       const shouldInvoke = /(^|\s)@command(\b|\s)/i.test(input.body);
       if (shouldInvoke) {
+        // Immediately reflect that the agent is working (Slack-like typing indicator)
+        await ctx.db.insert(hubMessages).values({
+          workspaceId: ctx.workspace.id,
+          threadId: input.threadId,
+          authorType: "system",
+          body: "@command is thinking…",
+          createdAt: new Date()
+        });
+
         const recent = await ctx.db.query.hubMessages.findMany({
           where: and(eq(hubMessages.workspaceId, ctx.workspace.id), eq(hubMessages.threadId, input.threadId)),
           orderBy: (t, { desc: descOrder }) => [descOrder(t.createdAt)],
@@ -252,6 +263,16 @@ Instructions:
         const result = await openClawAgentTurn({ agentId: "cos", message: prompt, timeoutSeconds: 120 });
 
         const output = (result.output || result.message || result.text || "").toString().trim();
+
+        // Replace the typing indicator with the final response (best-effort)
+        try {
+          await ctx.db
+            .delete(hubMessages)
+            .where(and(eq(hubMessages.workspaceId, ctx.workspace.id), eq(hubMessages.threadId, input.threadId), eq(hubMessages.authorType, "system"), eq(hubMessages.body, "@command is thinking…")));
+        } catch {
+          // ignore
+        }
+
         if (output) {
           await ctx.db.insert(hubMessages).values({
             workspaceId: ctx.workspace.id,
