@@ -147,12 +147,29 @@ export function ChannelPage({ channelId }: { channelId: string }) {
           return;
         }
 
-        if (threadId) {
-          setError(null);
-          await send.mutateAsync({ threadId, body: text });
-        } else {
-          setComposer(text);
-        }
+        // Never auto-send; insert transcript into composer for review/edit.
+        const normalized = text
+          .replace(/\b(at\s*command|@\s*command)\b/gi, "@command")
+          .replace(/\s+/g, " ")
+          .trim();
+
+        setComposer((prev) => {
+          const base = (prev ?? "").trim();
+          return base ? `${base} ${normalized}` : normalized;
+        });
+
+        window.setTimeout(() => {
+          try {
+            composerRef.current?.focus();
+            const el = composerRef.current;
+            if (el) {
+              const pos = el.value.length;
+              el.setSelectionRange(pos, pos);
+            }
+          } catch {
+            // ignore
+          }
+        }, 0);
       } catch (e) {
         setSttError(e instanceof Error ? e.message : String(e));
       } finally {
