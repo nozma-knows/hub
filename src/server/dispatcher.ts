@@ -92,6 +92,7 @@ export function startDispatcher(): void {
         where: and(
           or(
             eq(hubTickets.status, "todo"),
+            eq(hubTickets.status, "backlog"),
             and(
               or(eq(hubTickets.status, "in_progress"), eq(hubTickets.status, "doing")),
               eq(hubTickets.dispatchState, "running"),
@@ -137,7 +138,12 @@ export function startDispatcher(): void {
           .where(
             and(
               eq(hubTickets.id, ticket.id),
-              or(eq(hubTickets.status, "todo"), eq(hubTickets.status, "in_progress"), eq(hubTickets.status, "doing")),
+              or(
+                eq(hubTickets.status, "todo"),
+                eq(hubTickets.status, "backlog"),
+                eq(hubTickets.status, "in_progress"),
+                eq(hubTickets.status, "doing")
+              ),
               or(isNull(hubTickets.dispatchLockExpiresAt), lt(hubTickets.dispatchLockExpiresAt, now))
             )
           )
