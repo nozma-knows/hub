@@ -79,10 +79,12 @@ export function ChannelPage({ channelId }: { channelId: string }) {
   const title = channel ? `#${channel.name}` : "Channel";
 
   return (
-    <div className="space-y-4">
+    // Use a fixed viewport-based layout so the composer stays visible on mobile
+    // and only the message history pane scrolls.
+    <div className="flex h-[calc(100dvh-8rem)] flex-col gap-4">
       {error ? <Alert className="border-destructive text-destructive">{error}</Alert> : null}
 
-      <Card className="overflow-hidden">
+      <Card className="flex-1 overflow-hidden">
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <div className="min-w-0">
             <CardTitle className="truncate">{title}</CardTitle>
@@ -109,8 +111,8 @@ export function ChannelPage({ channelId }: { channelId: string }) {
           </div>
         </CardHeader>
 
-        <CardContent className="p-0">
-          <div className="flex h-[70vh] flex-col">
+        <CardContent className="p-0 h-full">
+          <div className="flex h-full flex-col">
             <div ref={listRef} className="flex-1 overflow-auto p-3 space-y-2 bg-muted/10">
               {(thread.data?.messages ?? []).filter((m) => m.body.trim().length > 0).map((m) => (
                 <div key={m.id} className="rounded-md border bg-background p-2">
@@ -125,7 +127,7 @@ export function ChannelPage({ channelId }: { channelId: string }) {
               ) : null}
             </div>
 
-            <div className="border-t bg-background p-3">
+            <div className="shrink-0 border-t bg-background p-3">
               <div className="space-y-2">
                 <Textarea
                   value={composer}
