@@ -655,3 +655,13 @@ export async function openClawSetAgentModel(input: { agentId: string; model: str
   const output = await openClawCliAdapter.runCommand(cmd);
   return { ok: true, output: output.trim() };
 }
+
+export async function openClawDeleteAgent(input: { agentId: string }) {
+  const cmd = ["openclaw agents delete", shQuote(input.agentId), "--force", "--json"].join(" ");
+  const output = await openClawCliAdapter.runCommand(cmd);
+  try {
+    return JSON.parse(output);
+  } catch {
+    return { raw: output };
+  }
+}

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { agentBehaviorConfigs, agents, agentToolPermissions, toolProviders } from "@/db/schema";
 import { logAuditEvent } from "@/lib/audit";
 import { openClawAdapter } from "@/lib/openclaw/adapter";
+import { openClawDeleteAgent } from "@/lib/openclaw/cli-adapter";
 import { openClawCliAdapter } from "@/lib/openclaw/cli-adapter";
 import { adminProcedure, createTrpcRouter, protectedProcedure } from "@/server/trpc/init";
 
@@ -552,7 +553,8 @@ export const agentsRouter = createTrpcRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      await openClawAdapter.deleteAgent(input.agentId);
+      // Use CLI (OpenClaw gateway HTTP control plane is not a stable API in this deployment)
+      await openClawDeleteAgent({ agentId: input.agentId });
 
       await ctx.db
         .delete(agentToolPermissions)
