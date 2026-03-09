@@ -38,7 +38,6 @@ export function AppShell({
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2 text-sm font-semibold">
               <span className="shrink-0 rounded-md bg-primary px-2 py-1 text-primary-foreground">Hub</span>
-              <span className="truncate">OpenClaw Control Plane</span>
             </div>
 
             {/* Desktop nav */}
