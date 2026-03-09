@@ -56,11 +56,14 @@ export function MessagesPage() {
 
       {error ? <Alert className="shrink-0 border-destructive text-destructive">{error}</Alert> : null}
 
-      <Card className="flex-1 min-h-0 overflow-hidden">
+      <Card className="flex-1 min-h-0 overflow-hidden" onWheel={(e) => e.stopPropagation()}>
         <CardHeader className="shrink-0 py-3">
           <CardTitle className="text-base">Channels</CardTitle>
         </CardHeader>
-        <CardContent className="min-h-0 overflow-auto p-2">
+        <CardContent
+          className="min-h-0 overflow-auto p-2 overscroll-contain"
+          style={{ WebkitOverflowScrolling: "touch" }}
+        >
           <div className="space-y-1">
             {list.map((c) => (
               <Link
