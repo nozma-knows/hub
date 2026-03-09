@@ -32,6 +32,7 @@ export function ChannelPage({ channelId }: { channelId: string }) {
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const recordChunksRef = useRef<BlobPart[]>([]);
   const recordTimerRef = useRef<number | null>(null);
+  const recordStartPendingRef = useRef(false);
 
   async function stopRecordingAndSend() {
     const mr = mediaRecorderRef.current;
@@ -42,11 +43,14 @@ export function ChannelPage({ channelId }: { channelId: string }) {
 
   async function startRecording() {
     if (isRecording || isTranscribing) return;
+    if (recordStartPendingRef.current) return;
+    recordStartPendingRef.current = true;
 
     setSttError(null);
 
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    mediaStreamRef.current = stream;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
 
     // Pick a MIME type Safari can handle.
     const types = ["audio/mp4", "audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/ogg"];
@@ -111,11 +115,23 @@ export function ChannelPage({ channelId }: { channelId: string }) {
       }
     };
 
-    setIsRecording(true);
-    setRecordSeconds(0);
-    recordTimerRef.current = window.setInterval(() => setRecordSeconds((s) => s + 1), 1000);
+      setIsRecording(true);
+      setRecordSeconds(0);
+      recordTimerRef.current = window.setInterval(() => setRecordSeconds((s) => s + 1), 1000);
 
-    mr.start();
+      mr.start();
+    } catch (err) {
+      const e = err as any;
+      const name = typeof e?.name === "string" ? e.name : "Error";
+      const msg = typeof e?.message === "string" ? e.message : String(err);
+      setSttError(`${name}: ${msg}`);
+
+      for (const t of mediaStreamRef.current?.getTracks?.() ?? []) t.stop();
+      mediaStreamRef.current = null;
+      mediaRecorderRef.current = null;
+    } finally {
+      recordStartPendingRef.current = false;
+    }
   }
 
   const agents = trpc.agents.list.useQuery();
@@ -400,32 +416,13 @@ export function ChannelPage({ channelId }: { channelId: string }) {
 
                   <button
                     type="button"
-                    onPointerDown={async (e) => {
-                      e.preventDefault();
-                      try {
-                        await startRecording();
-                      } catch (err) {
-                        setSttError(err instanceof Error ? err.message : String(err));
-                      }
+                    onPointerDown={async () => {
+                      await startRecording();
                     }}
-                    onPointerUp={async (e) => {
-                      e.preventDefault();
+                    onPointerUp={async () => {
                       await stopRecordingAndSend();
                     }}
-                    onPointerCancel={async (e) => {
-                      e.preventDefault();
-                      await stopRecordingAndSend();
-                    }}
-                    onTouchStart={async (e) => {
-                      e.preventDefault();
-                      try {
-                        await startRecording();
-                      } catch (err) {
-                        setSttError(err instanceof Error ? err.message : String(err));
-                      }
-                    }}
-                    onTouchEnd={async (e) => {
-                      e.preventDefault();
+                    onPointerCancel={async () => {
                       await stopRecordingAndSend();
                     }}
                     className={
