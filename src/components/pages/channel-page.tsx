@@ -79,7 +79,8 @@ export function ChannelPage({ channelId }: { channelId: string }) {
   const title = channel ? `#${channel.name}` : "Channel";
 
   useEffect(() => {
-    // Hard-lock scrolling at the document level (iOS Safari will otherwise scroll the page).
+    // Hard-lock scrolling at the document level (iOS Safari will otherwise scroll the page)
+    // and keep the page stable when the on-screen keyboard opens/closes.
     const html = document.documentElement;
     const body = document.body;
 
@@ -93,7 +94,19 @@ export function ChannelPage({ channelId }: { channelId: string }) {
     (html.style as any).overscrollBehavior = "none";
     (body.style as any).overscrollBehavior = "none";
 
+    const vv = (window as any).visualViewport as VisualViewport | undefined;
+    const onVV = () => {
+      // Prevent iOS from shifting/zooming the whole page when keyboard appears.
+      // We just keep the scroll position pinned.
+      if (typeof window.scrollTo === "function") window.scrollTo(0, 0);
+    };
+
+    vv?.addEventListener?.("resize", onVV);
+    vv?.addEventListener?.("scroll", onVV);
+
     return () => {
+      vv?.removeEventListener?.("resize", onVV);
+      vv?.removeEventListener?.("scroll", onVV);
       html.style.overflow = prevHtmlOverflow;
       body.style.overflow = prevBodyOverflow;
       (html.style as any).overscrollBehavior = prevHtmlOverscroll;
@@ -102,7 +115,7 @@ export function ChannelPage({ channelId }: { channelId: string }) {
   }, []);
 
   return (
-    <div className="fixed inset-x-0 bottom-0 top-14 mx-auto w-full max-w-7xl px-2 py-2 sm:px-6">
+    <div className="fixed inset-x-0 bottom-0 top-14 mx-auto w-full max-w-7xl px-2 py-2 sm:px-6 overflow-hidden">
       {error ? <Alert className="mb-4 border-destructive text-destructive">{error}</Alert> : null}
 
       <Card className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border bg-background/80 shadow-sm backdrop-blur">
@@ -166,7 +179,10 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                   value={composer}
                   onChange={(e) => setComposer(e.target.value)}
                   placeholder="Message…"
-                  className="min-h-14 rounded-xl"
+                  className="min-h-14 rounded-xl text-base"
+                  inputMode="text"
+                  autoCorrect="on"
+                  autoCapitalize="sentences"
                 />
                 <div className="flex justify-end">
                   <Button
