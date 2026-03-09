@@ -34,8 +34,8 @@ export function AppShell({
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-10 border-b bg-background/90 backdrop-blur h-14">
-        <div className="relative mx-auto flex h-14 w-full max-w-7xl items-center px-4 sm:px-6">
-          <div className="flex items-center justify-between gap-3">
+        <div className="relative mx-auto flex h-14 w-full max-w-7xl items-center justify-between px-4 sm:px-6">
+          <div className="flex items-center gap-3">
             <div className="flex min-w-0 items-center gap-2 text-sm font-semibold">
               <span className="shrink-0 rounded-md bg-primary px-2 py-1 text-primary-foreground">Hub</span>
             </div>
