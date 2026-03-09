@@ -39,6 +39,8 @@ export function startDispatcher(): void {
     isRunning = true;
 
     try {
+      // eslint-disable-next-line no-console
+      console.log("🤖 Dispatcher tick");
       const now = new Date();
       const lockExpiresAt = new Date(Date.now() + LOCK_TTL_MS);
 
@@ -67,6 +69,9 @@ export function startDispatcher(): void {
           return Date.now() - last > COOLDOWN_MS;
         })
         .slice(0, MAX_PER_TICK);
+
+      // eslint-disable-next-line no-console
+      console.log(`🤖 Dispatcher candidates=${candidates.length} due=${due.length}`);
 
       for (const ticket of due) {
         const lockId = randomUUID();
@@ -165,8 +170,9 @@ Return:
             .where(and(eq(hubTickets.id, ticket.id), eq(hubTickets.dispatchLockId, lockId)));
         }
       }
-    } catch {
-      // keep loop alive
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("🤖 Dispatcher tick failed", err);
     } finally {
       isRunning = false;
     }
