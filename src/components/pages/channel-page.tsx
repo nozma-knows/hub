@@ -165,9 +165,17 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                 const isAgent = m.authorType === "agent";
                 return (
                   <div key={m.id} className={isAgent ? "flex justify-start" : "flex justify-end"}>
-                    <div
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(m.body);
+                        } catch {
+                          // ignore
+                        }
+                      }}
                       className={
-                        "max-w-[85%] rounded-2xl px-3 py-2 text-sm shadow-sm " +
+                        "max-w-[85%] rounded-2xl px-3 py-2 text-left text-sm shadow-sm active:opacity-80 " +
                         (isAgent
                           ? "bg-background border"
                           : "bg-primary text-primary-foreground")
@@ -177,7 +185,7 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                         {isAgent ? "command" : "you"} · {new Date(m.createdAt).toLocaleTimeString()}
                       </div>
                       <div className="whitespace-pre-wrap break-words overflow-hidden">{m.body}</div>
-                    </div>
+                    </button>
                   </div>
                 );
               })}
