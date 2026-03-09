@@ -54,7 +54,7 @@ export class OpenClawCliAdapter {
     return this.openclawBinPromise;
   }
 
-  async runCommand(command: string): Promise<string> {
+  async runCommand(command: string, opts?: { timeoutMs?: number }): Promise<string> {
     const openclawBin = await this.openclawBin();
     const resolvedCommand = command.startsWith("openclaw ")
       ? `${openclawBin} ${command.slice("openclaw ".length)}`
@@ -62,7 +62,8 @@ export class OpenClawCliAdapter {
         ? openclawBin
         : command;
 
-    const timeoutMs = Number(process.env.OPENCLAW_CLI_TIMEOUT_MS ?? 60000);
+    const defaultTimeoutMs = Number(process.env.OPENCLAW_CLI_TIMEOUT_MS ?? 60000);
+    const timeoutMs = Number.isFinite(opts?.timeoutMs as number) ? (opts!.timeoutMs as number) : defaultTimeoutMs;
 
     try {
       const { stdout, stderr } = await execAsync(resolvedCommand, {
@@ -611,7 +612,8 @@ export async function openClawAgentTurn(input: { agentId: string; message: strin
     ...(input.timeoutSeconds ? ["--timeout", shQuote(String(input.timeoutSeconds))] : [])
   ].join(" ");
 
-  const raw = await openClawCliAdapter.runCommand(cmd);
+  const timeoutMs = input.timeoutSeconds ? input.timeoutSeconds * 1000 + 15_000 : undefined;
+  const raw = await openClawCliAdapter.runCommand(cmd, timeoutMs ? { timeoutMs } : undefined);
 
   let parsed: any;
   try {
