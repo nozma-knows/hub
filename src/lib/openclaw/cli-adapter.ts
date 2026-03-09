@@ -611,12 +611,36 @@ export async function openClawAgentTurn(input: { agentId: string; message: strin
     ...(input.timeoutSeconds ? ["--timeout", shQuote(String(input.timeoutSeconds))] : [])
   ].join(" ");
 
-  const output = await openClawCliAdapter.runCommand(cmd);
+  const raw = await openClawCliAdapter.runCommand(cmd);
+
+  let parsed: any;
   try {
-    return JSON.parse(output) as any;
+    parsed = JSON.parse(raw);
   } catch {
-    return { raw: output };
+    return { raw };
   }
+
+  // Normalize common shapes into { output }
+  // openclaw agent --json returns: { status, result: { payloads: [{ text }] } }
+  const payloadText =
+    parsed?.result?.payloads && Array.isArray(parsed.result.payloads)
+      ? parsed.result.payloads
+          .map((p: any) => (typeof p?.text === "string" ? p.text : ""))
+          .filter(Boolean)
+          .join("\n\n")
+      : "";
+
+  const output =
+    (typeof parsed?.output === "string" && parsed.output) ||
+    (typeof parsed?.message === "string" && parsed.message) ||
+    (typeof parsed?.text === "string" && parsed.text) ||
+    payloadText ||
+    "";
+
+  return {
+    ...parsed,
+    output
+  };
 }
 
 export async function openClawSetAgentModel(input: { agentId: string; model: string }) {
