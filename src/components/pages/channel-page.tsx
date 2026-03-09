@@ -25,6 +25,8 @@ export function ChannelPage({ channelId }: { channelId: string }) {
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
 
   const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [sttError, setSttError] = useState<string | null>(null);
   const [recordSeconds, setRecordSeconds] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -39,7 +41,9 @@ export function ChannelPage({ channelId }: { channelId: string }) {
   }
 
   async function startRecording() {
-    if (isRecording) return;
+    if (isRecording || isTranscribing) return;
+
+    setSttError(null);
 
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     mediaStreamRef.current = stream;
@@ -70,15 +74,29 @@ export function ChannelPage({ channelId }: { channelId: string }) {
         const blob = new Blob(recordChunksRef.current, { type: mr.mimeType || "audio/webm" });
         recordChunksRef.current = [];
 
+        setIsTranscribing(true);
+        setSttError(null);
+
         // Upload + transcribe
         const form = new FormData();
-        form.append("file", blob, `recording.${(blob.type.includes("mp4") ? "m4a" : blob.type.includes("ogg") ? "ogg" : "webm")}`);
+        form.append(
+          "file",
+          blob,
+          `recording.${blob.type.includes("mp4") ? "m4a" : blob.type.includes("ogg") ? "ogg" : "webm"}`
+        );
 
         const resp = await fetch("/api/stt/transcribe", { method: "POST", body: form });
-        if (!resp.ok) return;
+        if (!resp.ok) {
+          const txt = await resp.text().catch(() => "");
+          setSttError(txt || "Transcription failed");
+          return;
+        }
         const data = (await resp.json()) as { text?: string };
         const text = (data.text ?? "").trim();
-        if (!text) return;
+        if (!text) {
+          setSttError("No speech detected");
+          return;
+        }
 
         if (threadId) {
           setError(null);
@@ -86,8 +104,10 @@ export function ChannelPage({ channelId }: { channelId: string }) {
         } else {
           setComposer(text);
         }
-      } catch {
-        // ignore
+      } catch (e) {
+        setSttError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setIsTranscribing(false);
       }
     };
 
@@ -369,12 +389,12 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                           }
                         }
                       }}
-                      placeholder={isRecording ? "Recording…" : "Message…"}
+                      placeholder={isRecording ? "Recording…" : isTranscribing ? "Transcribing…" : "Message…"}
                       className="min-h-14 rounded-xl text-base"
                       inputMode="text"
                       autoCorrect="on"
                       autoCapitalize="sentences"
-                      disabled={isRecording}
+                      disabled={isRecording || isTranscribing}
                     />
                   </div>
 
@@ -384,8 +404,8 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                       e.preventDefault();
                       try {
                         await startRecording();
-                      } catch {
-                        // ignore
+                      } catch (err) {
+                        setSttError(err instanceof Error ? err.message : String(err));
                       }
                     }}
                     onPointerUp={async (e) => {
@@ -398,7 +418,11 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                     }}
                     className={
                       "inline-flex h-12 w-12 items-center justify-center rounded-xl border shadow-sm transition " +
-                      (isRecording ? "bg-destructive text-destructive-foreground" : "bg-background hover:bg-muted")
+                      (isRecording
+                        ? "bg-destructive text-destructive-foreground"
+                        : isTranscribing
+                          ? "bg-muted text-muted-foreground"
+                          : "bg-background hover:bg-muted")
                     }
                     aria-label="Hold to record"
                     title="Hold to talk"
@@ -409,6 +433,10 @@ export function ChannelPage({ channelId }: { channelId: string }) {
 
                 {isRecording ? (
                   <div className="text-xs text-muted-foreground">Recording… {Math.floor(recordSeconds / 60)}:{String(recordSeconds % 60).padStart(2, "0")}</div>
+                ) : isTranscribing ? (
+                  <div className="text-xs text-muted-foreground">Transcribing…</div>
+                ) : sttError ? (
+                  <div className="text-xs text-destructive line-clamp-2">STT failed: {sttError}</div>
                 ) : null}
 
                 {mentionQuery !== null ? (
