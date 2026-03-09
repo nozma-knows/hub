@@ -49,6 +49,7 @@ honoApp.post("/stt/transcribe", async (c) => {
   const form = new FormData();
   form.append("file", blob, file.name || "audio");
   form.append("model", "whisper-1");
+  form.append("response_format", "text");
 
   const resp = await fetch("https://api.openai.com/v1/audio/transcriptions", {
     method: "POST",
@@ -63,7 +64,16 @@ honoApp.post("/stt/transcribe", async (c) => {
     return c.json({ error: "transcription_failed", detail: txt }, 500);
   }
 
-  const text = await resp.text();
+  const raw = await resp.text();
+  // Sometimes providers return JSON even when we asked for text; handle both.
+  let text = raw;
+  try {
+    const parsed = JSON.parse(raw) as any;
+    if (parsed && typeof parsed.text === "string") text = parsed.text;
+  } catch {
+    // ignore
+  }
+
   return c.json({ text });
 });
 

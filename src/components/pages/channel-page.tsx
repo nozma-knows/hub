@@ -36,6 +36,11 @@ export function ChannelPage({ channelId }: { channelId: string }) {
       return false;
     }
   });
+
+  // Streaming dictation buffer (we append partial transcript while recording)
+  const [dictationText, setDictationText] = useState("");
+  const [composerBase, setComposerBase] = useState<string | null>(null);
+  const sttQueueRef = useRef(Promise.resolve());
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const recordChunksRef = useRef<BlobPart[]>([]);
@@ -47,6 +52,29 @@ export function ChannelPage({ channelId }: { channelId: string }) {
     if (!mr) return;
 
     if (mr.state !== "inactive") mr.stop();
+  }
+
+  function normalizeTranscript(text: string) {
+    return text
+      .replace(/\b(at\s*command|@\s*command)\b/gi, "@command")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  async function transcribeBlob(blob: Blob): Promise<string> {
+    const form = new FormData();
+    form.append(
+      "file",
+      blob,
+      `recording.${blob.type.includes("mp4") ? "m4a" : blob.type.includes("ogg") ? "ogg" : "webm"}`
+    );
+    const resp = await fetch("/api/stt/transcribe", { method: "POST", body: form });
+    if (!resp.ok) {
+      const txt = await resp.text().catch(() => "");
+      throw new Error(txt || "Transcription failed");
+    }
+    const data = (await resp.json()) as { text?: string };
+    return normalizeTranscript((data.text ?? "").toString());
   }
 
   async function requestMicAccess() {
@@ -106,7 +134,34 @@ export function ChannelPage({ channelId }: { channelId: string }) {
     recordChunksRef.current = [];
 
     mr.ondataavailable = (e) => {
-      if (e.data && e.data.size > 0) recordChunksRef.current.push(e.data);
+      if (!e.data || e.data.size === 0) return;
+
+      // Collect full recording too (for a final pass if we want).
+      recordChunksRef.current.push(e.data);
+
+      // Streaming-ish: transcribe chunks while recording.
+      if (mr.state === "recording") {
+        const chunk = e.data;
+        sttQueueRef.current = sttQueueRef.current
+          .then(async () => {
+            try {
+              setIsTranscribing(true);
+              const partial = await transcribeBlob(chunk);
+              if (!partial) return;
+
+              setDictationText((prev) => {
+                const base = prev.trim();
+                return base ? `${base} ${partial}` : partial;
+              });
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : String(err);
+              setSttError(msg);
+            } finally {
+              setIsTranscribing(false);
+            }
+          })
+          .catch(() => {});
+      }
     };
 
     mr.onstop = async () => {
@@ -120,43 +175,23 @@ export function ChannelPage({ channelId }: { channelId: string }) {
         for (const t of mediaStreamRef.current?.getTracks?.() ?? []) t.stop();
         mediaStreamRef.current = null;
 
-        const blob = new Blob(recordChunksRef.current, { type: mr.mimeType || "audio/webm" });
-        recordChunksRef.current = [];
+        // Wait for any in-flight chunk transcriptions to finish.
+        await sttQueueRef.current.catch(() => {});
 
-        setIsTranscribing(true);
-        setSttError(null);
-
-        // Upload + transcribe
-        const form = new FormData();
-        form.append(
-          "file",
-          blob,
-          `recording.${blob.type.includes("mp4") ? "m4a" : blob.type.includes("ogg") ? "ogg" : "webm"}`
-        );
-
-        const resp = await fetch("/api/stt/transcribe", { method: "POST", body: form });
-        if (!resp.ok) {
-          const txt = await resp.text().catch(() => "");
-          setSttError(txt || "Transcription failed");
-          return;
-        }
-        const data = (await resp.json()) as { text?: string };
-        const text = (data.text ?? "").trim();
-        if (!text) {
+        const fullText = dictationText.trim();
+        if (!fullText) {
           setSttError("No speech detected");
           return;
         }
 
-        // Never auto-send; insert transcript into composer for review/edit.
-        const normalized = text
-          .replace(/\b(at\s*command|@\s*command)\b/gi, "@command")
-          .replace(/\s+/g, " ")
-          .trim();
-
+        // Merge dictation buffer into composer (no auto-send)
         setComposer((prev) => {
           const base = (prev ?? "").trim();
-          return base ? `${base} ${normalized}` : normalized;
+          return base ? `${base} ${fullText}` : fullText;
         });
+
+        setDictationText("");
+        setComposerBase(null);
 
         window.setTimeout(() => {
           try {
@@ -179,9 +214,13 @@ export function ChannelPage({ channelId }: { channelId: string }) {
 
       setIsRecording(true);
       setRecordSeconds(0);
+      setDictationText("");
+      setComposerBase((prev) => prev ?? composer);
+
       recordTimerRef.current = window.setInterval(() => setRecordSeconds((s) => s + 1), 1000);
 
-      mr.start();
+      // timeslice -> dataavailable every second for near-realtime transcription
+      mr.start(1000);
     } catch (err) {
       const e = err as any;
       const name = typeof e?.name === "string" ? e.name : "Error";
@@ -459,10 +498,12 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                   <div className="flex-1 min-w-0">
                     <Textarea
                       ref={composerRef}
-                      value={composer}
+                      value={composerBase !== null ? `${composerBase}${dictationText ? (composerBase.trim() ? " " : "") + dictationText : ""}` : composer}
                       onChange={(e) => {
                         const next = e.target.value;
                         setComposer(next);
+                        setComposerBase(null);
+                        setDictationText("");
                         updateMentionQuery(next);
                       }}
                       onKeyDown={(e) => {
