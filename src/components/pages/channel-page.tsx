@@ -44,11 +44,32 @@ export function ChannelPage({ channelId }: { channelId: string }) {
   async function startRecording() {
     if (isRecording || isTranscribing) return;
     if (recordStartPendingRef.current) return;
-    recordStartPendingRef.current = true;
 
+    // Must be secure context + user gesture; also show clear errors.
+    if (!window.isSecureContext) {
+      setSttError("Microphone requires HTTPS (secure context)");
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setSttError("Microphone not supported in this browser");
+      return;
+    }
+
+    recordStartPendingRef.current = true;
     setSttError(null);
 
     try {
+      // Prime permission check first (more reliable on iOS)
+      try {
+        const perm = await (navigator as any).permissions?.query?.({ name: "microphone" });
+        if (perm && perm.state === "denied") {
+          setSttError("Microphone permission denied. Enable it in Safari site settings.");
+          return;
+        }
+      } catch {
+        // ignore
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStreamRef.current = stream;
 
@@ -459,7 +480,12 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                 ) : isTranscribing ? (
                   <div className="text-xs text-muted-foreground">Transcribing…</div>
                 ) : sttError ? (
-                  <div className="text-xs text-destructive line-clamp-2">STT failed: {sttError}</div>
+                  <div className="text-xs text-destructive">
+                    STT failed: {sttError}
+                    <div className="mt-1 text-[11px] text-muted-foreground">
+                      Tip: iOS Safari → aA → Website Settings → Microphone → Allow.
+                    </div>
+                  </div>
                 ) : null}
 
                 {mentionQuery !== null ? (
