@@ -178,8 +178,8 @@ export function TicketsPage() {
     </div>
 
       {openTicketId ? (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-        <div className="flex w-full max-w-2xl flex-col overflow-hidden rounded-lg bg-background shadow-lg max-h-[90dvh]">
+      <div className="fixed inset-0 z-50 bg-black/50 p-2 sm:p-4">
+        <div className="mx-auto flex h-full w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-background shadow-lg">
           <div className="flex items-start justify-between gap-3 border-b p-4 shrink-0">
             <div className="min-w-0 flex-1">
               <div className="text-lg font-semibold truncate">{ticketDetail.data?.ticket.title ?? "Ticket"}</div>
@@ -209,7 +209,7 @@ export function TicketsPage() {
             </Button>
           </div>
 
-          <div className="flex-1 overflow-auto space-y-4 p-4">
+          <div className="flex-1 min-h-0 overflow-auto space-y-4 p-4">
             {ticketDetail.error ? (
               <Alert className="border-destructive text-destructive">{ticketDetail.error.message}</Alert>
             ) : null}
@@ -250,23 +250,28 @@ export function TicketsPage() {
                 ) : null}
               </div>
 
-              <Textarea
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                placeholder="Add a comment…"
-                className="min-h-20"
-              />
-              <div className="flex justify-end">
-                <Button
-                  disabled={!comment.trim() || addComment.isPending}
-                  onClick={async () => {
-                    if (!openTicketId) return;
-                    setError(null);
-                    await addComment.mutateAsync({ ticketId: openTicketId, body: comment.trim() });
-                  }}
-                >
-                  {addComment.isPending ? "Posting…" : "Post"}
-                </Button>
+              <div className="sticky bottom-0 -mx-4 mt-2 border-t bg-background/90 backdrop-blur px-4 py-3">
+                <Textarea
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  placeholder="Add a comment…"
+                  className="min-h-14 rounded-xl text-base"
+                  inputMode="text"
+                  autoCorrect="on"
+                  autoCapitalize="sentences"
+                />
+                <div className="mt-2 flex justify-end">
+                  <Button
+                    disabled={!comment.trim() || addComment.isPending}
+                    onClick={async () => {
+                      if (!openTicketId) return;
+                      setError(null);
+                      await addComment.mutateAsync({ ticketId: openTicketId, body: comment.trim() });
+                    }}
+                  >
+                    {addComment.isPending ? "Posting…" : "Post"}
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
