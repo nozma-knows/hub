@@ -7,7 +7,7 @@ export default async function ChannelRoute(props: { params: Promise<{ channelId:
   const params = await props.params;
 
   return (
-    <AppShell mainClassName="h-[calc(100svh-3.5rem)] overflow-hidden px-2 py-2 sm:px-4 sm:py-4">
+    <AppShell mainClassName="p-0">
       <ChannelPage channelId={params.channelId} />
     </AppShell>
   );

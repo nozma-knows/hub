@@ -79,24 +79,33 @@ export function ChannelPage({ channelId }: { channelId: string }) {
   const title = channel ? `#${channel.name}` : "Channel";
 
   useEffect(() => {
-    // Lock body scroll on the channel view so only the history pane scrolls.
-    const prevOverflow = document.body.style.overflow;
-    const prevOverscroll = (document.body.style as any).overscrollBehavior;
-    document.body.style.overflow = "hidden";
-    (document.body.style as any).overscrollBehavior = "none";
+    // Hard-lock scrolling at the document level (iOS Safari will otherwise scroll the page).
+    const html = document.documentElement;
+    const body = document.body;
+
+    const prevHtmlOverflow = html.style.overflow;
+    const prevBodyOverflow = body.style.overflow;
+    const prevHtmlOverscroll = (html.style as any).overscrollBehavior;
+    const prevBodyOverscroll = (body.style as any).overscrollBehavior;
+
+    html.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+    (html.style as any).overscrollBehavior = "none";
+    (body.style as any).overscrollBehavior = "none";
+
     return () => {
-      document.body.style.overflow = prevOverflow;
-      (document.body.style as any).overscrollBehavior = prevOverscroll;
+      html.style.overflow = prevHtmlOverflow;
+      body.style.overflow = prevBodyOverflow;
+      (html.style as any).overscrollBehavior = prevHtmlOverscroll;
+      (body.style as any).overscrollBehavior = prevBodyOverscroll;
     };
   }, []);
 
   return (
-    // Use a fixed layout so the composer stays visible on mobile
-    // and only the message history pane scrolls.
-    <div className="flex h-full min-h-0 flex-col overflow-hidden pb-[env(safe-area-inset-bottom)]">
+    <div className="fixed inset-x-0 bottom-0 top-14 mx-auto w-full max-w-7xl px-2 py-2 sm:px-6">
       {error ? <Alert className="mb-4 border-destructive text-destructive">{error}</Alert> : null}
 
-      <Card className="flex-1 min-h-0 overflow-hidden">
+      <Card className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border bg-background/80 shadow-sm backdrop-blur">
         <CardHeader className="shrink-0 flex flex-row items-center justify-between space-y-0">
           <div className="min-w-0">
             <CardTitle className="truncate">{title}</CardTitle>
@@ -125,27 +134,39 @@ export function ChannelPage({ channelId }: { channelId: string }) {
 
         <CardContent className="flex-1 min-h-0 p-0">
           <div className="flex h-full min-h-0 flex-col">
-            <div ref={listRef} className="flex-1 min-h-0 overflow-auto overscroll-contain p-3 space-y-2 bg-muted/10">
-              {(thread.data?.messages ?? []).filter((m) => m.body.trim().length > 0).map((m) => (
-                <div key={m.id} className="rounded-md border bg-background p-2">
-                  <div className="text-[11px] text-muted-foreground">
-                    {m.authorType} · {new Date(m.createdAt).toLocaleString()}
+            <div ref={listRef} className="flex-1 min-h-0 overflow-auto overscroll-contain px-3 py-4 space-y-2 bg-muted/10">
+              {(thread.data?.messages ?? []).filter((m) => m.body.trim().length > 0).map((m) => {
+                const isAgent = m.authorType === "agent";
+                return (
+                  <div key={m.id} className={isAgent ? "flex justify-start" : "flex justify-end"}>
+                    <div
+                      className={
+                        "max-w-[85%] rounded-2xl px-3 py-2 text-sm shadow-sm " +
+                        (isAgent
+                          ? "bg-background border"
+                          : "bg-primary text-primary-foreground")
+                      }
+                    >
+                      <div className={"mb-1 text-[10px] opacity-70"}>
+                        {isAgent ? "command" : "you"} · {new Date(m.createdAt).toLocaleTimeString()}
+                      </div>
+                      <div className="whitespace-pre-wrap">{m.body}</div>
+                    </div>
                   </div>
-                  <div className="whitespace-pre-wrap text-sm">{m.body}</div>
-                </div>
-              ))}
+                );
+              })}
               {(thread.data?.messages ?? []).filter((m) => m.body.trim().length > 0).length === 0 && thread.isFetched ? (
                 <div className="p-3 text-sm text-muted-foreground">No messages yet.</div>
               ) : null}
             </div>
 
-            <div className="shrink-0 border-t bg-background p-3 sticky bottom-0">
+            <div className="shrink-0 border-t bg-background/80 backdrop-blur p-3">
               <div className="space-y-2">
                 <Textarea
                   value={composer}
                   onChange={(e) => setComposer(e.target.value)}
                   placeholder="Message…"
-                  className="min-h-16"
+                  className="min-h-14 rounded-xl"
                 />
                 <div className="flex justify-end">
                   <Button
