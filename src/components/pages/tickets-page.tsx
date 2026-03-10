@@ -119,6 +119,8 @@ export function TicketsPage() {
     return map;
   }, [tickets.data]);
 
+  const loadingTickets = tickets.isLoading && (tickets.data ?? []).length === 0;
+
   return (
     <>
       <div className="space-y-6">
@@ -135,9 +137,28 @@ export function TicketsPage() {
       {error ? <Alert className="border-destructive text-destructive">{error}</Alert> : null}
 
 
-      <div className="grid gap-4 lg:grid-cols-5">
-        {columns.map((col) => (
-          <div key={col.key} className="space-y-2">
+      {loadingTickets ? (
+        <div className="grid gap-4 lg:grid-cols-5">
+          {columns.map((col) => (
+            <div key={col.key} className="space-y-2">
+              <div className="flex items-center justify-between rounded-md px-2 py-1">
+                <div className="h-4 w-24 animate-pulse rounded bg-muted" />
+                <div className="h-5 w-10 animate-pulse rounded bg-muted" />
+              </div>
+              <div className="min-h-[40vh] rounded-md border bg-muted/10 p-2">
+                <div className="space-y-2">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="h-20 w-full animate-pulse rounded-md border bg-background/60" />
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-5">
+          {columns.map((col) => (
+            <div key={col.key} className="space-y-2">
             <button
               type="button"
               onClick={() => toggleColumn(col.key)}
@@ -207,6 +228,7 @@ export function TicketsPage() {
           </div>
         ))}
       </div>
+      )}
     </div>
 
       {openTicketId ? (
