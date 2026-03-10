@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
+import { MarkdownMessage } from "@/components/markdown";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -335,7 +336,9 @@ export function TicketsPage() {
                     <div className="text-[11px] text-muted-foreground">
                       {c.authorType} · {new Date(c.createdAt).toLocaleString()}
                     </div>
-                    <div className="whitespace-pre-wrap text-sm">{c.body}</div>
+                    <div className="text-sm break-words overflow-hidden">
+                      <MarkdownMessage body={c.body} />
+                    </div>
                   </div>
                 ))}
                 {(ticketDetail.data?.comments ?? []).length === 0 ? (
