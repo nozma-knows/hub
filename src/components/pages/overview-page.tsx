@@ -6,8 +6,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc-client";
 
 export function OverviewPage() {
-  const agents = trpc.agents.list.useQuery();
-  const providers = trpc.providers.list.useQuery();
+  const agents = trpc.agents.list.useQuery(undefined, {
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false
+  });
+  const providers = trpc.providers.list.useQuery(undefined, {
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false
+  });
 
   const connectedProviders = providers.data?.filter((provider) => provider.connected).length ?? 0;
 
@@ -25,7 +31,7 @@ export function OverviewPage() {
               <Server className="h-4 w-4" /> Agents
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-2xl font-semibold">{agents.data?.length ?? 0}</CardContent>
+          <CardContent className="text-2xl font-semibold">{agents.isLoading ? "…" : (agents.data?.length ?? 0)}</CardContent>
         </Card>
         <Card>
           <CardHeader>
@@ -33,7 +39,7 @@ export function OverviewPage() {
               <ShieldCheck className="h-4 w-4" /> Connected Tools
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-2xl font-semibold">{connectedProviders}</CardContent>
+          <CardContent className="text-2xl font-semibold">{providers.isLoading ? "…" : connectedProviders}</CardContent>
         </Card>
       </section>
     </div>

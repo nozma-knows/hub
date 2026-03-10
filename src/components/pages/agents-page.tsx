@@ -11,7 +11,10 @@ import { trpc } from "@/lib/trpc-client";
 
 export function AgentsPage() {
   const utils = trpc.useUtils();
-  const agents = trpc.agents.list.useQuery();
+  const agents = trpc.agents.list.useQuery(undefined, {
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false
+  });
 
   const syncMutation = trpc.agents.sync.useMutation({
     onSuccess: async () => {
@@ -68,6 +71,21 @@ export function AgentsPage() {
       {agents.error ? <Alert className="border-destructive text-destructive">{agents.error.message}</Alert> : null}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {agents.isLoading && (agents.data ?? []).length === 0 ? (
+          Array.from({ length: 6 }).map((_, i) => (
+            <Card key={i} className="h-full">
+              <CardHeader className="space-y-2">
+                <div className="h-4 w-32 animate-pulse rounded bg-muted" />
+                <div className="h-3 w-40 animate-pulse rounded bg-muted" />
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="h-3 w-48 animate-pulse rounded bg-muted" />
+                <div className="h-3 w-56 animate-pulse rounded bg-muted" />
+              </CardContent>
+            </Card>
+          ))
+        ) : null}
+
         {(agents.data ?? []).map((agent) => (
           <Link key={agent.id} href={`/agents/${agent.id}`} className="block">
             <Card className="h-full transition-colors hover:bg-muted/40">
