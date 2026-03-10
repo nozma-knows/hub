@@ -34,6 +34,7 @@ export function ChannelPage({ channelId }: { channelId: string }) {
   const [composer, setComposer] = useState("");
   const [keyboardInsetPx, setKeyboardInsetPx] = useState(0);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [copyToast, setCopyToast] = useState<null | { text: string; at: number }>(null);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
 
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
@@ -501,6 +502,13 @@ export function ChannelPage({ channelId }: { channelId: string }) {
       {error ? <Alert className="mb-4 border-destructive text-destructive">{error}</Alert> : null}
 
       <Card className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border bg-background/80 shadow-sm backdrop-blur">
+        {copyToast ? (
+          <div className="pointer-events-none fixed inset-x-0 bottom-4 z-[60] flex justify-center px-4">
+            <div className="rounded-full bg-foreground/90 px-4 py-2 text-sm text-background shadow-lg">
+              {copyToast.text}
+            </div>
+          </div>
+        ) : null}
         <CardHeader className="shrink-0 flex flex-row items-center justify-between space-y-0">
           <div className="min-w-0">
             <CardTitle className="truncate">{title}</CardTitle>
@@ -541,8 +549,10 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                         try {
                           await navigator.clipboard.writeText(m.body);
                           setCopiedMessageId(m.id);
+                          setCopyToast({ text: "Copied", at: Date.now() });
                           window.setTimeout(() => {
                             setCopiedMessageId((cur) => (cur === m.id ? null : cur));
+                            setCopyToast((cur) => (cur && Date.now() - cur.at > 700 ? null : cur));
                           }, 800);
                         } catch {
                           // ignore
@@ -559,7 +569,7 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                         <span>
                           {label} · {new Date(m.createdAt).toLocaleTimeString()}
                         </span>
-                        {copiedMessageId === m.id ? <span className="font-medium">Copied</span> : null}
+                        {copiedMessageId === m.id ? null : null}
                       </div>
                       <div className="break-words overflow-hidden">
                         <MarkdownMessage body={m.body} />
