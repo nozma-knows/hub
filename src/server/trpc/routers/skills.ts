@@ -15,6 +15,14 @@ export type ClawhubSkillResult = {
   version?: string;
   installSpec?: string;
   requirements?: string;
+  stats?: {
+    stars?: number;
+    downloads?: number;
+    installsAllTime?: number;
+    installsCurrent?: number;
+  };
+  highlighted?: boolean;
+  suspicious?: boolean;
 };
 
 export const skillsRouter = createTrpcRouter({
@@ -123,7 +131,17 @@ export const skillsRouter = createTrpcRouter({
               ...r,
               author: typeof d?.owner?.handle === "string" ? d.owner.handle : r.author,
               version: typeof d?.latestVersion?.version === "string" ? d.latestVersion.version : r.version,
-              description: typeof d?.skill?.summary === "string" ? d.skill.summary : r.description
+              description: typeof d?.skill?.summary === "string" ? d.skill.summary : r.description,
+              stats: d?.skill?.stats
+                ? {
+                    stars: Number.isFinite(d.skill.stats.stars) ? Number(d.skill.stats.stars) : undefined,
+                    downloads: Number.isFinite(d.skill.stats.downloads) ? Number(d.skill.stats.downloads) : undefined,
+                    installsAllTime: Number.isFinite(d.skill.stats.installsAllTime) ? Number(d.skill.stats.installsAllTime) : undefined,
+                    installsCurrent: Number.isFinite(d.skill.stats.installsCurrent) ? Number(d.skill.stats.installsCurrent) : undefined
+                  }
+                : undefined,
+              highlighted: Boolean(d?.skill?.badges?.highlighted),
+              suspicious: Boolean(d?.moderation?.isSuspicious)
             } as ClawhubSkillResult;
           } catch {
             return r;

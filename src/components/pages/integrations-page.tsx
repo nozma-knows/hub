@@ -271,8 +271,11 @@ export function IntegrationsPage() {
                     {s.version ? <div className="text-xs text-muted-foreground">v{s.version}</div> : null}
                   </div>
                   {s.description ? <div className="mt-1 text-xs text-muted-foreground line-clamp-2">{s.description}</div> : null}
-                  <div className="mt-2 text-[11px] text-muted-foreground">
-                    {s.author ? `by ${s.author}` : ""} {s.id ? `· id: ${s.id}` : ""}
+                  <div className="mt-2 text-[11px] text-muted-foreground flex flex-wrap gap-x-2 gap-y-1">
+                    <span>{s.author ? `by ${s.author}` : ""}</span>
+                    {typeof s.stats?.stars === "number" ? <span>★ {s.stats.stars}</span> : null}
+                    {typeof s.stats?.downloads === "number" ? <span>{s.stats.downloads.toLocaleString()} downloads</span> : null}
+                    {s.id ? <span>· id: {s.id}</span> : null}
                   </div>
                 </button>
               ))}
