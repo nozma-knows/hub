@@ -1,9 +1,9 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
-import { hubSkillInstalls } from "@/db/schema";
+import { hubAgentSkillPermissions, hubSkillInstalls } from "@/db/schema";
 // (installer runs in background worker)
-import { createTrpcRouter, protectedProcedure } from "@/server/trpc/init";
+import { adminProcedure, createTrpcRouter, protectedProcedure } from "@/server/trpc/init";
 
 const timeRangeSchema = z.enum(["1h", "6h", "24h", "7d"]);
 
@@ -26,6 +26,66 @@ export type ClawhubSkillResult = {
 };
 
 export const skillsRouter = createTrpcRouter({
+  listInstalledSkills: protectedProcedure.query(async ({ ctx }) => {
+    const rows = await ctx.db.execute(sql`
+      select distinct on (clawhub_skill_id)
+        id,
+        clawhub_skill_id,
+        name,
+        author,
+        version,
+        install_spec,
+        status,
+        updated_at
+      from hub_skill_installs
+      where workspace_id = ${ctx.workspace.id} and status = 'installed'
+      order by clawhub_skill_id, updated_at desc
+    `);
+
+    return (rows.rows as any[]).map((r) => ({
+      id: String(r.id),
+      clawhubSkillId: String(r.clawhub_skill_id),
+      name: r.name ? String(r.name) : String(r.clawhub_skill_id),
+      author: r.author ? String(r.author) : null,
+      version: r.version ? String(r.version) : null,
+      installSpec: r.install_spec ? String(r.install_spec) : null,
+      updatedAt: r.updated_at
+    }));
+  }),
+
+  agentSkillAccessList: protectedProcedure
+    .input(z.object({ agentId: z.string().min(1) }))
+    .query(async ({ ctx, input }) => {
+      const rows = await ctx.db.query.hubAgentSkillPermissions.findMany({
+        where: and(
+          eq(hubAgentSkillPermissions.workspaceId, ctx.workspace.id),
+          eq(hubAgentSkillPermissions.agentId, input.agentId)
+        )
+      });
+      return rows;
+    }),
+
+  agentSkillAccessSet: adminProcedure
+    .input(z.object({ agentId: z.string().min(1), clawhubSkillId: z.string().min(1), isAllowed: z.boolean() }))
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db
+        .insert(hubAgentSkillPermissions)
+        .values({
+          workspaceId: ctx.workspace.id,
+          agentId: input.agentId,
+          clawhubSkillId: input.clawhubSkillId,
+          isAllowed: input.isAllowed,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        })
+        .onConflictDoUpdate({
+          target: [hubAgentSkillPermissions.workspaceId, hubAgentSkillPermissions.agentId, hubAgentSkillPermissions.clawhubSkillId],
+          set: { isAllowed: input.isAllowed, updatedAt: new Date() }
+        });
+
+      return { ok: true };
+    }),
+
   inspectClawhub: protectedProcedure
     .input(z.object({ slug: z.string().min(1), version: z.string().optional() }))
     .query(async ({ input }) => {

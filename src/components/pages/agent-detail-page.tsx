@@ -8,9 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
+import { trpc } from "@/lib/trpc-client";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { trpc } from "@/lib/trpc-client";
 
 export function AgentDetailPage({ agentId }: { agentId: string }) {
   const utils = trpc.useUtils();
@@ -79,6 +79,23 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
     return map;
   }, [matrix.data]);
 
+  const installedSkills = trpc.skills.listInstalledSkills.useQuery();
+  const skillAccess = trpc.skills.agentSkillAccessList.useQuery({ agentId });
+  const setSkillAccess = trpc.skills.agentSkillAccessSet.useMutation({
+    onSuccess: async () => {
+      await skillAccess.refetch();
+    },
+    onError: (e) => setError(e.message)
+  });
+
+  const skillAccessMap = useMemo(() => {
+    const map = new Map<string, boolean>();
+    for (const row of skillAccess.data ?? []) {
+      map.set(String(row.clawhubSkillId), Boolean(row.isAllowed));
+    }
+    return map;
+  }, [skillAccess.data]);
+
   const status = agent.data?.agent?.status ?? "unknown";
 
   return (
@@ -144,19 +161,14 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
           <CardTitle>Access</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-sm text-muted-foreground">
-            Agent-owned access controls (per provider). Admins can edit.
-          </div>
+          <div className="text-sm text-muted-foreground">Agent-owned access controls (per provider). Admins can edit.</div>
 
           <div className="mt-3 space-y-2">
             {(matrix.data?.providers ?? []).map((provider) => {
               const key = `${agentId}:${provider.id}`;
               const enabled = permissionMap.get(key) ?? false;
               return (
-                <div
-                  key={provider.id}
-                  className="flex items-center justify-between gap-3 rounded-md border px-3 py-2"
-                >
+                <div key={provider.id} className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
                   <div className="min-w-0">
                     <div className="truncate text-sm font-medium">{provider.name}</div>
                     <div className="truncate text-xs text-muted-foreground">{provider.key}</div>
@@ -179,6 +191,44 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
 
             {(matrix.data?.providers ?? []).length === 0 && !matrix.isLoading ? (
               <div className="rounded-md border p-3 text-sm text-muted-foreground">No providers found.</div>
+            ) : null}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Skills</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-sm text-muted-foreground">Enable/disable installed skills for this agent.</div>
+
+          <div className="mt-3 space-y-2">
+            {(installedSkills.data ?? []).map((s: any) => {
+              const explicit = skillAccessMap.get(String(s.clawhubSkillId));
+              const enabled = explicit ?? true;
+              return (
+                <div key={s.clawhubSkillId} className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium">{s.name ?? s.clawhubSkillId}</div>
+                    <div className="truncate text-xs text-muted-foreground">
+                      {s.version ? `v${s.version}` : ""} {s.author ? `· by ${s.author}` : ""}
+                    </div>
+                    <div className="truncate text-[11px] text-muted-foreground font-mono">{s.clawhubSkillId}</div>
+                  </div>
+                  <Switch
+                    checked={enabled}
+                    disabled={!isAdmin}
+                    onChange={(event) => {
+                      setSkillAccess.mutate({ agentId, clawhubSkillId: s.clawhubSkillId, isAllowed: event.target.checked });
+                    }}
+                  />
+                </div>
+              );
+            })}
+
+            {(installedSkills.data ?? []).length === 0 && !installedSkills.isLoading ? (
+              <div className="rounded-md border p-3 text-sm text-muted-foreground">No installed skills yet.</div>
             ) : null}
           </div>
         </CardContent>

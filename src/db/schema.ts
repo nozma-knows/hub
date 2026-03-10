@@ -286,6 +286,23 @@ export const hubSkillInstalls = pgTable("hub_skill_installs", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
 });
 
+export const hubAgentSkillPermissions = pgTable(
+  "hub_agent_skill_permissions",
+  {
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    agentId: text("agent_id").notNull(),
+    clawhubSkillId: text("clawhub_skill_id").notNull(),
+    isAllowed: boolean("is_allowed").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.workspaceId, table.agentId, table.clawhubSkillId] })
+  })
+);
+
 export const agents = pgTable("agents", {
   id: text("id").primaryKey(),
   workspaceId: uuid("workspace_id")
