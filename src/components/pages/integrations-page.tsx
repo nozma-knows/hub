@@ -57,6 +57,10 @@ export function IntegrationsPage() {
     { query: skillQuery.trim(), limit: 10 },
     { enabled: skillQuery.trim().length >= 2 }
   );
+  const skillInspect = trpc.skills.inspectClawhub.useQuery(
+    { slug: selectedSkill?.id ?? "", version: selectedSkill?.version },
+    { enabled: Boolean(selectedSkill?.id) }
+  );
   const installs = trpc.skills.listInstalls.useQuery(
     { limit: 50 },
     {
@@ -243,8 +247,10 @@ export function IntegrationsPage() {
               onChange={(e) => setSkillQuery(e.target.value)}
               placeholder="Search skills (type 2+ chars)…"
             />
-            {skillsSearch.data?.warning ? (
-              <Alert className="border-muted text-muted-foreground">{skillsSearch.data.warning}</Alert>
+            {skillsSearch.error ? (
+              <Alert className="border-destructive text-destructive">
+                {String((skillsSearch.error as any).message ?? skillsSearch.error)}
+              </Alert>
             ) : null}
 
             {skillsSearch.isFetching ? <div className="text-sm text-muted-foreground">Searching…</div> : null}
