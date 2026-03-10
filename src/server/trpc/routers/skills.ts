@@ -72,7 +72,7 @@ export const skillsRouter = createTrpcRouter({
         files,
         skillMd: typeof data?.file?.content === "string" ? data.file.content : null,
         sourceUrl: data?.owner?.handle ? `https://clawhub.ai/${data.owner.handle}/${input.slug}` : `https://clawhub.ai/${input.slug}`,
-        installCmd: `bunx clawhub@latest install ${input.slug} --workdir /root/.openclaw/workspace --dir skills --no-input`
+        installCmd: `bunx clawhub@latest install ${input.slug} --workdir /root/.openclaw --dir skills --no-input`
       };
     }),
   searchClawhub: protectedProcedure
@@ -83,67 +83,47 @@ export const skillsRouter = createTrpcRouter({
       })
     )
     .query(async ({ input }) => {
-      // Use the official ClawHub CLI for vector search.
-      // This avoids scraping and keeps behavior aligned with OpenClaw tooling.
-      const { execFile } = await import("node:child_process");
-      const { promisify } = await import("node:util");
-      const execFileAsync = promisify(execFile);
-
+      // Use the public ClawHub registry API for fast search.
+      const apiBase = "https://wry-manatee-359.convex.site";
       const q = input.query.trim();
       if (!q) return { results: [] as ClawhubSkillResult[] };
 
-      const cmd = "bunx";
-      const args = ["--bun", "clawhub@latest", "search", q, "--limit", String(input.limit), "--no-input"];
+      const url = new URL("/api/v1/search", apiBase);
+      url.searchParams.set("q", q);
+      url.searchParams.set("limit", String(input.limit));
 
-      let stdout = "";
-      try {
-        const res: any = await execFileAsync(cmd, args, {
-          timeout: 60_000,
-          maxBuffer: 2 * 1024 * 1024
-        });
-        stdout = String(res?.stdout ?? "");
-      } catch (err: any) {
-        const out = String(err?.stdout ?? "");
-        const eout = String(err?.stderr ?? "");
-        throw new Error(`Clawhub search failed: ${String(err?.message ?? err)}\n${(out + "\n" + eout).trim()}`);
+      const res = await fetch(url.toString(), { headers: { Accept: "application/json" } });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(`Clawhub search failed: ${res.status} ${text.slice(0, 200)}`);
       }
 
-      // Output format:
-      // slug  Name  (score)
-      const lines = stdout
-        .split("\n")
-        .map((l) => l.trim())
-        .filter(Boolean)
-        .filter((l) => !l.startsWith("Resolving dependencies") && !l.startsWith("Resolved") && !l.startsWith("Saved lockfile"))
-        .filter((l) => !l.startsWith("- Searching"));
+      const json = (await res.json()) as any;
+      const rows = Array.isArray(json?.results) ? json.results : [];
 
-      const results: ClawhubSkillResult[] = [];
-      for (const line of lines) {
-        const m = line.match(/^([^\s]+)\s+(.+?)\s+\(([-0-9.]+)\)\s*$/);
-        if (!m) continue;
-        const slug = m[1];
-        const name = m[2];
-        results.push({
-          id: slug,
-          name,
-          installSpec: `clawhub:${slug}`
-        });
-      }
+      const baseResults: ClawhubSkillResult[] = rows
+        .map((r: any) => ({
+          id: String(r?.slug ?? "").trim(),
+          name: String(r?.displayName ?? r?.slug ?? "").trim(),
+          description: typeof r?.summary === "string" ? r.summary : undefined,
+          version: typeof r?.version === "string" ? r.version : undefined,
+          installSpec: r?.slug ? `clawhub:${String(r.slug)}` : undefined
+        }))
+        .filter((r: any) => r.id);
 
-      // Enrich with public metadata (summary, owner, latest version)
+      // Enrich with detail metadata (owner handle, latest version)
       const enriched = await Promise.all(
-        results.map(async (r) => {
+        baseResults.map(async (r) => {
           try {
-            const apiBase = "https://wry-manatee-359.convex.site";
-            const url = new URL(`/api/v1/skills/${encodeURIComponent(r.id)}`, apiBase);
-            const res = await fetch(url.toString(), { headers: { Accept: "application/json" } });
-            if (!res.ok) return r;
-            const json = (await res.json()) as any;
+            const dUrl = new URL(`/api/v1/skills/${encodeURIComponent(r.id)}`, apiBase);
+            const dRes = await fetch(dUrl.toString(), { headers: { Accept: "application/json" } });
+            if (!dRes.ok) return r;
+            const d = (await dRes.json()) as any;
             return {
               ...r,
-              description: typeof json?.skill?.summary === "string" ? json.skill.summary : r.description,
-              author: typeof json?.owner?.handle === "string" ? json.owner.handle : r.author,
-              version: typeof json?.latestVersion?.version === "string" ? json.latestVersion.version : r.version
+              author: typeof d?.owner?.handle === "string" ? d.owner.handle : r.author,
+              version: typeof d?.latestVersion?.version === "string" ? d.latestVersion.version : r.version,
+              description: typeof d?.skill?.summary === "string" ? d.skill.summary : r.description
             } as ClawhubSkillResult;
           } catch {
             return r;

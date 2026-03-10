@@ -166,8 +166,8 @@ async function runSkillInstallerTick() {
       const { promisify } = await import("node:util");
       const execFileAsync = promisify(execFile);
 
-      // Install into the OpenClaw workspace skills dir (so skills load as <workspace>/skills)
-      const workdir = "/root/.openclaw/workspace";
+      // Install into OpenClaw managed skills dir (~/.openclaw/skills)
+      const workdir = "/root/.openclaw";
       const args = [
         "--bun",
         "clawhub@latest",

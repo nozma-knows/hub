@@ -402,7 +402,7 @@ export function IntegrationsPage() {
               ) : null}
 
               <Alert className="border-muted text-muted-foreground">
-                Installs into <span className="font-mono">/root/.openclaw/workspace/skills</span> so OpenClaw can load it as a workspace skill.
+                Installs into <span className="font-mono">/root/.openclaw/skills</span> (OpenClaw managed skills directory).
               </Alert>
 
               <div className="flex items-start gap-2 rounded-md border p-3">
