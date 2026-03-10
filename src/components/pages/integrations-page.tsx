@@ -348,22 +348,61 @@ export function IntegrationsPage() {
           <div className="w-full max-w-xl rounded-xl bg-background shadow-lg overflow-hidden">
             <div className="border-b p-4">
               <div className="text-lg font-semibold">Install skill</div>
-              <div className="mt-1 text-sm text-muted-foreground">Confirm you want to install this skill into OpenClaw.</div>
+              <div className="mt-1 text-sm text-muted-foreground">Explicit consent required before installing code onto the host.</div>
             </div>
             <div className="p-4 space-y-3 text-sm">
               <div className="rounded-md border p-3">
                 <div className="font-medium">{selectedSkill.name}</div>
-                {selectedSkill.description ? <div className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap">{selectedSkill.description}</div> : null}
-                <div className="mt-2 text-xs text-muted-foreground font-mono">id: {selectedSkill.id}</div>
-                {selectedSkill.installSpec ? (
-                  <div className="mt-2 text-xs text-muted-foreground">
-                    Install spec: <span className="font-mono">{selectedSkill.installSpec}</span>
-                  </div>
+                {selectedSkill.description ? (
+                  <div className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap">{selectedSkill.description}</div>
                 ) : null}
+                <div className="mt-2 text-xs text-muted-foreground font-mono">slug: {selectedSkill.id}</div>
               </div>
 
+              {skillInspect.isLoading ? (
+                <div className="rounded-md border p-3 text-sm text-muted-foreground">Loading details…</div>
+              ) : skillInspect.data ? (
+                <div className="rounded-md border p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-xs text-muted-foreground">Source</div>
+                    <a className="text-xs underline" href={skillInspect.data.sourceUrl} target="_blank" rel="noreferrer">
+                      View on Clawhub
+                    </a>
+                  </div>
+                  <div className="text-xs text-muted-foreground">Version: {skillInspect.data.version ?? "latest"}</div>
+                  {skillInspect.data.security ? (
+                    <div className="text-xs text-muted-foreground">
+                      Security: <span className="font-mono">{String(skillInspect.data.security.status ?? "unknown")}</span>
+                      {skillInspect.data.security.hasWarnings ? " (warnings)" : ""}
+                    </div>
+                  ) : null}
+                  <div className="text-xs text-muted-foreground">Install command</div>
+                  <pre className="max-h-[25vh] overflow-auto rounded-md bg-muted p-2 text-xs">{skillInspect.data.installCmd}</pre>
+                  {skillInspect.data.files?.length ? (
+                    <div>
+                      <div className="text-xs text-muted-foreground">Files</div>
+                      <div className="mt-1 max-h-[18vh] overflow-auto rounded-md border bg-background p-2 text-xs font-mono">
+                        {skillInspect.data.files.map((f: any) => (
+                          <div key={f.path} className="truncate">
+                            {f.path} ({Math.round((f.size ?? 0) / 1024)} KB)
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                  {skillInspect.data.skillMd ? (
+                    <details className="rounded-md border">
+                      <summary className="cursor-pointer select-none px-3 py-2 text-sm font-medium">Preview SKILL.md</summary>
+                      <pre className="max-h-[35vh] overflow-auto p-3 text-xs">{skillInspect.data.skillMd}</pre>
+                    </details>
+                  ) : null}
+                </div>
+              ) : skillInspect.error ? (
+                <Alert className="border-destructive text-destructive">{skillInspect.error.message}</Alert>
+              ) : null}
+
               <Alert className="border-muted text-muted-foreground">
-                This will install code onto the Hub host via the OpenClaw plugin installer. Only proceed if you trust the publisher and install spec.
+                Installs into <span className="font-mono">/root/.openclaw/workspace/skills</span> so OpenClaw can load it as a workspace skill.
               </Alert>
 
               <div className="flex items-start gap-2 rounded-md border p-3">
@@ -390,13 +429,13 @@ export function IntegrationsPage() {
                   Cancel
                 </Button>
                 <Button
-                  disabled={install.isPending || !skillConsent}
+                  disabled={install.isPending || !skillConsent || skillInspect.isLoading}
                   onClick={async () => {
                     await install.mutateAsync({
                       clawhubSkillId: selectedSkill.id,
-                      name: selectedSkill.name,
-                      author: selectedSkill.author,
-                      version: selectedSkill.version,
+                      name: skillInspect.data?.name ?? selectedSkill.name,
+                      author: skillInspect.data?.owner ?? selectedSkill.author,
+                      version: skillInspect.data?.version ?? selectedSkill.version,
                       installSpec: selectedSkill.installSpec
                     });
                   }}
