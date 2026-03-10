@@ -4,6 +4,46 @@ import { and, eq, isNull, lt, or } from "drizzle-orm";
 
 import { hubDispatcherState, hubTicketComments, hubTickets } from "@/db/schema";
 
+function isStuckTicket(ticket: { status: string; dispatchState: string; updatedAt: Date; lastDispatchedAt: Date | null }) {
+  if (ticket.status !== "in_progress" && ticket.status !== "doing") return false;
+  if (ticket.dispatchState === "running") return false;
+  const updatedMs = new Date(ticket.updatedAt).getTime();
+  if (Date.now() - updatedMs < STUCK_MS) return false;
+  return true;
+}
+
+async function hasRecentAutoRetry(ticketId: string): Promise<boolean> {
+  try {
+    const recent = await db.query.hubTicketComments.findMany({
+      where: eq(hubTicketComments.ticketId, ticketId),
+      orderBy: (t, { desc }) => [desc(t.createdAt)],
+      limit: 30
+    });
+
+    const cutoff = Date.now() - AUTO_RETRY_WINDOW_MS;
+    return recent.some((c: any) =>
+      typeof c.body === "string" && c.body.includes("🔁 Auto-retry") && new Date(c.createdAt).getTime() > cutoff
+    );
+  } catch {
+    return false;
+  }
+}
+
+async function lastCommentAt(ticketId: string): Promise<number | null> {
+  try {
+    const rows = await db.query.hubTicketComments.findMany({
+      where: eq(hubTicketComments.ticketId, ticketId),
+      orderBy: (t, { desc }) => [desc(t.createdAt)],
+      limit: 1
+    });
+    const row: any = rows?.[0];
+    return row?.createdAt ? new Date(row.createdAt).getTime() : null;
+  } catch {
+    return null;
+  }
+}
+
+
 type HubAction =
   | { kind: "set_ticket_state"; status: string; note?: string }
   | { kind: "collab.assign"; assign: Array<{ agentId: string; task: string }> };
@@ -66,6 +106,8 @@ const INTERVAL_MS = Number(process.env.HUB_DISPATCHER_INTERVAL_MS ?? 120_000);
 const MAX_PER_TICK = Number(process.env.HUB_DISPATCHER_MAX_PER_TICK ?? 2);
 const COOLDOWN_MS = Number(process.env.HUB_DISPATCHER_COOLDOWN_MS ?? 5 * 60_000);
 const LOCK_TTL_MS = Number(process.env.HUB_DISPATCHER_LOCK_TTL_MS ?? 10 * 60_000);
+const STUCK_MS = Number(process.env.HUB_DISPATCHER_STUCK_MS ?? 20 * 60_000);
+const AUTO_RETRY_WINDOW_MS = Number(process.env.HUB_DISPATCHER_AUTO_RETRY_WINDOW_MS ?? 6 * 60 * 60_000);
 
 function enabled() {
   return (process.env.HUB_DISPATCHER_ENABLED ?? "true").toLowerCase() === "true";
@@ -127,17 +169,41 @@ export function startDispatcher(): void {
         limit: 25
       });
 
-      const due = candidates
-        .filter((t) => Boolean(t.ownerAgentId))
-        // Don't spam the same ticket unless the previous lock expired (recovery)
-        .filter((t) => {
-          const last = t.lastDispatchedAt ? new Date(t.lastDispatchedAt).getTime() : null;
-          const lockExpired = !t.dispatchLockExpiresAt || new Date(t.dispatchLockExpiresAt).getTime() < Date.now();
-          if (lockExpired && t.dispatchState === "running") return true;
-          if (!last) return true;
-          return Date.now() - last > COOLDOWN_MS;
-        })
-        .slice(0, MAX_PER_TICK);
+      // Identify stuck tickets (in_progress but no dispatcher activity for a while).
+      // Policy: auto-retry once (per window) so humans aren't left guessing.
+      const stuck: typeof candidates = [];
+      for (const t of candidates) {
+        if (!t.ownerAgentId) continue;
+        if (!isStuckTicket({
+          status: t.status as any,
+          dispatchState: (t.dispatchState as any) ?? "idle",
+          updatedAt: t.updatedAt as any,
+          lastDispatchedAt: (t.lastDispatchedAt as any) ?? null
+        })) {
+          continue;
+        }
+
+        const lastAt = await lastCommentAt(t.id);
+        if (lastAt && Date.now() - lastAt < STUCK_MS) continue;
+
+        if (await hasRecentAutoRetry(t.id)) continue;
+        stuck.push(t);
+        if (stuck.length >= MAX_PER_TICK) break;
+      }
+
+      const due = [...stuck,
+        ...candidates
+          .filter((t) => Boolean(t.ownerAgentId))
+          // Don't spam the same ticket unless the previous lock expired (recovery)
+          .filter((t) => {
+            const last = t.lastDispatchedAt ? new Date(t.lastDispatchedAt).getTime() : null;
+            const lockExpired =
+              !t.dispatchLockExpiresAt || new Date(t.dispatchLockExpiresAt).getTime() < Date.now();
+            if (lockExpired && t.dispatchState === "running") return true;
+            if (!last) return true;
+            return Date.now() - last > COOLDOWN_MS;
+          })
+      ].slice(0, MAX_PER_TICK);
 
       // eslint-disable-next-line no-console
       console.log(`🤖 Dispatcher candidates=${candidates.length} due=${due.length}`);
@@ -176,12 +242,21 @@ export function startDispatcher(): void {
         const ownerAgentId = ticket.ownerAgentId || "main";
 
         // Record start
-        await db.insert(hubTicketComments).values({
-          workspaceId: ticket.workspaceId,
-          ticketId: ticket.id,
-          authorType: "system",
-          body: `🤖 Dispatcher: running owner agent (${ownerAgentId})…`
-        });
+        if (stuck.some((s) => s.id === ticket.id)) {
+          await db.insert(hubTicketComments).values({
+            workspaceId: ticket.workspaceId,
+            ticketId: ticket.id,
+            authorType: "system",
+            body: `🔁 Auto-retry (1/1): no updates for ${Math.round(STUCK_MS / 60_000)}m. Re-running owner agent (${ownerAgentId})…`
+          });
+        } else {
+          await db.insert(hubTicketComments).values({
+            workspaceId: ticket.workspaceId,
+            ticketId: ticket.id,
+            authorType: "system",
+            body: `🤖 Dispatcher: running owner agent (${ownerAgentId})…`
+          });
+        }
 
         try {
           const prompt = `You are working a Hub ticket as a coordinator.
