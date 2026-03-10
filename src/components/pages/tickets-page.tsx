@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { formatTicketKey } from "@/lib/tickets";
 // (Card imports removed)
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc-client";
@@ -32,6 +33,39 @@ const columns: Array<{ key: Status; title: string }> = [
 export function TicketsPage() {
   const utils = trpc.useUtils();
   const tickets = trpc.tickets.list.useQuery();
+
+  const [collapsed, setCollapsed] = useState<Record<Status, boolean>>({
+    backlog: false,
+    todo: false,
+    in_progress: false,
+    done: false,
+    canceled: false
+  });
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem("hub.kanban.collapsed.v1");
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object") {
+        setCollapsed((prev) => ({ ...prev, ...parsed }));
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  function toggleColumn(key: Status) {
+    setCollapsed((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      try {
+        window.localStorage.setItem("hub.kanban.collapsed.v1", JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }
 
   const move = trpc.tickets.move.useMutation({
     onSuccess: async (_data, vars) => {
@@ -92,22 +126,35 @@ export function TicketsPage() {
       <div className="grid gap-4 lg:grid-cols-5">
         {columns.map((col) => (
           <div key={col.key} className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="text-sm font-medium">{col.title}</div>
-              <Badge className="bg-muted text-muted-foreground">{grouped[col.key].length}</Badge>
+            <div className="flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => toggleColumn(col.key)}
+                className="flex min-w-0 items-center gap-2 rounded-md px-1 py-1 text-left text-sm font-medium hover:bg-muted/40"
+                aria-expanded={!collapsed[col.key]}
+              >
+                <span className="inline-block w-4 text-muted-foreground">{collapsed[col.key] ? ">" : "v"}</span>
+                <span className="truncate">{col.title}</span>
+              </button>
+              <Badge className="bg-muted text-muted-foreground shrink-0">{grouped[col.key].length}</Badge>
             </div>
 
-            <div
-              className="min-h-[40vh] rounded-md border bg-muted/10 p-2"
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => {
-                const ticketId = e.dataTransfer.getData("text/ticketId");
-                if (!ticketId) return;
-                setError(null);
-                move.mutate({ ticketId, status: col.key });
-              }}
-            >
-              <div className="space-y-2">
+            {collapsed[col.key] ? (
+              <div className="rounded-md border border-dashed bg-muted/5 p-3 text-xs text-muted-foreground">
+                Collapsed
+              </div>
+            ) : (
+              <div
+                className="min-h-[40vh] rounded-md border bg-muted/10 p-2"
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  const ticketId = e.dataTransfer.getData("text/ticketId");
+                  if (!ticketId) return;
+                  setError(null);
+                  move.mutate({ ticketId, status: col.key });
+                }}
+              >
+                <div className="space-y-2">
                 {grouped[col.key].map((t) => (
                   <button
                     key={t.id}
@@ -118,7 +165,21 @@ export function TicketsPage() {
                     onClick={() => setOpenTicketId(t.id)}
                     className="w-full rounded-md border bg-background p-3 text-left shadow-sm hover:bg-muted/40"
                   >
-                    <div className="text-sm font-medium">{t.title}</div>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <div className="text-sm font-medium line-clamp-2">{t.title}</div>
+                      <button
+                        type="button"
+                        className="shrink-0 rounded-md border bg-background px-2 py-0.5 text-[11px] font-mono text-muted-foreground hover:bg-muted"
+                        title="Copy ticket key"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const key = formatTicketKey(t.ticketNumber);
+                          void navigator.clipboard?.writeText?.(key);
+                        }}
+                      >
+                        {formatTicketKey(t.ticketNumber)}
+                      </button>
+                    </div>
                     {t.ownerAgentId ? (
                       <div className="mt-1 text-xs text-muted-foreground">Owner: {t.ownerAgentId}</div>
                     ) : (
@@ -134,6 +195,7 @@ export function TicketsPage() {
                 ))}
               </div>
             </div>
+            )}
           </div>
         ))}
       </div>
@@ -144,7 +206,20 @@ export function TicketsPage() {
         <div className="mx-auto flex h-full w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-background shadow-lg">
           <div className="flex items-start justify-between gap-3 border-b p-4 shrink-0">
             <div className="min-w-0 flex-1">
-              <div className="text-lg font-semibold truncate">{ticketDetail.data?.ticket.title ?? "Ticket"}</div>
+              <div className="flex items-center gap-2">
+                <div className="text-lg font-semibold truncate">{ticketDetail.data?.ticket.title ?? "Ticket"}</div>
+                <button
+                  type="button"
+                  className="rounded-md border bg-background px-2 py-0.5 text-[11px] font-mono text-muted-foreground hover:bg-muted"
+                  title="Copy ticket key"
+                  onClick={() => {
+                    const key = formatTicketKey((ticketDetail.data?.ticket as any)?.ticketNumber);
+                    void navigator.clipboard?.writeText?.(key);
+                  }}
+                >
+                  {formatTicketKey((ticketDetail.data?.ticket as any)?.ticketNumber)}
+                </button>
+              </div>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <div className="text-xs text-muted-foreground">State</div>
                 <select

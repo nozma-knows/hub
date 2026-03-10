@@ -9,7 +9,8 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
-  varchar
+  varchar,
+  bigint
 } from "drizzle-orm/pg-core";
 
 export const users = pgTable("user", {
@@ -174,6 +175,12 @@ export const hubTickets = pgTable("hub_tickets", {
   workspaceId: uuid("workspace_id")
     .notNull()
     .references(() => workspaces.id, { onDelete: "cascade" }),
+
+  // Human-friendly key (HUB-123)
+  ticketNumber: bigint("ticket_number", { mode: "number" })
+    .notNull()
+    .default(sql`nextval('hub_ticket_number_seq')`),
+
   title: text("title").notNull(),
   description: text("description"),
   status: varchar("status", { length: 16 }).notNull().default("todo"),
