@@ -52,15 +52,26 @@ export function IntegrationsPage() {
   // Clawhub skills
   const [skillQuery, setSkillQuery] = useState("");
   const [selectedSkill, setSelectedSkill] = useState<any | null>(null);
+  const [skillConsent, setSkillConsent] = useState(false);
   const skillsSearch = trpc.skills.searchClawhub.useQuery(
     { query: skillQuery.trim(), limit: 10 },
     { enabled: skillQuery.trim().length >= 2 }
   );
-  const installs = trpc.skills.listInstalls.useQuery({ limit: 50 });
+  const installs = trpc.skills.listInstalls.useQuery(
+    { limit: 50 },
+    {
+      refetchInterval: (query) => {
+        const rows = query.state.data as any[] | undefined;
+        const hasPending = (rows ?? []).some((r) => r?.status === "queued" || r?.status === "installing");
+        return hasPending ? 2000 : false;
+      }
+    }
+  );
   const install = trpc.skills.installFromClawhub.useMutation({
     onSuccess: async () => {
       await installs.refetch();
       setSelectedSkill(null);
+      setSkillConsent(false);
     }
   });
 
@@ -243,7 +254,10 @@ export function IntegrationsPage() {
                 <button
                   key={s.id}
                   type="button"
-                  onClick={() => setSelectedSkill(s)}
+                  onClick={() => {
+                    setSelectedSkill(s);
+                    setSkillConsent(false);
+                  }}
                   className="w-full rounded-md border bg-background p-3 text-left hover:bg-muted/40"
                 >
                   <div className="flex items-baseline justify-between gap-2">
@@ -279,7 +293,43 @@ export function IntegrationsPage() {
                 <div className="mt-1 text-xs text-muted-foreground">
                   {i.version ? `v${i.version}` : ""} {i.author ? `· by ${i.author}` : ""}
                 </div>
+
+                {i.statusDetail || typeof i.progress === "number" ? (
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {i.statusDetail ? i.statusDetail : null}
+                    {typeof i.progress === "number" ? ` · ${i.progress}%` : null}
+                  </div>
+                ) : null}
+
                 {i.error ? <div className="mt-2 text-xs text-destructive whitespace-pre-wrap">{i.error}</div> : null}
+
+                {i.logs ? (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-xs text-muted-foreground">Logs</summary>
+                    <pre className="mt-2 max-h-64 overflow-auto rounded-md border bg-muted p-2 text-[11px]">{i.logs}</pre>
+                  </details>
+                ) : null}
+
+                {i.status === "failed" ? (
+                  <div className="mt-3 flex justify-end">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={install.isPending}
+                      onClick={async () => {
+                        await install.mutateAsync({
+                          clawhubSkillId: i.clawhubSkillId,
+                          name: i.name ?? undefined,
+                          author: i.author ?? undefined,
+                          version: i.version ?? undefined,
+                          installSpec: i.installSpec ?? undefined
+                        });
+                      }}
+                    >
+                      Retry
+                    </Button>
+                  </div>
+                ) : null}
               </div>
             ))}
             {(installs.data ?? []).length === 0 ? <div className="text-sm text-muted-foreground">No installs yet.</div> : null}
@@ -307,15 +357,34 @@ export function IntegrationsPage() {
               </div>
 
               <Alert className="border-muted text-muted-foreground">
-                This will install code onto the Hub host via the OpenClaw plugin installer. Ensure you trust the source.
+                This will install code onto the Hub host via the OpenClaw plugin installer. Only proceed if you trust the publisher and install spec.
               </Alert>
 
+              <div className="flex items-start gap-2 rounded-md border p-3">
+                <input
+                  id="skill-consent"
+                  type="checkbox"
+                  className="mt-1"
+                  checked={skillConsent}
+                  onChange={(e) => setSkillConsent(e.target.checked)}
+                />
+                <Label htmlFor="skill-consent" className="text-sm">
+                  I understand this installs third-party code and I approve installing this skill.
+                </Label>
+              </div>
+
               <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setSelectedSkill(null)}>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setSelectedSkill(null);
+                    setSkillConsent(false);
+                  }}
+                >
                   Cancel
                 </Button>
                 <Button
-                  disabled={install.isPending}
+                  disabled={install.isPending || !skillConsent}
                   onClick={async () => {
                     await install.mutateAsync({
                       clawhubSkillId: selectedSkill.id,
@@ -326,7 +395,7 @@ export function IntegrationsPage() {
                     });
                   }}
                 >
-                  {install.isPending ? "Installing…" : "Install"}
+                  {install.isPending ? "Queuing…" : "Queue install"}
                 </Button>
               </div>
             </div>
