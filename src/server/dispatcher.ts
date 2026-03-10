@@ -184,14 +184,30 @@ export function startDispatcher(): void {
         });
 
         try {
-          const prompt = `You are working a Hub ticket.
+          const prompt = `You are working a Hub ticket as a coordinator.
 
 Title: ${ticket.title}
 
 Description:
 ${ticket.description || "(none)"}
 
-If you believe the ticket state should change, include a fenced JSON block like:
+Collaboration (use specialists when helpful):
+- dev: UI/Next.js/React/TypeScript implementation
+- ops: deployments/systemd/reliability/perf/infra
+- research: options, tradeoffs, best practices, edge cases
+
+Collab templates (preferred defaults):
+- UI/product change → assign: dev + research
+- Reliability/infra/deploy/perf → assign: ops (+ dev if code changes)
+- Integrations (Slack/Linear/auth) → assign: dev + ops + research
+- Ambiguous/large → assign: research first, then decide
+
+To spawn specialists, emit exactly one action block:
+\`\`\`hub-action
+{"kind":"collab.assign","assign":[{"agentId":"dev","task":"..."},{"agentId":"ops","task":"..."}]}
+\`\`\`
+
+If you believe the ticket state should change, include:
 \`\`\`hub-action
 {"kind":"set_ticket_state","status":"done","note":"short reason"}
 \`\`\`
