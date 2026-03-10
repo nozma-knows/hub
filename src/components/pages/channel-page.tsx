@@ -571,7 +571,7 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                         </span>
                         {copiedMessageId === m.id ? null : null}
                       </div>
-                      <div className="break-words overflow-hidden">
+                      <div className="break-words">
                         <MarkdownMessage body={m.body} />
                       </div>
                     </button>

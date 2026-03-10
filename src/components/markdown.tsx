@@ -34,7 +34,7 @@ export function MarkdownMessage({ body, className }: { body: string; className?:
         "[&_blockquote]:my-2 [&_blockquote]:border-l-2 [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground",
         "[&_a]:text-primary [&_a]:underline [&_a]:underline-offset-2 [&_a:hover]:opacity-90",
         "[&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[12px]",
-        "[&_pre]:my-2 [&_pre]:max-h-[40vh] [&_pre]:overflow-auto [&_pre]:overscroll-contain [&_pre]:rounded-md [&_pre]:border [&_pre]:bg-muted/40 [&_pre]:p-3",
+        "[&_pre]:my-2 [&_pre]:max-h-[40vh] [&_pre]:overflow-auto [&_pre]:overscroll-contain [&_pre]:rounded-md [&_pre]:border [&_pre]:bg-muted/40 [&_pre]:p-3 [&_pre]:max-w-full",
         "[&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-[12px]", 
         className
       )}
@@ -45,8 +45,29 @@ export function MarkdownMessage({ body, className }: { body: string; className?:
         // Never render raw HTML from message bodies.
         skipHtml
         components={{
+          pre: ({ children, ...props }) => (
+            <pre
+              {...props}
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onWheel={(e) => e.stopPropagation()}
+            >
+              {children}
+            </pre>
+          ),
+          code: ({ children, ...props }) => (
+            <code
+              {...props}
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+            >
+              {children}
+            </code>
+          ),
           table: ({ children, ...props }) => (
-            <div className="my-2 overflow-x-auto rounded-md border">
+            <div className="my-2 overflow-x-auto rounded-md border" onClick={(e) => e.stopPropagation()}>
               <table className="min-w-[520px] w-full text-xs" {...props}>
                 {children}
               </table>
