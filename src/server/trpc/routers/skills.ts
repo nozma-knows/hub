@@ -2,7 +2,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { hubSkillInstalls } from "@/db/schema";
-import { openClawCliAdapter } from "@/lib/openclaw/cli-adapter";
+// (installer runs in background worker)
 import { createTrpcRouter, protectedProcedure } from "@/server/trpc/init";
 
 const timeRangeSchema = z.enum(["1h", "6h", "24h", "7d"]);
@@ -26,46 +26,75 @@ export const skillsRouter = createTrpcRouter({
       })
     )
     .query(async ({ input }) => {
-      // NOTE: Clawhub does not currently expose a documented API in this repo.
-      // We intentionally do not scrape HTML. This endpoint is a stub until we have
-      // an official API route/SDK to query.
-      const baseUrl = process.env.CLAWHUB_API_BASE_URL;
-      if (!baseUrl) {
-        return {
-          results: [] as ClawhubSkillResult[],
-          warning: "Clawhub search API not configured (set CLAWHUB_API_BASE_URL)."
-        };
+      // Use the official ClawHub CLI for vector search.
+      // This avoids scraping and keeps behavior aligned with OpenClaw tooling.
+      const { execFile } = await import("node:child_process");
+      const { promisify } = await import("node:util");
+      const execFileAsync = promisify(execFile);
+
+      const q = input.query.trim();
+      if (!q) return { results: [] as ClawhubSkillResult[] };
+
+      const cmd = "bunx";
+      const args = ["--bun", "clawhub@latest", "search", q, "--limit", String(input.limit), "--no-input"];
+
+      let stdout = "";
+      try {
+        const res: any = await execFileAsync(cmd, args, {
+          timeout: 60_000,
+          maxBuffer: 2 * 1024 * 1024
+        });
+        stdout = String(res?.stdout ?? "");
+      } catch (err: any) {
+        const out = String(err?.stdout ?? "");
+        const eout = String(err?.stderr ?? "");
+        throw new Error(`Clawhub search failed: ${String(err?.message ?? err)}\n${(out + "\n" + eout).trim()}`);
       }
 
-      // Expected API shape: GET /skills/search?q=...&limit=...
-      const url = new URL("/skills/search", baseUrl);
-      url.searchParams.set("q", input.query);
-      url.searchParams.set("limit", String(input.limit));
+      // Output format:
+      // slug  Name  (score)
+      const lines = stdout
+        .split("\n")
+        .map((l) => l.trim())
+        .filter(Boolean)
+        .filter((l) => !l.startsWith("Resolving dependencies") && !l.startsWith("Resolved") && !l.startsWith("Saved lockfile"))
+        .filter((l) => !l.startsWith("- Searching"));
 
-      const res = await fetch(url.toString(), {
-        method: "GET",
-        headers: { Accept: "application/json" }
-      });
-
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`Clawhub search failed: ${res.status} ${text.slice(0, 180)}`);
+      const results: ClawhubSkillResult[] = [];
+      for (const line of lines) {
+        const m = line.match(/^([^\s]+)\s+(.+?)\s+\(([-0-9.]+)\)\s*$/);
+        if (!m) continue;
+        const slug = m[1];
+        const name = m[2];
+        results.push({
+          id: slug,
+          name,
+          installSpec: `clawhub:${slug}`
+        });
       }
 
-      const json = (await res.json()) as any;
-      const results = Array.isArray(json?.results) ? json.results : Array.isArray(json) ? json : [];
+      // Enrich with public metadata (summary, owner, latest version)
+      const enriched = await Promise.all(
+        results.map(async (r) => {
+          try {
+            const apiBase = "https://wry-manatee-359.convex.site";
+            const url = new URL(`/api/v1/skills/${encodeURIComponent(r.id)}`, apiBase);
+            const res = await fetch(url.toString(), { headers: { Accept: "application/json" } });
+            if (!res.ok) return r;
+            const json = (await res.json()) as any;
+            return {
+              ...r,
+              description: typeof json?.skill?.summary === "string" ? json.skill.summary : r.description,
+              author: typeof json?.owner?.handle === "string" ? json.owner.handle : r.author,
+              version: typeof json?.latestVersion?.version === "string" ? json.latestVersion.version : r.version
+            } as ClawhubSkillResult;
+          } catch {
+            return r;
+          }
+        })
+      );
 
-      return {
-        results: results.map((r: any) => ({
-          id: String(r.id ?? r.slug ?? r.skillId ?? ""),
-          name: String(r.name ?? r.title ?? r.id ?? ""),
-          description: typeof r.description === "string" ? r.description : undefined,
-          author: typeof r.author === "string" ? r.author : undefined,
-          version: typeof r.version === "string" ? r.version : undefined,
-          installSpec: typeof r.installSpec === "string" ? r.installSpec : undefined,
-          requirements: typeof r.requirements === "string" ? r.requirements : undefined
-        }))
-      };
+      return { results: enriched };
     }),
 
   listInstalls: protectedProcedure
@@ -95,11 +124,18 @@ export const skillsRouter = createTrpcRouter({
         name: z.string().min(1).optional(),
         author: z.string().optional(),
         version: z.string().optional(),
-        installSpec: z.string().min(1).optional()
+        installSpec: z.string().min(1)
       })
     )
     .mutation(async ({ ctx, input }) => {
-      // Persist intent first (so UI can show "installing" immediately)
+      if (!input.installSpec) {
+        throw new Error("Missing installSpec for skill");
+      }
+
+      const versionKey = input.version?.trim() ?? "";
+
+      // Persist intent first (so UI can show it immediately).
+      // Actual installation happens asynchronously in the background worker.
       const [created] = await ctx.db
         .insert(hubSkillInstalls)
         .values({
@@ -109,81 +145,40 @@ export const skillsRouter = createTrpcRouter({
           name: input.name,
           author: input.author,
           version: input.version,
+          versionKey,
           installSpec: input.installSpec,
-          status: "installing",
+          status: "queued",
+          statusDetail: "Queued",
+          progress: 0,
+          error: null,
+          logs: null,
+          lockId: null,
+          lockExpiresAt: null,
+          attempts: 0,
           createdByUserId: ctx.user?.id,
           createdAt: new Date(),
           updatedAt: new Date()
         })
         .onConflictDoUpdate({
-          target: [hubSkillInstalls.workspaceId, hubSkillInstalls.source, hubSkillInstalls.clawhubSkillId, hubSkillInstalls.version],
+          target: [hubSkillInstalls.workspaceId, hubSkillInstalls.source, hubSkillInstalls.clawhubSkillId, hubSkillInstalls.versionKey],
           set: {
             name: input.name,
             author: input.author,
+            version: input.version,
             installSpec: input.installSpec,
-            status: "installing",
+            status: "queued",
+            statusDetail: "Queued",
+            progress: 0,
             error: null,
+            logs: null,
+            lockId: null,
+            lockExpiresAt: null,
+            attempts: 0,
             updatedAt: new Date()
           }
         })
         .returning();
 
-      // Install mechanism: use OpenClaw plugin installer (path/archive/npm spec)
-      // This is gated behind env so we don't accidentally install code without explicit ops approval.
-      if ((process.env.HUB_SKILL_INSTALL_ENABLED ?? "false").toLowerCase() !== "true") {
-        await ctx.db
-          .update(hubSkillInstalls)
-          .set({
-            status: "failed",
-            error: "Install disabled (set HUB_SKILL_INSTALL_ENABLED=true)",
-            updatedAt: new Date()
-          })
-          .where(and(eq(hubSkillInstalls.workspaceId, ctx.workspace.id), eq(hubSkillInstalls.id, created.id)));
-
-        return { ok: false, installId: created.id, status: "failed" as const };
-      }
-
-      if (!input.installSpec) {
-        await ctx.db
-          .update(hubSkillInstalls)
-          .set({ status: "failed", error: "Missing installSpec for skill", updatedAt: new Date() })
-          .where(and(eq(hubSkillInstalls.workspaceId, ctx.workspace.id), eq(hubSkillInstalls.id, created.id)));
-        return { ok: false, installId: created.id, status: "failed" as const };
-      }
-
-      try {
-        const cmd = [
-          "openclaw plugins install",
-          input.installSpec,
-          "--json"
-        ].join(" ");
-
-        const out = await openClawCliAdapter.runCommand(cmd, { timeoutMs: 5 * 60_000 });
-
-        await ctx.db
-          .update(hubSkillInstalls)
-          .set({
-            status: "installed",
-            error: null,
-            logs: out.slice(0, 50_000),
-            installedAt: new Date(),
-            updatedAt: new Date()
-          })
-          .where(and(eq(hubSkillInstalls.workspaceId, ctx.workspace.id), eq(hubSkillInstalls.id, created.id)));
-
-        return { ok: true, installId: created.id, status: "installed" as const };
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        await ctx.db
-          .update(hubSkillInstalls)
-          .set({
-            status: "failed",
-            error: msg.slice(0, 4000),
-            updatedAt: new Date()
-          })
-          .where(and(eq(hubSkillInstalls.workspaceId, ctx.workspace.id), eq(hubSkillInstalls.id, created.id)));
-
-        return { ok: false, installId: created.id, status: "failed" as const };
-      }
+      return { ok: true, installId: created.id, status: created.status as any };
     })
 });

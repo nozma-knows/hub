@@ -16,7 +16,8 @@
     "db:migrate": "bunx drizzle-kit migrate",
     "openclaw:check": "bash scripts/check-openclaw.sh",
     "test": "bun test",
-    "dispatcher": "bun src/server/dispatcher-worker.ts"
+    "dispatcher": "bun src/server/dispatcher-worker.ts",
+    "skill-installer": "bun src/server/skill-installer-worker.ts"
   },
   "dependencies": {
     "@hono/trpc-server": "^0.4.0",

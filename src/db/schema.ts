@@ -259,16 +259,31 @@ export const hubSkillInstalls = pgTable("hub_skill_installs", {
   name: text("name"),
   author: text("author"),
   version: text("version"),
+
+  // Normalized to allow a plain unique index (no expression) for onConflict targets.
+  versionKey: text("version_key").notNull().default(""),
+
   installSpec: text("install_spec"),
 
-  status: varchar("status", { length: 16 }).notNull().default("installing"),
+  // Status lifecycle: queued -> installing -> installed | failed
+  status: varchar("status", { length: 16 }).notNull().default("queued"),
+  statusDetail: text("status_detail"),
+  progress: integer("progress").notNull().default(0),
+
   error: text("error"),
   logs: text("logs"),
 
+  // Background worker locking / retries
+  installStartedAt: timestamp("install_started_at", { withTimezone: true }),
+  installedAt: timestamp("installed_at", { withTimezone: true }),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+  lockId: uuid("lock_id"),
+  lockExpiresAt: timestamp("lock_expires_at", { withTimezone: true }),
+  attempts: integer("attempts").notNull().default(0),
+
   createdByUserId: text("created_by_user_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-  installedAt: timestamp("installed_at", { withTimezone: true })
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
 });
 
 export const agents = pgTable("agents", {
