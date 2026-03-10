@@ -130,7 +130,7 @@ export function MonitoringPage() {
                 alert(`❌ Sync failed: ${error}`);
               }
             }}
-            className="w-full px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium sm:w-auto"
+            className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 font-medium sm:w-auto"
             disabled={triggerSync.isPending}
           >
             {triggerSync.isPending ? 'Syncing...' : 'Sync from OpenClaw'}
