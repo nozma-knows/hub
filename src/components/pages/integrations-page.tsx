@@ -48,6 +48,7 @@ export function IntegrationsPage() {
   const [clientSecret, setClientSecret] = useState("");
   const [scopes, setScopes] = useState("");
   const [configError, setConfigError] = useState<string | null>(null);
+  const [skillError, setSkillError] = useState<string | null>(null);
 
   // Clawhub skills
   const [skillQuery, setSkillQuery] = useState("");
@@ -360,6 +361,7 @@ export function IntegrationsPage() {
               <div className="mt-1 text-sm text-muted-foreground">Explicit consent required before installing code onto the host.</div>
             </div>
             <div className="p-4 space-y-3 text-sm">
+              {skillError ? <Alert className="border-destructive text-destructive">{skillError}</Alert> : null}
               <div className="rounded-md border p-3">
                 <div className="font-medium">{selectedSkill.name}</div>
                 {selectedSkill.description ? (
@@ -438,9 +440,11 @@ export function IntegrationsPage() {
                   Cancel
                 </Button>
                 <Button
-                  disabled={install.isPending || !skillConsent || skillInspect.isLoading}
+                  type="button"
+                  disabled={install.isPending || !skillConsent}
                   onClick={async () => {
                     try {
+                      setSkillError(null);
                       await install.mutateAsync({
                         clawhubSkillId: selectedSkill.id,
                         name: skillInspect.data?.name ?? selectedSkill.name,
@@ -451,8 +455,9 @@ export function IntegrationsPage() {
                       // Close modal immediately on success to avoid confusing UX.
                       setSelectedSkill(null);
                       setSkillConsent(false);
-                    } catch {
-                      // keep modal open on failure so user can read error from installs list
+                    } catch (err) {
+                      // keep modal open on failure and surface the error
+                      setSkillError(err instanceof Error ? err.message : "Failed to queue install");
                     }
                   }}
                 >
