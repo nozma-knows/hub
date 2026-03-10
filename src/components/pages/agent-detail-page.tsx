@@ -7,6 +7,7 @@ import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc-client";
@@ -59,6 +60,24 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
     },
     onError: (e) => setError(e.message)
   });
+
+  const me = trpc.auth.me.useQuery();
+  const matrix = trpc.permissions.matrix.useQuery();
+  const isAdmin = me.data?.workspace?.role === "owner" || me.data?.workspace?.role === "admin";
+  const upsert = trpc.permissions.upsert.useMutation({
+    onSuccess: async () => {
+      await Promise.all([utils.permissions.matrix.invalidate(), utils.audit.list.invalidate()]);
+    },
+    onError: (e) => setError(e.message)
+  });
+
+  const permissionMap = useMemo(() => {
+    const map = new Map<string, boolean>();
+    for (const row of matrix.data?.permissions ?? []) {
+      map.set(`${row.agentId}:${row.providerId}`, row.isAllowed);
+    }
+    return map;
+  }, [matrix.data]);
 
   const status = agent.data?.agent?.status ?? "unknown";
 
@@ -116,6 +135,51 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
             <div className="text-xs text-muted-foreground self-center">
               Updates OpenClaw config for this agent.
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Access</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-sm text-muted-foreground">
+            Agent-owned access controls (per provider). Admins can edit.
+          </div>
+
+          <div className="mt-3 space-y-2">
+            {(matrix.data?.providers ?? []).map((provider) => {
+              const key = `${agentId}:${provider.id}`;
+              const enabled = permissionMap.get(key) ?? false;
+              return (
+                <div
+                  key={provider.id}
+                  className="flex items-center justify-between gap-3 rounded-md border px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium">{provider.name}</div>
+                    <div className="truncate text-xs text-muted-foreground">{provider.key}</div>
+                  </div>
+                  <Switch
+                    checked={enabled}
+                    disabled={!isAdmin}
+                    onChange={(event) => {
+                      upsert.mutate({
+                        agentId,
+                        providerId: provider.id,
+                        isAllowed: event.target.checked,
+                        scopeOverrides: {}
+                      });
+                    }}
+                  />
+                </div>
+              );
+            })}
+
+            {(matrix.data?.providers ?? []).length === 0 && !matrix.isLoading ? (
+              <div className="rounded-md border p-3 text-sm text-muted-foreground">No providers found.</div>
+            ) : null}
           </div>
         </CardContent>
       </Card>

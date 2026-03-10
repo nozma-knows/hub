@@ -15,7 +15,6 @@ const links = [
   { href: "/agents", label: "Agents" },
   { href: "/monitoring", label: "Monitoring" },
   { href: "/schedules", label: "Schedules" },
-  { href: "/access", label: "Access Matrix" },
   { href: "/integrations", label: "Integrations" },
   { href: "/usage", label: "Usage" },
   { href: "/audit", label: "Audit" },
