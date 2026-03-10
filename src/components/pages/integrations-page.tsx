@@ -49,6 +49,20 @@ export function IntegrationsPage() {
   const [scopes, setScopes] = useState("");
   const [configError, setConfigError] = useState<string | null>(null);
 
+  // Clawhub skills
+  const [skillQuery, setSkillQuery] = useState("");
+  const [selectedSkill, setSelectedSkill] = useState<any | null>(null);
+  const skillsSearch = trpc.skills.searchClawhub.useQuery(
+    { query: skillQuery.trim(), limit: 10 },
+    { enabled: skillQuery.trim().length >= 2 }
+  );
+  const installs = trpc.skills.listInstalls.useQuery({ limit: 50 });
+  const install = trpc.skills.installFromClawhub.useMutation({
+    onSuccess: async () => {
+      await installs.refetch();
+      setSelectedSkill(null);
+    }
+  });
 
   return (
     <div className="space-y-6">
@@ -200,6 +214,124 @@ export function IntegrationsPage() {
 
       {health.data ? (
         <pre className="overflow-x-auto rounded-md border bg-muted p-3 text-xs">{JSON.stringify(health.data, null, 2)}</pre>
+      ) : null}
+
+      <div className="space-y-3">
+        <div>
+          <h2 className="text-lg font-semibold">Skills (Clawhub)</h2>
+          <p className="text-sm text-muted-foreground">Search the Clawhub catalog and install skills with explicit consent.</p>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Search</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Input
+              value={skillQuery}
+              onChange={(e) => setSkillQuery(e.target.value)}
+              placeholder="Search skills (type 2+ chars)…"
+            />
+            {skillsSearch.data?.warning ? (
+              <Alert className="border-muted text-muted-foreground">{skillsSearch.data.warning}</Alert>
+            ) : null}
+
+            {skillsSearch.isFetching ? <div className="text-sm text-muted-foreground">Searching…</div> : null}
+
+            <div className="space-y-2">
+              {(skillsSearch.data?.results ?? []).map((s: any) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => setSelectedSkill(s)}
+                  className="w-full rounded-md border bg-background p-3 text-left hover:bg-muted/40"
+                >
+                  <div className="flex items-baseline justify-between gap-2">
+                    <div className="text-sm font-medium">{s.name}</div>
+                    {s.version ? <div className="text-xs text-muted-foreground">v{s.version}</div> : null}
+                  </div>
+                  {s.description ? <div className="mt-1 text-xs text-muted-foreground line-clamp-2">{s.description}</div> : null}
+                  <div className="mt-2 text-[11px] text-muted-foreground">
+                    {s.author ? `by ${s.author}` : ""} {s.id ? `· id: ${s.id}` : ""}
+                  </div>
+                </button>
+              ))}
+              {skillQuery.trim().length >= 2 && (skillsSearch.data?.results?.length ?? 0) === 0 && !skillsSearch.isFetching ? (
+                <div className="text-sm text-muted-foreground">No results.</div>
+              ) : null}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Installed / Recent installs</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            {(installs.data ?? []).map((i: any) => (
+              <div key={i.id} className="rounded-md border p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="font-medium">{i.name ?? i.clawhubSkillId}</div>
+                  <Badge className={i.status === "installed" ? "border-green-600 text-green-700" : i.status === "failed" ? "border-destructive text-destructive" : ""}>
+                    {i.status}
+                  </Badge>
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  {i.version ? `v${i.version}` : ""} {i.author ? `· by ${i.author}` : ""}
+                </div>
+                {i.error ? <div className="mt-2 text-xs text-destructive whitespace-pre-wrap">{i.error}</div> : null}
+              </div>
+            ))}
+            {(installs.data ?? []).length === 0 ? <div className="text-sm text-muted-foreground">No installs yet.</div> : null}
+          </CardContent>
+        </Card>
+      </div>
+
+      {selectedSkill ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-xl rounded-xl bg-background shadow-lg overflow-hidden">
+            <div className="border-b p-4">
+              <div className="text-lg font-semibold">Install skill</div>
+              <div className="mt-1 text-sm text-muted-foreground">Confirm you want to install this skill into OpenClaw.</div>
+            </div>
+            <div className="p-4 space-y-3 text-sm">
+              <div className="rounded-md border p-3">
+                <div className="font-medium">{selectedSkill.name}</div>
+                {selectedSkill.description ? <div className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap">{selectedSkill.description}</div> : null}
+                <div className="mt-2 text-xs text-muted-foreground font-mono">id: {selectedSkill.id}</div>
+                {selectedSkill.installSpec ? (
+                  <div className="mt-2 text-xs text-muted-foreground">
+                    Install spec: <span className="font-mono">{selectedSkill.installSpec}</span>
+                  </div>
+                ) : null}
+              </div>
+
+              <Alert className="border-muted text-muted-foreground">
+                This will install code onto the Hub host via the OpenClaw plugin installer. Ensure you trust the source.
+              </Alert>
+
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setSelectedSkill(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  disabled={install.isPending}
+                  onClick={async () => {
+                    await install.mutateAsync({
+                      clawhubSkillId: selectedSkill.id,
+                      name: selectedSkill.name,
+                      author: selectedSkill.author,
+                      version: selectedSkill.version,
+                      installSpec: selectedSkill.installSpec
+                    });
+                  }}
+                >
+                  {install.isPending ? "Installing…" : "Install"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
       ) : null}
     </div>
   );

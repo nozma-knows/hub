@@ -13,6 +13,7 @@ import { syncRouter } from "@/server/trpc/routers/sync";
 import { usageRouter } from "@/server/trpc/routers/usage";
 import { messagesRouter } from "@/server/trpc/routers/messages";
 import { ticketsRouter } from "@/server/trpc/routers/tickets";
+import { skillsRouter } from "@/server/trpc/routers/skills";
 
 export const appRouter = createTrpcRouter({
   auth: authRouter,
@@ -28,7 +29,8 @@ export const appRouter = createTrpcRouter({
   schedules: schedulesRouter,
   sync: syncRouter,
   messages: messagesRouter,
-  tickets: ticketsRouter
+  tickets: ticketsRouter,
+  skills: skillsRouter
 });
 
 export type AppRouter = typeof appRouter;
