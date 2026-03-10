@@ -6,6 +6,7 @@ import { authRouter } from "@/server/trpc/routers/auth";
 import { membersRouter } from "@/server/trpc/routers/members";
 import { modelCredentialsRouter } from "@/server/trpc/routers/model-credentials";
 import { monitoringRouter } from "@/server/trpc/routers/monitoring";
+import { schedulesRouter } from "@/server/trpc/routers/schedules";
 import { permissionsRouter } from "@/server/trpc/routers/permissions";
 import { providersRouter } from "@/server/trpc/routers/providers";
 import { syncRouter } from "@/server/trpc/routers/sync";
@@ -24,6 +25,7 @@ export const appRouter = createTrpcRouter({
   usage: usageRouter,
   modelCredentials: modelCredentialsRouter,
   monitoring: monitoringRouter,
+  schedules: schedulesRouter,
   sync: syncRouter,
   messages: messagesRouter,
   tickets: ticketsRouter
