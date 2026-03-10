@@ -516,6 +516,24 @@ export function ChannelPage({ channelId }: { channelId: string }) {
             <div className="rounded-2xl border bg-background shadow-lg">
               <div className="border-b px-4 py-3 text-sm font-medium">Message</div>
               <div className="flex flex-col gap-2 p-3">
+                {(() => {
+                  // If the message contains a ticket deep-link, show "Go to ticket".
+                  const m = messageMenu.body.match(/\/tickets\?open=([0-9a-fA-F-]{36})/);
+                  const ticketId = m?.[1];
+                  if (!ticketId) return null;
+                  return (
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setMessageMenu(null);
+                        window.location.href = `/tickets?open=${ticketId}`;
+                      }}
+                    >
+                      Go to ticket
+                    </Button>
+                  );
+                })()}
+
                 <Button
                   variant="outline"
                   onClick={async () => {
