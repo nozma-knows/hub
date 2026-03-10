@@ -33,8 +33,8 @@ export function AppShell({
 
   return (
     <div className="min-h-screen">
-      <header className="sticky top-0 z-10 border-b bg-background/90 backdrop-blur h-14">
-        <div className="relative mx-auto flex h-14 w-full max-w-7xl items-center justify-between px-4 sm:px-6">
+      <header className="sticky top-0 z-10 border-b bg-background/90 backdrop-blur h-14 relative">
+        <div className="mx-auto flex h-14 w-full max-w-7xl items-center justify-between px-4 sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <div className="flex min-w-0 items-center gap-2 text-sm font-semibold">
               <span className="shrink-0 rounded-md bg-primary px-2 py-1 text-primary-foreground">Hub</span>
@@ -87,18 +87,20 @@ export function AppShell({
             </form>
           </div>
 
-          {/* Mobile nav */}
-          {mobileOpen ? (
-            <div className="lg:hidden">
-              <div
-                className="fixed inset-0 z-40 bg-black/30"
-                onClick={() => setMobileOpen(false)}
-                aria-hidden="true"
-              />
-              <nav
-                id="hub-mobile-nav"
-                className="absolute left-4 right-4 top-full z-50 mt-3 grid gap-1 rounded-md border bg-background p-2 shadow-lg"
-              >
+        </div>
+
+        {/* Mobile nav (rendered outside the header flex row so it doesn't shift the right-side buttons) */}
+        {mobileOpen ? (
+          <div className="lg:hidden">
+            <div
+              className="fixed inset-0 z-40 bg-black/30"
+              onClick={() => setMobileOpen(false)}
+              aria-hidden="true"
+            />
+            <nav
+              id="hub-mobile-nav"
+              className="absolute left-4 right-4 top-full z-50 mt-3 grid gap-1 rounded-md border bg-background p-2 shadow-lg"
+            >
               {links.map((link) => (
                 <Link
                   key={link.href}
@@ -114,10 +116,9 @@ export function AppShell({
                   {link.label}
                 </Link>
               ))}
-              </nav>
-            </div>
-          ) : null}
-        </div>
+            </nav>
+          </div>
+        ) : null}
       </header>
 
       <main
