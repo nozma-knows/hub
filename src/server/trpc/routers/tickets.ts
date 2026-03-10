@@ -89,12 +89,121 @@ export const ticketsRouter = createTrpcRouter({
         body: input.body
       });
 
+      const ticket = await ctx.db.query.hubTickets.findFirst({
+        where: and(eq(hubTickets.workspaceId, ctx.workspace.id), eq(hubTickets.id, input.ticketId))
+      });
+
       await ctx.db
         .update(hubTickets)
         .set({ updatedAt: new Date() })
         .where(and(eq(hubTickets.workspaceId, ctx.workspace.id), eq(hubTickets.id, input.ticketId)));
 
-      return { ok: true };
+      // If the ticket was waiting on human input, auto-resume once a comment is added.
+      // Best-effort: run async so posting input doesn't block the UI.
+      if (ticket?.dispatchState === "needs_input" && ticket.ownerAgentId) {
+        const runId = Math.random().toString(16).slice(2, 8);
+
+        (async () => {
+          try {
+            await ctx.db.insert(hubTicketComments).values({
+              workspaceId: ctx.workspace.id,
+              ticketId: input.ticketId,
+              authorType: "system",
+              body: `▶️ Resuming (from your comment)… (${runId})`
+            });
+
+            const comments = await ctx.db.query.hubTicketComments.findMany({
+              where: and(
+                eq(hubTicketComments.workspaceId, ctx.workspace.id),
+                eq(hubTicketComments.ticketId, input.ticketId)
+              ),
+              orderBy: (t, { desc }) => [desc(t.createdAt)],
+              limit: 12
+            });
+
+            const context = comments
+              .slice()
+              .reverse()
+              .map((c) => `${c.authorType === "agent" ? `agent:${c.authorAgentId ?? "?"}` : c.authorType}: ${c.body}`)
+              .join("\n");
+
+            const prompt = `You are working a ticket in OpenClaw Hub.
+
+Title: ${ticket.title}
+
+Description:
+${ticket.description || "(none)"}
+
+Recent ticket comments (chronological):
+${context || "(none)"}
+
+Instructions:
+- Use best judgment and proceed with the recommended path.
+- Only ask Noah a question if you are truly blocked.
+- If you are blocked and need input, include a line starting with: NEEDS_INPUT: <your question>
+- Otherwise, do not ask questions.
+
+Respond with:
+- what you did
+- what changed
+- next steps (if any)
+- blockers/questions (if any)
+`;
+
+            const { openClawAgentTurn } = await import("@/lib/openclaw/cli-adapter");
+            const result = await openClawAgentTurn({
+              agentId: ticket.ownerAgentId!,
+              message: prompt,
+              timeoutSeconds: 600
+            });
+
+            const output = (result.output || result.message || result.text || "").toString();
+
+            await ctx.db.insert(hubTicketComments).values({
+              workspaceId: ctx.workspace.id,
+              ticketId: input.ticketId,
+              authorType: "agent",
+              authorAgentId: ticket.ownerAgentId!,
+              body: output
+            });
+
+            const needsInput = /(^|\n)\s*NEEDS_INPUT\s*:/i.test(output);
+
+            await ctx.db
+              .update(hubTickets)
+              .set({
+                status: needsInput ? "todo" : "in_progress",
+                dispatchState: needsInput ? "needs_input" : "idle",
+                lastDispatchedAt: new Date(),
+                updatedAt: new Date()
+              })
+              .where(and(eq(hubTickets.workspaceId, ctx.workspace.id), eq(hubTickets.id, input.ticketId)));
+
+            if (needsInput) {
+              await ctx.db.insert(hubTicketComments).values({
+                workspaceId: ctx.workspace.id,
+                ticketId: input.ticketId,
+                authorType: "system",
+                body: `❓ Waiting on input from Noah. Reply with a ticket comment and I'll auto-resume.`
+              });
+            }
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            try {
+              await ctx.db.insert(hubTicketComments).values({
+                workspaceId: ctx.workspace.id,
+                ticketId: input.ticketId,
+                authorType: "system",
+                body: `⚠️ Auto-resume failed (${runId}): ${msg}`
+              });
+            } catch {
+              // ignore
+            }
+          }
+        })();
+      }
+
+      return { ok: true, autoResumed: Boolean(ticket?.dispatchState === "needs_input" && ticket?.ownerAgentId) };
     }),
 
   createFromThread: protectedProcedure
