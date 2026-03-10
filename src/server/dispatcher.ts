@@ -4,20 +4,42 @@ import { and, eq, isNull, lt, or } from "drizzle-orm";
 
 import { hubDispatcherState, hubTicketComments, hubTickets } from "@/db/schema";
 
-function extractTicketAction(output: string): { kind: "set_ticket_state"; status: string; note?: string } | null {
-  const match = output.match(/```hub-action\s*([\s\S]*?)```/i);
-  if (!match) return null;
-  const raw = match[1]?.trim();
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw) as any;
-    if (parsed?.kind !== "set_ticket_state") return null;
-    if (typeof parsed.status !== "string" || !parsed.status.trim()) return null;
-    const note = typeof parsed.note === "string" && parsed.note.trim() ? parsed.note.trim() : undefined;
-    return { kind: "set_ticket_state", status: parsed.status.trim(), note };
-  } catch {
-    return null;
+type HubAction =
+  | { kind: "set_ticket_state"; status: string; note?: string }
+  | { kind: "collab.assign"; assign: Array<{ agentId: string; task: string }> };
+
+function extractHubActions(output: string): HubAction[] {
+  const re = /```hub-action\s*([\s\S]*?)```/gi;
+  const actions: HubAction[] = [];
+
+  for (const match of output.matchAll(re)) {
+    const raw = match[1]?.trim();
+    if (!raw) continue;
+    try {
+      const parsed = JSON.parse(raw) as any;
+
+      if (parsed?.kind === "set_ticket_state") {
+        if (typeof parsed.status !== "string" || !parsed.status.trim()) continue;
+        const note = typeof parsed.note === "string" && parsed.note.trim() ? parsed.note.trim() : undefined;
+        actions.push({ kind: "set_ticket_state", status: parsed.status.trim(), note });
+        continue;
+      }
+
+      if (parsed?.kind === "collab.assign") {
+        const list = Array.isArray(parsed.assign) ? parsed.assign : [];
+        const assign = list
+          .map((a: any) => ({ agentId: String(a?.agentId ?? "").trim(), task: String(a?.task ?? "").trim() }))
+          .filter((a: any) => a.agentId && a.task);
+        if (assign.length === 0) continue;
+        actions.push({ kind: "collab.assign", assign });
+        continue;
+      }
+    } catch {
+      // ignore bad blocks
+    }
   }
+
+  return actions;
 }
 
 function normalizeTicketStatus(status: string): "backlog" | "todo" | "in_progress" | "done" | "canceled" {
@@ -151,12 +173,14 @@ export function startDispatcher(): void {
 
         if (!updated || updated.length === 0) continue;
 
+        const ownerAgentId = ticket.ownerAgentId || "main";
+
         // Record start
         await db.insert(hubTicketComments).values({
           workspaceId: ticket.workspaceId,
           ticketId: ticket.id,
           authorType: "system",
-          body: `🤖 Dispatcher: running owner agent (${ticket.ownerAgentId})…`
+          body: `🤖 Dispatcher: running owner agent (${ownerAgentId})…`
         });
 
         try {
@@ -179,7 +203,7 @@ Return:
 - blockers/questions (if any)`;
 
           const result = await openClawAgentTurn({
-            agentId: ticket.ownerAgentId!,
+            agentId: ownerAgentId,
             message: prompt,
             timeoutSeconds: 600
           });
@@ -190,19 +214,141 @@ Return:
             workspaceId: ticket.workspaceId,
             ticketId: ticket.id,
             authorType: "agent",
-            authorAgentId: ticket.ownerAgentId!,
+            authorAgentId: ownerAgentId,
             body: output
           });
 
-          const action = extractTicketAction(output);
-          const nextStatus = action ? normalizeTicketStatus(action.status) : null;
+          const actions = extractHubActions(output);
+
+          const stateAction = actions.find((a) => a.kind === "set_ticket_state") as
+            | { kind: "set_ticket_state"; status: string; note?: string }
+            | undefined;
+
+          const collabAction = actions.find((a) => a.kind === "collab.assign") as
+            | { kind: "collab.assign"; assign: Array<{ agentId: string; task: string }> }
+            | undefined;
+
+          const nextStatus = stateAction ? normalizeTicketStatus(stateAction.status) : null;
+
+          // If coordinator requested collaboration, run specialist turns and then re-invoke coordinator.
+          if (collabAction) {
+            await db.insert(hubTicketComments).values({
+              workspaceId: ticket.workspaceId,
+              ticketId: ticket.id,
+              authorType: "system",
+              body: `🤝 Collaboration: spawning ${collabAction.assign.length} specialist run(s)…`
+            });
+
+            const results: Array<{ agentId: string; task: string; output: string }> = [];
+
+            for (const item of collabAction.assign) {
+              await db.insert(hubTicketComments).values({
+                workspaceId: ticket.workspaceId,
+                ticketId: ticket.id,
+                authorType: "system",
+                body: `🤖 Running ${item.agentId}: ${item.task}`
+              });
+
+              const specialist = await openClawAgentTurn({
+                agentId: item.agentId,
+                message: `You are a specialist agent helping on a Hub ticket.\n\nTicket title: ${ticket.title}\n\nTicket description:\n${ticket.description || "(none)"}\n\nYour task:\n${item.task}\n\nReturn a concise result with:\n- findings/changes\n- any commands run\n- next steps\n- blockers`,
+                timeoutSeconds: 600
+              });
+
+              const specialistOutput = (specialist.output || "").toString().trim() || "(no output)";
+
+              results.push({ agentId: item.agentId, task: item.task, output: specialistOutput });
+
+              await db.insert(hubTicketComments).values({
+                workspaceId: ticket.workspaceId,
+                ticketId: ticket.id,
+                authorType: "agent",
+                authorAgentId: item.agentId,
+                body: specialistOutput
+              });
+            }
+
+            // Re-invoke coordinator to integrate.
+            const summary = results
+              .map((r) => `- ${r.agentId}: ${r.task}\n${r.output}`)
+              .join("\n\n");
+
+            await db.insert(hubTicketComments).values({
+              workspaceId: ticket.workspaceId,
+              ticketId: ticket.id,
+              authorType: "system",
+              body: `🧠 Coordinator (${ownerAgentId}): integrating specialist results…`
+            });
+
+            const coordinator = await openClawAgentTurn({
+              agentId: ownerAgentId,
+              message: `You are the coordinator agent for this Hub ticket. Specialists have reported back.
+
+Ticket title: ${ticket.title}
+
+Ticket description:
+${ticket.description || "(none)"}
+
+Specialist results:
+${summary}
+
+Now:
+- summarize final plan/results
+- update the ticket state if appropriate using a fenced hub-action block
+
+Use:
+
+\`\`\`hub-action
+{"kind":"set_ticket_state","status":"done","note":"short reason"}
+\`\`\`
+`,
+              timeoutSeconds: 600
+            });
+
+            const coordOut = (coordinator.output || "").toString().trim() || "(no output)";
+            await db.insert(hubTicketComments).values({
+              workspaceId: ticket.workspaceId,
+              ticketId: ticket.id,
+              authorType: "agent",
+              authorAgentId: ownerAgentId,
+              body: coordOut
+            });
+
+            const postActions = extractHubActions(coordOut);
+            const postState = postActions.find((a) => a.kind === "set_ticket_state") as
+              | { kind: "set_ticket_state"; status: string; note?: string }
+              | undefined;
+            const postNextStatus = postState ? normalizeTicketStatus(postState.status) : null;
+
+            if (postNextStatus) {
+              await db.insert(hubTicketComments).values({
+                workspaceId: ticket.workspaceId,
+                ticketId: ticket.id,
+                authorType: "system",
+                body: `✅ State updated by coordinator: ${postNextStatus}${postState?.note ? ` — ${postState.note}` : ""}`
+              });
+            }
+
+            await db
+              .update(hubTickets)
+              .set({
+                status: postNextStatus ?? nextStatus ?? "in_progress",
+                dispatchState: "idle",
+                dispatchLockId: null,
+                dispatchLockExpiresAt: null,
+                updatedAt: new Date()
+              })
+              .where(and(eq(hubTickets.id, ticket.id), eq(hubTickets.dispatchLockId, lockId)));
+
+            continue;
+          }
 
           if (nextStatus) {
             await db.insert(hubTicketComments).values({
               workspaceId: ticket.workspaceId,
               ticketId: ticket.id,
               authorType: "system",
-              body: `✅ State updated by agent: ${nextStatus}${action?.note ? ` — ${action.note}` : ""}`
+              body: `✅ State updated by agent: ${nextStatus}${stateAction?.note ? ` — ${stateAction.note}` : ""}`
             });
           }
 

@@ -107,9 +107,8 @@ export const ticketsRouter = createTrpcRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      // Default to the only guaranteed agent id in this deployment.
-      // (We can move back to "cos" once multi-agent ids are configured in OpenClaw.)
-      const ownerAgentId = input.ownerAgentId ?? "main";
+      // Default owner is the coordinator agent.
+      const ownerAgentId = input.ownerAgentId ?? "cos";
       const [created] = await ctx.db
         .insert(hubTickets)
         .values({
@@ -190,9 +189,8 @@ export const ticketsRouter = createTrpcRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      // Default to the only guaranteed agent id in this deployment.
-      // (We can move back to "cos" once multi-agent ids are configured in OpenClaw.)
-      const ownerAgentId = input.ownerAgentId ?? "main";
+      // Default owner is the coordinator agent.
+      const ownerAgentId = input.ownerAgentId ?? "cos";
       const [created] = await ctx.db
         .insert(hubTickets)
         .values({
