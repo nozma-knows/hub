@@ -71,7 +71,7 @@ export function SchedulesPage() {
   const rows = useMemo(() => list.data ?? [], [list.data]);
 
   return (
-    <div className="h-full min-h-0 overflow-hidden flex flex-col gap-3">
+    <div className="space-y-3">
       <div className="flex items-end justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold truncate">Schedules</h1>
@@ -82,7 +82,7 @@ export function SchedulesPage() {
 
       {error ? <Alert className="border-destructive text-destructive">{error}</Alert> : null}
 
-      <div className="flex-1 min-h-0 overflow-auto rounded-xl border bg-background">
+      <div className="max-h-[70vh] overflow-auto rounded-xl border bg-background">
         <div className="divide-y">
           {rows.map((j) => {
             const scheduleLabel = j.schedule
