@@ -36,7 +36,6 @@ export function ChannelPage({ channelId }: { channelId: string }) {
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [copyToast, setCopyToast] = useState<null | { text: string; at: number }>(null);
   const [messageMenu, setMessageMenu] = useState<null | { id: string; body: string }>(null);
-  const longPressTimerRef = useRef<number | null>(null);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
 
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
@@ -635,23 +634,12 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                       role="button"
                       tabIndex={0}
                       className={bubbleClass}
+                      onClick={() => {
+                        setMessageMenu({ id: m.id, body: m.body });
+                      }}
                       onContextMenu={(e) => {
                         e.preventDefault();
                         setMessageMenu({ id: m.id, body: m.body });
-                      }}
-                      onPointerDown={() => {
-                        if (longPressTimerRef.current) window.clearTimeout(longPressTimerRef.current);
-                        longPressTimerRef.current = window.setTimeout(() => {
-                          setMessageMenu({ id: m.id, body: m.body });
-                        }, 450);
-                      }}
-                      onPointerUp={() => {
-                        if (longPressTimerRef.current) window.clearTimeout(longPressTimerRef.current);
-                        longPressTimerRef.current = null;
-                      }}
-                      onPointerCancel={() => {
-                        if (longPressTimerRef.current) window.clearTimeout(longPressTimerRef.current);
-                        longPressTimerRef.current = null;
                       }}
                     >
                       <div className="mb-1 flex items-center justify-between gap-2 text-[10px] opacity-70">
