@@ -35,6 +35,8 @@ export function ChannelPage({ channelId }: { channelId: string }) {
   const [keyboardInsetPx, setKeyboardInsetPx] = useState(0);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [copyToast, setCopyToast] = useState<null | { text: string; at: number }>(null);
+  const [messageMenu, setMessageMenu] = useState<null | { id: string; body: string }>(null);
+  const longPressTimerRef = useRef<number | null>(null);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
 
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
@@ -502,6 +504,74 @@ export function ChannelPage({ channelId }: { channelId: string }) {
       {error ? <Alert className="mb-4 border-destructive text-destructive">{error}</Alert> : null}
 
       <Card className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border bg-background/80 shadow-sm backdrop-blur">
+        {messageMenu ? (
+          <div
+            className="fixed inset-0 z-[70] bg-black/40"
+            onClick={() => setMessageMenu(null)}
+            aria-hidden="true"
+          />
+        ) : null}
+
+        {messageMenu ? (
+          <div className="fixed inset-x-0 bottom-0 z-[80] mx-auto w-full max-w-2xl px-2 pb-2">
+            <div className="rounded-2xl border bg-background shadow-lg">
+              <div className="border-b px-4 py-3 text-sm font-medium">Message</div>
+              <div className="flex flex-col gap-2 p-3">
+                <Button
+                  variant="outline"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(messageMenu.body);
+                      setCopiedMessageId(messageMenu.id);
+                      setCopyToast({ text: "Copied", at: Date.now() });
+                      window.setTimeout(() => {
+                        setCopiedMessageId((cur) => (cur === messageMenu.id ? null : cur));
+                        setCopyToast((cur) => (cur && Date.now() - cur.at > 700 ? null : cur));
+                      }, 800);
+                    } catch {
+                      // ignore
+                    } finally {
+                      setMessageMenu(null);
+                    }
+                  }}
+                >
+                  Copy
+                </Button>
+
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    // Quick "ask about" flow: prefill composer with @command
+                    setComposer((prev) => {
+                      const snippet = messageMenu.body.trim().slice(0, 800);
+                      const prefix = `@command What do you think about this?\n\n`;
+                      return prev.trim() ? `${prev}\n\n${prefix}${snippet}` : `${prefix}${snippet}`;
+                    });
+                    setMessageMenu(null);
+                    window.setTimeout(() => composerRef.current?.focus(), 0);
+                  }}
+                >
+                  Ask @command about this
+                </Button>
+
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setTicketTitle(`Follow up: #${channel?.name ?? "channel"}`);
+                    setShowTicket(true);
+                    setMessageMenu(null);
+                  }}
+                >
+                  Create ticket…
+                </Button>
+
+                <Button variant="outline" onClick={() => setMessageMenu(null)}>
+                  Close
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : null}
         {copyToast ? (
           <div className="pointer-events-none fixed inset-x-0 bottom-4 z-[60] flex justify-center px-4">
             <div className="rounded-full bg-foreground/90 px-4 py-2 text-sm text-background shadow-lg">
@@ -540,41 +610,59 @@ export function ChannelPage({ channelId }: { channelId: string }) {
             <div ref={listRef} className="flex-1 min-h-0 overflow-auto overscroll-contain px-3 py-4 space-y-2 bg-muted/10">
               {(thread.data?.messages ?? []).filter((m) => m.body.trim().length > 0).map((m) => {
                 const isAgent = m.authorType === "agent";
-                const label = isAgent ? (m.authorAgentId === "cos" ? "command" : m.authorAgentId || "agent") : "you";
+                const isSystem = m.authorType === "system";
+                const label = isAgent
+                  ? m.authorAgentId === "cos"
+                    ? "command"
+                    : m.authorAgentId || "agent"
+                  : isSystem
+                    ? "system"
+                    : "you";
+
+                const bubbleClass =
+                  "max-w-[85%] rounded-2xl px-3 py-2 text-left text-sm shadow-sm" +
+                  (isSystem
+                    ? " bg-muted/40 border"
+                    : isAgent
+                      ? " bg-background border"
+                      : " bg-primary text-primary-foreground");
+
+                const align = isSystem ? "flex justify-center" : isAgent ? "flex justify-start" : "flex justify-end";
+
                 return (
-                  <div key={m.id} className={isAgent ? "flex justify-start" : "flex justify-end"}>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        try {
-                          await navigator.clipboard.writeText(m.body);
-                          setCopiedMessageId(m.id);
-                          setCopyToast({ text: "Copied", at: Date.now() });
-                          window.setTimeout(() => {
-                            setCopiedMessageId((cur) => (cur === m.id ? null : cur));
-                            setCopyToast((cur) => (cur && Date.now() - cur.at > 700 ? null : cur));
-                          }, 800);
-                        } catch {
-                          // ignore
-                        }
+                  <div key={m.id} className={align}>
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      className={bubbleClass}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        setMessageMenu({ id: m.id, body: m.body });
                       }}
-                      className={
-                        "max-w-[85%] rounded-2xl px-3 py-2 text-left text-sm shadow-sm active:opacity-80 " +
-                        (isAgent
-                          ? "bg-background border"
-                          : "bg-primary text-primary-foreground")
-                      }
+                      onPointerDown={() => {
+                        if (longPressTimerRef.current) window.clearTimeout(longPressTimerRef.current);
+                        longPressTimerRef.current = window.setTimeout(() => {
+                          setMessageMenu({ id: m.id, body: m.body });
+                        }, 450);
+                      }}
+                      onPointerUp={() => {
+                        if (longPressTimerRef.current) window.clearTimeout(longPressTimerRef.current);
+                        longPressTimerRef.current = null;
+                      }}
+                      onPointerCancel={() => {
+                        if (longPressTimerRef.current) window.clearTimeout(longPressTimerRef.current);
+                        longPressTimerRef.current = null;
+                      }}
                     >
                       <div className="mb-1 flex items-center justify-between gap-2 text-[10px] opacity-70">
                         <span>
                           {label} · {new Date(m.createdAt).toLocaleTimeString()}
                         </span>
-                        {copiedMessageId === m.id ? null : null}
                       </div>
                       <div className="break-words">
                         <MarkdownMessage body={m.body} />
                       </div>
-                    </button>
+                    </div>
                   </div>
                 );
               })}

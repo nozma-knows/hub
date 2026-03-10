@@ -387,12 +387,13 @@ Rules:
                     details: { ticketId: ticket.id, threadId: input.threadId }
                   });
 
-                  // Post a confirmation message.
+                  // Post a confirmation message (as @command) with a direct link.
                   await ctx.db.insert(hubMessages).values({
                     workspaceId: ctx.workspace.id,
                     threadId: input.threadId,
-                    authorType: "system",
-                    body: `✅ Ticket created: "${ticket.title}" (Todo) · owner: ${ticket.ownerAgentId}. See /tickets.`
+                    authorType: "agent",
+                    authorAgentId: "cos",
+                    body: `✅ Ticket created: "${ticket.title}" (Todo) · owner: ${ticket.ownerAgentId}. Open: /tickets?open=${ticket.id}`
                   });
                 }
               }

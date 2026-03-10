@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +34,7 @@ const columns: Array<{ key: Status; title: string }> = [
 export function TicketsPage() {
   const utils = trpc.useUtils();
   const tickets = trpc.tickets.list.useQuery();
+  const searchParams = useSearchParams();
 
   const [collapsed, setCollapsed] = useState<Record<Status, boolean>>({
     backlog: false,
@@ -78,6 +80,15 @@ export function TicketsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [openTicketId, setOpenTicketId] = useState<string | null>(null);
+
+  // Deep-link support: /tickets?open=<ticketId>
+  useEffect(() => {
+    const id = searchParams.get("open");
+    if (id && id !== openTicketId) {
+      setOpenTicketId(id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
   const ticketDetail = trpc.tickets.get.useQuery(
     { ticketId: openTicketId ?? "" },
     { enabled: Boolean(openTicketId) }
@@ -237,7 +248,19 @@ export function TicketsPage() {
                 {move.isPending ? <span className="text-xs text-muted-foreground">Saving…</span> : null}
               </div>
             </div>
-            <Button variant="outline" onClick={() => setOpenTicketId(null)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setOpenTicketId(null);
+                try {
+                  const url = new URL(window.location.href);
+                  url.searchParams.delete("open");
+                  window.history.replaceState({}, "", url.toString());
+                } catch {
+                  // ignore
+                }
+              }}
+            >
               Close
             </Button>
           </div>
