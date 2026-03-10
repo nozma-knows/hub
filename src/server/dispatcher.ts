@@ -215,6 +215,26 @@ async function runSkillInstallerTick() {
       const eout = String((err as any)?.stderr ?? "");
       const logs = (out + "\n" + eout).trim().slice(-20_000);
 
+      const isRateLimited = /rate limit/i.test(msg) || /rate limit/i.test(logs);
+      if (isRateLimited && (row.attempts ?? 0) < 2) {
+        // Backoff: re-queue and don't pick it up again until lockExpiresAt.
+        const backoffMs = 10 * 60_000;
+        await db
+          .update(hubSkillInstalls)
+          .set({
+            status: "queued",
+            statusDetail: `Rate limited — retrying in ${Math.round(backoffMs / 60_000)}m`,
+            progress: 0,
+            error: msg.slice(0, 2_000),
+            logs: logs || null,
+            lockId: null,
+            lockExpiresAt: new Date(Date.now() + backoffMs),
+            updatedAt: new Date()
+          })
+          .where(and(eq(hubSkillInstalls.id, row.id), eq(hubSkillInstalls.lockId, lockId)));
+        continue;
+      }
+
       await db
         .update(hubSkillInstalls)
         .set({
