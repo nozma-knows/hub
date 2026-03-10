@@ -73,7 +73,25 @@ export function AppShell({
               Menu
             </Button>
 
-            <form action="/api/auth/sign-out" method="post">
+            <form
+              action="/api/auth/sign-out"
+              method="post"
+              onSubmit={(e) => {
+                // better-auth requires Content-Type application/json for POST sign-out.
+                e.preventDefault();
+                fetch("/api/auth/sign-out", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: "{}"
+                })
+                  .catch(() => {
+                    // ignore
+                  })
+                  .finally(() => {
+                    window.location.href = "/sign-in";
+                  });
+              }}
+            >
               <Button
                 size="sm"
                 variant="outline"
