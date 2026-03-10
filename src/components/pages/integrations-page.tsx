@@ -83,7 +83,7 @@ export function IntegrationsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Integrations</h1>
-        <p className="text-sm text-muted-foreground">Connect Slack and Linear through the provider plugin interface.</p>
+        <p className="text-sm text-muted-foreground">Install skills from Clawhub to add capabilities.</p>
       </div>
 
       {status ? (
@@ -94,9 +94,14 @@ export function IntegrationsPage() {
         </Alert>
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-2">
-        {(providers.data ?? []).map((provider) => (
-          <Card key={provider.id}>
+      <details className="rounded-xl border bg-background/50">
+        <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium">
+          Legacy provider integrations (Slack / Linear)
+          <span className="ml-2 text-xs font-normal text-muted-foreground">(optional)</span>
+        </summary>
+        <div className="grid gap-4 p-4 md:grid-cols-2">
+          {(providers.data ?? []).map((provider) => (
+            <Card key={provider.id}>
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
                 <span>{provider.name}</span>
@@ -224,12 +229,13 @@ export function IntegrationsPage() {
               </div>
             </CardContent>
           </Card>
-        ))}
-      </div>
+          ))}
+        </div>
 
-      {health.data ? (
-        <pre className="overflow-x-auto rounded-md border bg-muted p-3 text-xs">{JSON.stringify(health.data, null, 2)}</pre>
-      ) : null}
+        {health.data ? (
+          <pre className="overflow-x-auto rounded-md border bg-muted p-3 text-xs">{JSON.stringify(health.data, null, 2)}</pre>
+        ) : null}
+      </details>
 
       <div className="space-y-3">
         <div>
