@@ -139,11 +139,7 @@ export function TicketsPage() {
               <Badge className="bg-muted text-muted-foreground shrink-0">{grouped[col.key].length}</Badge>
             </button>
 
-            {collapsed[col.key] ? (
-              <div className="rounded-md border border-dashed bg-muted/5 p-3 text-xs text-muted-foreground">
-                Collapsed
-              </div>
-            ) : (
+            {collapsed[col.key] ? null : (
               <div
                 className="min-h-[40vh] rounded-md border bg-muted/10 p-2"
                 onDragOver={(e) => e.preventDefault()}
