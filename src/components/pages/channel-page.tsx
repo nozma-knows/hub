@@ -498,7 +498,7 @@ export function ChannelPage({ channelId }: { channelId: string }) {
 
   return (
     <div
-      className="fixed inset-x-0 bottom-0 top-14 mx-auto w-full max-w-7xl px-2 py-2 sm:px-6 overflow-hidden"
+      className="h-full min-h-0 mx-auto w-full max-w-7xl px-2 py-2 sm:px-6 overflow-hidden"
       style={{ paddingBottom: `calc(env(safe-area-inset-bottom) + ${keyboardInsetPx}px)` }}
     >
       {error ? <Alert className="mb-4 border-destructive text-destructive">{error}</Alert> : null}
