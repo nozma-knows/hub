@@ -109,6 +109,9 @@ const LOCK_TTL_MS = Number(process.env.HUB_DISPATCHER_LOCK_TTL_MS ?? 10 * 60_000
 const STUCK_MS = Number(process.env.HUB_DISPATCHER_STUCK_MS ?? 20 * 60_000);
 const AUTO_RETRY_WINDOW_MS = Number(process.env.HUB_DISPATCHER_AUTO_RETRY_WINDOW_MS ?? 6 * 60 * 60_000);
 
+const SKILL_INSTALL_LOCK_TTL_MS = Number(process.env.HUB_SKILL_INSTALL_LOCK_TTL_MS ?? 15 * 60_000);
+const SKILL_INSTALL_MAX_PER_TICK = Number(process.env.HUB_SKILL_INSTALL_MAX_PER_TICK ?? 1);
+
 function enabled() {
   return (process.env.HUB_DISPATCHER_ENABLED ?? "true").toLowerCase() === "true";
 }
