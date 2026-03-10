@@ -14,6 +14,45 @@ const behaviorSchema = z.object({
   runtimeConfig: z.record(z.string(), z.any()).optional()
 });
 
+async function getUpstreamAgentUnion() {
+  // Two upstream sources:
+  // 1) Configured agents (most reliable for "what should exist")
+  // 2) CLI-discovered agents (richer metadata, but can be partial/transient)
+  let configuredIds: string[] = [];
+  try {
+    const { openClawConfigGet } = await import("@/lib/openclaw/cli-adapter");
+    const list = (await openClawConfigGet("agents.list")) as Array<any>;
+    configuredIds = Array.isArray(list)
+      ? list.map((a) => String(a?.id ?? "").trim()).filter(Boolean)
+      : [];
+  } catch {
+    // ignore
+  }
+
+  const liveAgents = await openClawCliAdapter.listAgents();
+  const liveById = new Map(liveAgents.map((a) => [a.id, a] as const));
+
+  const unionIds = [...new Set([...(configuredIds ?? []), ...liveAgents.map((a) => a.id)])];
+  const unionRows = unionIds.map((id) =>
+    liveById.get(id) ?? {
+      id,
+      name: id,
+      status: "unknown",
+      version: undefined,
+      behaviorChecksum: undefined,
+      workspacePath: undefined,
+      agentDir: undefined,
+      model: undefined
+    }
+  );
+
+  return {
+    configuredIds,
+    liveAgents,
+    unionRows
+  };
+}
+
 async function upsertWorkspaceAgents(input: {
   workspaceId: string;
   rows: Awaited<ReturnType<typeof openClawCliAdapter.listAgents>>;
@@ -264,103 +303,63 @@ export const agentsRouter = createTrpcRouter({
       orderBy: (table, { asc }) => [asc(table.name)]
     });
 
-    if (rows.length > 0) {
-      return rows;
-    }
+    // If DB is empty, hydrate it.
+    // If DB is stale or missing configured agents, refresh it inline so the UI is correct without refresh.
+    const newestSyncMs = rows
+      .map((r: any) => (r.lastSyncedAt ? new Date(r.lastSyncedAt).getTime() : 0))
+      .reduce((a: number, b: number) => Math.max(a, b), 0);
+
+    const STALE_MS = 5 * 60 * 1000;
+    const isStale = !newestSyncMs || Date.now() - newestSyncMs > STALE_MS;
 
     try {
-      const liveAgents = await openClawCliAdapter.listAgents();
+      const upstream = await getUpstreamAgentUnion();
+      const configuredIds = upstream.configuredIds;
 
-      let configuredIds: string[] = [];
-      try {
-        const { openClawConfigGet } = await import("@/lib/openclaw/cli-adapter");
-        const list = (await openClawConfigGet("agents.list")) as Array<any>;
-        configuredIds = Array.isArray(list)
-          ? list.map((a) => String(a?.id ?? "").trim()).filter(Boolean)
-          : [];
-      } catch {
-        // ignore
+      const haveIds = new Set(rows.map((r: any) => r.id));
+      const missingConfigured = (configuredIds ?? []).some((id) => !haveIds.has(id));
+
+      if (rows.length === 0 || isStale || missingConfigured) {
+        await upsertWorkspaceAgents({
+          workspaceId: ctx.workspace.id,
+          rows: upstream.unionRows as any,
+          db: ctx.db
+        });
+
+        await softMarkMissingAgents({
+          workspaceId: ctx.workspace.id,
+          liveAgentIds: configuredIds.length > 0 ? configuredIds : upstream.liveAgents.map((a) => a.id),
+          db: ctx.db
+        });
+
+        return ctx.db.query.agents.findMany({
+          where: eq(agents.workspaceId, ctx.workspace.id),
+          orderBy: (table, { asc }) => [asc(table.name)]
+        });
       }
-
-      const liveById = new Map(liveAgents.map((a) => [a.id, a] as const));
-      const union = [...new Set([...(configuredIds ?? []), ...liveAgents.map((a) => a.id)])]
-        .map((id) =>
-          liveById.get(id) ?? {
-            id,
-            name: id,
-            status: "unknown",
-            version: undefined,
-            behaviorChecksum: undefined,
-            workspacePath: undefined,
-            agentDir: undefined,
-            model: undefined
-          }
-        );
-
-      await upsertWorkspaceAgents({
-        workspaceId: ctx.workspace.id,
-        rows: union as any,
-        db: ctx.db
-      });
-
-      await softMarkMissingAgents({
-        workspaceId: ctx.workspace.id,
-        liveAgentIds: configuredIds.length > 0 ? configuredIds : liveAgents.map((agent) => agent.id),
-        db: ctx.db
-      });
     } catch {
-      return rows;
+      // If upstream query fails, fall back to DB.
     }
 
-    return ctx.db.query.agents.findMany({
-      where: eq(agents.workspaceId, ctx.workspace.id),
-      orderBy: (table, { asc }) => [asc(table.name)]
-    });
+    return rows;
   }),
 
   sync: protectedProcedure.mutation(async ({ ctx }) => {
-    const liveAgents = await openClawCliAdapter.listAgents();
-
-    // Robustness: also include configured agents from OpenClaw config, even if CLI parsing is partial.
-    let configuredIds: string[] = [];
-    try {
-      const { openClawConfigGet } = await import("@/lib/openclaw/cli-adapter");
-      const list = (await openClawConfigGet("agents.list")) as Array<any>;
-      configuredIds = Array.isArray(list)
-        ? list.map((a) => String(a?.id ?? "").trim()).filter(Boolean)
-        : [];
-    } catch {
-      // ignore
-    }
-
-    const liveById = new Map(liveAgents.map((a) => [a.id, a] as const));
-    const union = [...new Set([...(configuredIds ?? []), ...liveAgents.map((a) => a.id)])]
-      .map((id) =>
-        liveById.get(id) ?? {
-          id,
-          name: id,
-          status: "unknown",
-          version: undefined,
-          behaviorChecksum: undefined,
-          workspacePath: undefined,
-          agentDir: undefined,
-          model: undefined
-        }
-      );
-
-    if (union.length === 0) {
+    const upstream = await getUpstreamAgentUnion();
+    if (upstream.unionRows.length === 0) {
       throw new Error("OpenClaw returned no agents. Try again in a moment.");
     }
 
     await upsertWorkspaceAgents({
       workspaceId: ctx.workspace.id,
-      rows: union as any,
+      rows: upstream.unionRows as any,
       db: ctx.db
     });
 
     const removedCount = await softMarkMissingAgents({
       workspaceId: ctx.workspace.id,
-      liveAgentIds: configuredIds.length > 0 ? configuredIds : liveAgents.map((agent) => agent.id),
+      liveAgentIds:
+        upstream.configuredIds.length > 0 ? upstream.configuredIds : upstream.liveAgents.map((agent) => agent.id),
       db: ctx.db
     });
 
@@ -370,13 +369,13 @@ export const agentsRouter = createTrpcRouter({
       actorUserId: ctx.user!.id,
       result: "success",
       details: {
-        count: liveAgents.length,
+        count: upstream.unionRows.length,
         removedCount
       }
     });
 
     return {
-      count: liveAgents.length,
+      count: upstream.unionRows.length,
       removedCount
     };
   }),
