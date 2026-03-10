@@ -126,18 +126,18 @@ export function TicketsPage() {
       <div className="grid gap-4 lg:grid-cols-5">
         {columns.map((col) => (
           <div key={col.key} className="space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <button
-                type="button"
-                onClick={() => toggleColumn(col.key)}
-                className="flex min-w-0 items-center gap-2 rounded-md px-1 py-1 text-left text-sm font-medium hover:bg-muted/40"
-                aria-expanded={!collapsed[col.key]}
-              >
+            <button
+              type="button"
+              onClick={() => toggleColumn(col.key)}
+              className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1 text-left text-sm font-medium hover:bg-muted/40"
+              aria-expanded={!collapsed[col.key]}
+            >
+              <span className="flex min-w-0 items-center gap-2">
                 <span className="inline-block w-4 text-muted-foreground">{collapsed[col.key] ? ">" : "v"}</span>
                 <span className="truncate">{col.title}</span>
-              </button>
+              </span>
               <Badge className="bg-muted text-muted-foreground shrink-0">{grouped[col.key].length}</Badge>
-            </div>
+            </button>
 
             {collapsed[col.key] ? (
               <div className="rounded-md border border-dashed bg-muted/5 p-3 text-xs text-muted-foreground">
