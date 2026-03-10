@@ -434,13 +434,20 @@ export function IntegrationsPage() {
                 <Button
                   disabled={install.isPending || !skillConsent || skillInspect.isLoading}
                   onClick={async () => {
-                    await install.mutateAsync({
-                      clawhubSkillId: selectedSkill.id,
-                      name: skillInspect.data?.name ?? selectedSkill.name,
-                      author: skillInspect.data?.owner ?? selectedSkill.author,
-                      version: skillInspect.data?.version ?? selectedSkill.version,
-                      installSpec: selectedSkill.installSpec
-                    });
+                    try {
+                      await install.mutateAsync({
+                        clawhubSkillId: selectedSkill.id,
+                        name: skillInspect.data?.name ?? selectedSkill.name,
+                        author: skillInspect.data?.owner ?? selectedSkill.author,
+                        version: skillInspect.data?.version ?? selectedSkill.version,
+                        installSpec: selectedSkill.installSpec
+                      });
+                      // Close modal immediately on success to avoid confusing UX.
+                      setSelectedSkill(null);
+                      setSkillConsent(false);
+                    } catch {
+                      // keep modal open on failure so user can read error from installs list
+                    }
                   }}
                 >
                   {install.isPending ? "Queuing…" : "Queue install"}
