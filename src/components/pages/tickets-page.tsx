@@ -81,15 +81,33 @@ export function TicketsPage() {
   const collapsed = isMobile ? collapsedMobile : collapsedDesktop;
   const setCollapsed = isMobile ? setCollapsedMobile : setCollapsedDesktop;
 
+  function persistCollapsed(next: Record<Status, boolean>) {
+    try {
+      const storageKey = isMobile ? "hub.kanban.collapsed.mobile.v1" : "hub.kanban.collapsed.desktop.v1";
+      window.localStorage.setItem(storageKey, JSON.stringify(next));
+    } catch {
+      // ignore
+    }
+  }
+
   function toggleColumn(key: Status) {
     setCollapsed((prev) => {
       const next = { ...prev, [key]: !prev[key] };
-      try {
-        const storageKey = isMobile ? "hub.kanban.collapsed.mobile.v1" : "hub.kanban.collapsed.desktop.v1";
-        window.localStorage.setItem(storageKey, JSON.stringify(next));
-      } catch {
-        // ignore
-      }
+      persistCollapsed(next);
+      return next;
+    });
+  }
+
+  function setAllColumnsCollapsed(value: boolean) {
+    setCollapsed(() => {
+      const next: Record<Status, boolean> = {
+        backlog: value,
+        todo: value,
+        in_progress: value,
+        done: value,
+        canceled: value
+      };
+      persistCollapsed(next);
       return next;
     });
   }
@@ -147,7 +165,8 @@ export function TicketsPage() {
 
   return (
     <>
-      <div className="space-y-6">
+      {/* Layout contract: no page scroll caused by Kanban. Only column bodies scroll. */}
+      <div className="flex h-[calc(100dvh-56px)] min-h-0 flex-col gap-4 overflow-hidden">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Tickets</h1>
@@ -161,9 +180,20 @@ export function TicketsPage() {
       {error ? <Alert className="border-destructive text-destructive">{error}</Alert> : null}
 
 
-      <div className="rounded-xl border bg-muted/5 p-2 sm:p-3">
-        {/* Board region: constrain height so the page doesn't scroll; only columns scroll */}
-        <div className="h-[calc(100dvh-220px)] min-h-[420px] min-w-0">
+      <div className="min-h-0 flex-1 rounded-xl border bg-muted/5 p-2 sm:p-3 overflow-hidden">
+        {/* Board region: fills remaining viewport height */}
+        <div className="flex h-full min-h-0 min-w-0 flex-col">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-1">
+            <div className="text-xs text-muted-foreground">{isMobile ? "Mobile" : "Desktop"} view</div>
+            <div className="flex gap-2">
+              <Button type="button" size="sm" variant="outline" onClick={() => setAllColumnsCollapsed(true)}>
+                Collapse all
+              </Button>
+              <Button type="button" size="sm" variant="outline" onClick={() => setAllColumnsCollapsed(false)}>
+                Expand all
+              </Button>
+            </div>
+          </div>
           {/* Desktop: horizontal board */}
           <div className="hidden h-full min-h-0 min-w-0 gap-3 overflow-x-auto overscroll-x-contain sm:flex">
             {columns.map((col) => {
@@ -172,7 +202,7 @@ export function TicketsPage() {
                 <div
                   key={col.key}
                   className={
-                    "flex h-full min-h-0 flex-col rounded-xl border bg-background/60 shadow-sm backdrop-blur " +
+                    "flex h-full min-h-0 flex-col rounded-xl border bg-background/60 shadow-sm backdrop-blur transition-[width] duration-200 " +
                     (isCollapsed ? "w-14" : "w-[320px]")
                   }
                 >
@@ -196,7 +226,9 @@ export function TicketsPage() {
                           </span>
                         ) : null}
                       </span>
-                      <Badge className="bg-muted text-muted-foreground shrink-0">{grouped[col.key].length}</Badge>
+                      <Badge className="bg-muted text-muted-foreground shrink-0 min-w-9 justify-center tabular-nums">
+                        {grouped[col.key].length}
+                      </Badge>
                     </button>
                   </div>
 
@@ -204,7 +236,7 @@ export function TicketsPage() {
                     <div className="flex-1 min-h-0" />
                   ) : (
                     <div
-                      className="min-h-0 flex-1 overflow-auto overscroll-contain p-2"
+                      className="min-h-0 flex-1 overflow-auto overscroll-contain p-2 transition-opacity duration-200"
                       onDragOver={(e) => e.preventDefault()}
                       onDrop={(e) => {
                         const ticketId = e.dataTransfer.getData("text/ticketId");
@@ -266,30 +298,34 @@ export function TicketsPage() {
             })}
           </div>
 
-          {/* Mobile: vertical accordion */}
-          <div className="flex h-full min-h-0 flex-col gap-2 sm:hidden">
-            <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
-              <div className="space-y-2">
+          {/* Mobile: vertical multi-accordion. No outer scroll; only column bodies scroll. */}
+          <div className="flex h-full min-h-0 flex-col gap-2 sm:hidden overflow-hidden">
+            <div className="min-h-0 flex-1 space-y-2 overflow-hidden">
                 {columns.map((col) => {
                   const isCollapsed = Boolean(collapsed[col.key]);
                   return (
-                    <div key={col.key} className="rounded-xl border bg-background/60">
+                    <div key={col.key} className="flex min-h-0 flex-col rounded-xl border bg-background/60 overflow-hidden">
                       <button
                         type="button"
                         onClick={() => toggleColumn(col.key)}
-                        className="flex w-full items-center justify-between gap-2 border-b px-3 py-2 text-left"
+                        className="flex h-12 w-full shrink-0 items-center justify-between gap-2 border-b px-3 text-left hover:bg-muted/30"
                         aria-expanded={!isCollapsed}
                       >
                         <span className="flex min-w-0 items-center gap-2">
                           <span className="inline-block w-4 text-muted-foreground">{isCollapsed ? ">" : "v"}</span>
                           <span className="truncate text-sm font-medium">{col.title}</span>
                         </span>
-                        <Badge className="bg-muted text-muted-foreground shrink-0">{grouped[col.key].length}</Badge>
+                        <Badge className="bg-muted text-muted-foreground shrink-0 min-w-9 justify-center tabular-nums">
+                          {grouped[col.key].length}
+                        </Badge>
                       </button>
 
-                      {isCollapsed ? null : (
+                      {/* When multiple columns are expanded, they share the available height equally. */}
+                      {isCollapsed ? (
+                        <div className="h-0" />
+                      ) : (
                         <div
-                          className="max-h-[60vh] overflow-auto overscroll-contain p-2"
+                          className="min-h-0 flex-1 overflow-auto overscroll-contain p-2 transition-opacity duration-200"
                           onDragOver={(e) => e.preventDefault()}
                           onDrop={(e) => {
                             const ticketId = e.dataTransfer.getData("text/ticketId");
@@ -333,7 +369,6 @@ export function TicketsPage() {
           </div>
         </div>
       </div>
-    </div>
 
       {openTicketId ? (
       <div className="fixed inset-0 z-50 bg-black/50 p-2 sm:p-4">
