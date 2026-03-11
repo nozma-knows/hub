@@ -37,7 +37,14 @@ export function TicketsPage() {
   const tickets = trpc.tickets.list.useQuery();
   const searchParams = useSearchParams();
 
-  const [collapsed, setCollapsed] = useState<Record<Status, boolean>>({
+  const [collapsedDesktop, setCollapsedDesktop] = useState<Record<Status, boolean>>({
+    backlog: false,
+    todo: false,
+    in_progress: false,
+    done: false,
+    canceled: false
+  });
+  const [collapsedMobile, setCollapsedMobile] = useState<Record<Status, boolean>>({
     backlog: false,
     todo: false,
     in_progress: false,
@@ -45,24 +52,41 @@ export function TicketsPage() {
     canceled: false
   });
 
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const m = window.matchMedia?.("(max-width: 639px)");
+    const update = () => setIsMobile(Boolean(m?.matches));
+    update();
+    m?.addEventListener?.("change", update);
+    return () => m?.removeEventListener?.("change", update);
+  }, []);
+
   useEffect(() => {
     try {
-      const raw = window.localStorage.getItem("hub.kanban.collapsed.v1");
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === "object") {
-        setCollapsed((prev) => ({ ...prev, ...parsed }));
+      const rawD = window.localStorage.getItem("hub.kanban.collapsed.desktop.v1");
+      if (rawD) {
+        const parsed = JSON.parse(rawD);
+        if (parsed && typeof parsed === "object") setCollapsedDesktop((prev) => ({ ...prev, ...parsed }));
+      }
+      const rawM = window.localStorage.getItem("hub.kanban.collapsed.mobile.v1");
+      if (rawM) {
+        const parsed = JSON.parse(rawM);
+        if (parsed && typeof parsed === "object") setCollapsedMobile((prev) => ({ ...prev, ...parsed }));
       }
     } catch {
       // ignore
     }
   }, []);
 
+  const collapsed = isMobile ? collapsedMobile : collapsedDesktop;
+  const setCollapsed = isMobile ? setCollapsedMobile : setCollapsedDesktop;
+
   function toggleColumn(key: Status) {
     setCollapsed((prev) => {
       const next = { ...prev, [key]: !prev[key] };
       try {
-        window.localStorage.setItem("hub.kanban.collapsed.v1", JSON.stringify(next));
+        const storageKey = isMobile ? "hub.kanban.collapsed.mobile.v1" : "hub.kanban.collapsed.desktop.v1";
+        window.localStorage.setItem(storageKey, JSON.stringify(next));
       } catch {
         // ignore
       }
@@ -137,98 +161,178 @@ export function TicketsPage() {
       {error ? <Alert className="border-destructive text-destructive">{error}</Alert> : null}
 
 
-      {loadingTickets ? (
-        <div className="grid gap-4 lg:grid-cols-5">
-          {columns.map((col) => (
-            <div key={col.key} className="space-y-2">
-              <div className="flex items-center justify-between rounded-md px-2 py-1">
-                <div className="h-4 w-24 animate-pulse rounded bg-muted" />
-                <div className="h-5 w-10 animate-pulse rounded bg-muted" />
-              </div>
-              <div className="min-h-[40vh] rounded-md border bg-muted/10 p-2">
-                <div className="space-y-2">
-                  {Array.from({ length: 3 }).map((_, i) => (
-                    <div key={i} className="h-20 w-full animate-pulse rounded-md border bg-background/60" />
-                  ))}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="grid gap-4 lg:grid-cols-5">
-          {columns.map((col) => (
-            <div key={col.key} className="space-y-2">
-            <button
-              type="button"
-              onClick={() => toggleColumn(col.key)}
-              className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1 text-left text-sm font-medium hover:bg-muted/40"
-              aria-expanded={!collapsed[col.key]}
-            >
-              <span className="flex min-w-0 items-center gap-2">
-                <span className="inline-block w-4 text-muted-foreground">{collapsed[col.key] ? ">" : "v"}</span>
-                <span className="truncate">{col.title}</span>
-              </span>
-              <Badge className="bg-muted text-muted-foreground shrink-0">{grouped[col.key].length}</Badge>
-            </button>
+      <div className="rounded-xl border bg-muted/5 p-2 sm:p-3">
+        {/* Board region: constrain height so the page doesn't scroll; only columns scroll */}
+        <div className="h-[calc(100dvh-220px)] min-h-[420px] min-w-0">
+          {/* Desktop: horizontal board */}
+          <div className="hidden h-full min-h-0 min-w-0 gap-3 overflow-x-auto overscroll-x-contain sm:flex">
+            {columns.map((col) => {
+              const isCollapsed = Boolean(collapsed[col.key]);
+              return (
+                <div
+                  key={col.key}
+                  className={
+                    "flex h-full min-h-0 flex-col rounded-xl border bg-background/60 shadow-sm backdrop-blur " +
+                    (isCollapsed ? "w-14" : "w-[320px]")
+                  }
+                >
+                  <div className="shrink-0 border-b bg-background/80 p-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleColumn(col.key)}
+                      className={
+                        "flex w-full items-center justify-between gap-2 rounded-md px-2 py-1 text-left hover:bg-muted/40 " +
+                        (isCollapsed ? "flex-col" : "")
+                      }
+                      aria-expanded={!isCollapsed}
+                    >
+                      <span className={"flex items-center gap-2 " + (isCollapsed ? "justify-center" : "min-w-0")}
+                      >
+                        <span className="inline-block w-4 text-muted-foreground">{isCollapsed ? ">" : "v"}</span>
+                        <span className={isCollapsed ? "sr-only" : "truncate text-sm font-medium"}>{col.title}</span>
+                        {isCollapsed ? (
+                          <span className="text-xs font-semibold" style={{ writingMode: "vertical-rl" as any }}>
+                            {col.title}
+                          </span>
+                        ) : null}
+                      </span>
+                      <Badge className="bg-muted text-muted-foreground shrink-0">{grouped[col.key].length}</Badge>
+                    </button>
+                  </div>
 
-            {collapsed[col.key] ? null : (
-              <div
-                className="min-h-[40vh] rounded-md border bg-muted/10 p-2"
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  const ticketId = e.dataTransfer.getData("text/ticketId");
-                  if (!ticketId) return;
-                  setError(null);
-                  move.mutate({ ticketId, status: col.key });
-                }}
-              >
-                <div className="space-y-2">
-                {grouped[col.key].map((t) => (
-                  <button
-                    key={t.id}
-                    draggable
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData("text/ticketId", t.id);
-                    }}
-                    onClick={() => setOpenTicketId(t.id)}
-                    className="w-full rounded-md border bg-background p-3 text-left shadow-sm hover:bg-muted/40"
-                  >
-                    <div className="flex items-baseline justify-between gap-2">
-                      <div className="text-sm font-medium line-clamp-2">{t.title}</div>
+                  {isCollapsed ? (
+                    <div className="flex-1 min-h-0" />
+                  ) : (
+                    <div
+                      className="min-h-0 flex-1 overflow-auto overscroll-contain p-2"
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        const ticketId = e.dataTransfer.getData("text/ticketId");
+                        if (!ticketId) return;
+                        setError(null);
+                        move.mutate({ ticketId, status: col.key });
+                      }}
+                    >
+                      {loadingTickets ? (
+                        <div className="space-y-2">
+                          {Array.from({ length: 3 }).map((_, i) => (
+                            <div key={i} className="h-20 w-full animate-pulse rounded-md border bg-muted/30" />
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {grouped[col.key].map((t) => (
+                            <button
+                              key={t.id}
+                              draggable
+                              onDragStart={(e) => {
+                                e.dataTransfer.setData("text/ticketId", t.id);
+                              }}
+                              onClick={() => setOpenTicketId(t.id)}
+                              className="w-full rounded-md border bg-background p-3 text-left shadow-sm hover:bg-muted/40"
+                            >
+                              <div className="flex items-baseline justify-between gap-2">
+                                <div className="text-sm font-medium line-clamp-2">{t.title}</div>
+                                <button
+                                  type="button"
+                                  className="shrink-0 rounded-md border bg-background px-2 py-0.5 text-[11px] font-mono text-muted-foreground hover:bg-muted"
+                                  title="Copy ticket key"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const key = formatTicketKey(t.ticketNumber);
+                                    void navigator.clipboard?.writeText?.(key);
+                                  }}
+                                >
+                                  {formatTicketKey(t.ticketNumber)}
+                                </button>
+                              </div>
+                              {t.ownerAgentId ? (
+                                <div className="mt-1 text-xs text-muted-foreground">Owner: {t.ownerAgentId}</div>
+                              ) : (
+                                <div className="mt-1 text-xs text-muted-foreground">Unassigned</div>
+                              )}
+                              {t.description ? (
+                                <div className="mt-2 line-clamp-3 whitespace-pre-wrap text-xs text-muted-foreground">{t.description}</div>
+                              ) : null}
+                              <div className="mt-2 text-[11px] text-muted-foreground">Updated: {new Date(t.updatedAt).toLocaleString()}</div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Mobile: vertical accordion */}
+          <div className="flex h-full min-h-0 flex-col gap-2 sm:hidden">
+            <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
+              <div className="space-y-2">
+                {columns.map((col) => {
+                  const isCollapsed = Boolean(collapsed[col.key]);
+                  return (
+                    <div key={col.key} className="rounded-xl border bg-background/60">
                       <button
                         type="button"
-                        className="shrink-0 rounded-md border bg-background px-2 py-0.5 text-[11px] font-mono text-muted-foreground hover:bg-muted"
-                        title="Copy ticket key"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const key = formatTicketKey(t.ticketNumber);
-                          void navigator.clipboard?.writeText?.(key);
-                        }}
+                        onClick={() => toggleColumn(col.key)}
+                        className="flex w-full items-center justify-between gap-2 border-b px-3 py-2 text-left"
+                        aria-expanded={!isCollapsed}
                       >
-                        {formatTicketKey(t.ticketNumber)}
+                        <span className="flex min-w-0 items-center gap-2">
+                          <span className="inline-block w-4 text-muted-foreground">{isCollapsed ? ">" : "v"}</span>
+                          <span className="truncate text-sm font-medium">{col.title}</span>
+                        </span>
+                        <Badge className="bg-muted text-muted-foreground shrink-0">{grouped[col.key].length}</Badge>
                       </button>
+
+                      {isCollapsed ? null : (
+                        <div
+                          className="max-h-[60vh] overflow-auto overscroll-contain p-2"
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={(e) => {
+                            const ticketId = e.dataTransfer.getData("text/ticketId");
+                            if (!ticketId) return;
+                            setError(null);
+                            move.mutate({ ticketId, status: col.key });
+                          }}
+                        >
+                          <div className="space-y-2">
+                            {grouped[col.key].map((t) => (
+                              <button
+                                key={t.id}
+                                draggable
+                                onDragStart={(e) => {
+                                  e.dataTransfer.setData("text/ticketId", t.id);
+                                }}
+                                onClick={() => setOpenTicketId(t.id)}
+                                className="w-full rounded-md border bg-background p-3 text-left shadow-sm hover:bg-muted/40"
+                              >
+                                <div className="flex items-baseline justify-between gap-2">
+                                  <div className="text-sm font-medium line-clamp-2">{t.title}</div>
+                                  <span className="shrink-0 rounded-md border bg-background px-2 py-0.5 text-[11px] font-mono text-muted-foreground">
+                                    {formatTicketKey(t.ticketNumber)}
+                                  </span>
+                                </div>
+                                {t.ownerAgentId ? (
+                                  <div className="mt-1 text-xs text-muted-foreground">Owner: {t.ownerAgentId}</div>
+                                ) : (
+                                  <div className="mt-1 text-xs text-muted-foreground">Unassigned</div>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    {t.ownerAgentId ? (
-                      <div className="mt-1 text-xs text-muted-foreground">Owner: {t.ownerAgentId}</div>
-                    ) : (
-                      <div className="mt-1 text-xs text-muted-foreground">Unassigned</div>
-                    )}
-                    {t.description ? (
-                      <div className="mt-2 line-clamp-3 whitespace-pre-wrap text-xs text-muted-foreground">
-                        {t.description}
-                      </div>
-                    ) : null}
-                    <div className="mt-2 text-[11px] text-muted-foreground">Updated: {new Date(t.updatedAt).toLocaleString()}</div>
-                  </button>
-                ))}
+                  );
+                })}
               </div>
             </div>
-            )}
           </div>
-        ))}
+        </div>
       </div>
-      )}
     </div>
 
       {openTicketId ? (
