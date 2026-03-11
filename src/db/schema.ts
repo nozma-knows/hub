@@ -281,6 +281,11 @@ export const hubSkillInstalls = pgTable("hub_skill_installs", {
   lockExpiresAt: timestamp("lock_expires_at", { withTimezone: true }),
   attempts: integer("attempts").notNull().default(0),
 
+  // Observability (best-effort)
+  lastExitCode: integer("last_exit_code"),
+  lastDurationMs: integer("last_duration_ms"),
+  lastRateLimitRetryAfterMs: integer("last_rate_limit_retry_after_ms"),
+
   createdByUserId: text("created_by_user_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
