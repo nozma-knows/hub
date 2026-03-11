@@ -16,7 +16,13 @@ import { trpc } from "@/lib/trpc-client";
 export function MessagesPage() {
   const utils = trpc.useUtils();
 
-  const channels = trpc.messages.channelsList.useQuery();
+  const channels = trpc.messages.channelsList.useQuery(undefined, {
+    staleTime: 60_000,
+    gcTime: 15 * 60_000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    placeholderData: (prev) => prev
+  });
   const agents = trpc.agents.list.useQuery();
 
   const [error, setError] = useState<string | null>(null);
@@ -39,6 +45,7 @@ export function MessagesPage() {
   });
 
   const list = useMemo(() => channels.data ?? [], [channels.data]);
+  const showSkeleton = channels.isLoading && list.length === 0;
 
   useEffect(() => {
     // Lock document scroll on /messages so only the channel list can scroll.
@@ -85,6 +92,18 @@ export function MessagesPage() {
           style={{ WebkitOverflowScrolling: "touch" }}
         >
           <div className="space-y-1">
+            {showSkeleton
+              ? Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="flex items-center justify-between gap-2 rounded-xl px-3 py-2">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <div className="h-4 w-4 animate-pulse rounded bg-muted" />
+                      <div className="h-4 w-28 animate-pulse rounded bg-muted" />
+                    </div>
+                    <div className="hidden sm:block h-3 w-40 animate-pulse rounded bg-muted" />
+                  </div>
+                ))
+              : null}
+
             {list.map((c) => (
               <Link
                 key={c.id}

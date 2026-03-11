@@ -6,6 +6,7 @@ import { useState } from "react";
 import { LogOut } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { trpc } from "@/lib/trpc-client";
 import { cn } from "@/lib/utils";
 
 const links = [
@@ -30,6 +31,7 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const utils = trpc.useUtils();
 
   return (
     <div className="min-h-screen">
@@ -46,6 +48,11 @@ export function AppShell({
                 <Link
                   key={link.href}
                   href={link.href}
+                  onMouseEnter={() => {
+                    if (link.href === "/messages") {
+                      void utils.messages.channelsList.prefetch();
+                    }
+                  }}
                   className={cn(
                     "rounded-md px-3 py-2 text-sm transition-colors",
                     pathname === link.href
