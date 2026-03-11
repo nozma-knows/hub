@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, or } from "drizzle-orm";
 import { z } from "zod";
 
 const activeCommandRuns = new Map<string, { runId: string; startedAt: number }>();
@@ -40,7 +40,13 @@ import { adminProcedure, createTrpcRouter, protectedProcedure } from "@/server/t
 export const messagesRouter = createTrpcRouter({
   channelsList: protectedProcedure.query(async ({ ctx }) => {
     const rows = await ctx.db.query.hubChannels.findMany({
-      where: eq(hubChannels.workspaceId, ctx.workspace.id),
+      where: and(
+        eq(hubChannels.workspaceId, ctx.workspace.id),
+        or(
+          eq(hubChannels.kind, "public"),
+          and(eq(hubChannels.kind, "dm"), eq(hubChannels.dmOwnerUserId, ctx.user!.id))
+        )
+      ),
       orderBy: (t, { asc }) => [asc(t.name)]
     });
 
@@ -48,12 +54,56 @@ export const messagesRouter = createTrpcRouter({
     if (rows.length === 0) {
       const [general] = await ctx.db
         .insert(hubChannels)
-        .values({ workspaceId: ctx.workspace.id, name: "general", description: "Default channel" })
+        .values({ workspaceId: ctx.workspace.id, name: "general", description: "Default channel", kind: "public" })
         .returning();
       return general ? [general] : [];
     }
 
     return rows;
+  }),
+
+  channelDmCommandEnsure: protectedProcedure.mutation(async ({ ctx }) => {
+    // Find or create the DM channel for this user → Command.
+    const existing = await ctx.db.query.hubChannels.findFirst({
+      where: and(
+        eq(hubChannels.workspaceId, ctx.workspace.id),
+        eq(hubChannels.kind, "dm"),
+        eq(hubChannels.dmOwnerUserId, ctx.user!.id),
+        eq(hubChannels.dmTargetAgentId, "cos")
+      )
+    });
+    if (existing) return { channelId: existing.id };
+
+    const [created] = await ctx.db
+      .insert(hubChannels)
+      .values({
+        workspaceId: ctx.workspace.id,
+        kind: "dm",
+        dmOwnerUserId: ctx.user!.id,
+        dmTargetAgentId: "cos",
+        name: `direct-command-${ctx.user!.id.slice(0, 6)}`,
+        description: "Direct messages with Command"
+      })
+      .returning();
+
+    if (!created) throw new Error("Failed to create DM channel");
+
+    // Ensure a thread exists
+    const [thread] = await ctx.db
+      .insert(hubThreads)
+      .values({
+        workspaceId: ctx.workspace.id,
+        channelId: created.id,
+        title: "Direct: Command",
+        status: "open",
+        createdByUserId: ctx.user!.id,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        lastMessageAt: new Date()
+      })
+      .returning();
+
+    return { channelId: created.id, threadId: thread?.id };
   }),
 
   channelCreate: adminProcedure
@@ -254,7 +304,14 @@ export const messagesRouter = createTrpcRouter({
         .set({ lastMessageAt: new Date(), updatedAt: new Date() })
         .where(and(eq(hubThreads.workspaceId, ctx.workspace.id), eq(hubThreads.id, input.threadId)));
 
-      const shouldInvoke = /(^|\s)@command(\b|\s)/i.test(input.body);
+      const channel = await ctx.db.query.hubChannels.findFirst({
+        where: and(eq(hubChannels.workspaceId, ctx.workspace.id), eq(hubChannels.id, thread.channelId))
+      });
+
+      const shouldInvoke =
+        /(^|\s)@command(\b|\s)/i.test(input.body) ||
+        (channel?.kind === "dm" && channel?.dmTargetAgentId === "cos");
+
       if (shouldInvoke) {
         // Prevent piling up concurrent runs for the same thread.
         if (activeCommandRuns.has(input.threadId)) {

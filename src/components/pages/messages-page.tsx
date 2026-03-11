@@ -32,6 +32,8 @@ export function MessagesPage() {
   const [channelDescription, setChannelDescription] = useState("");
   const [channelAgentIds, setChannelAgentIds] = useState<string[]>([]);
 
+  const ensureDm = trpc.messages.channelDmCommandEnsure.useMutation();
+
   const createChannel = trpc.messages.channelCreate.useMutation({
     onSuccess: async (created) => {
       await utils.messages.channelsList.invalidate();
@@ -74,11 +76,23 @@ export function MessagesPage() {
           <h1 className="text-2xl font-semibold">Messages</h1>
           <p className="text-sm text-muted-foreground truncate">Pick a channel, then message @command.</p>
         </div>
-        <Button size="sm" variant="outline" onClick={() => setShowCreateChannel(true)} className="gap-2">
-          <Plus className="h-4 w-4" />
-          <span className="hidden sm:inline">New channel</span>
-          <span className="sm:hidden">New</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={async () => {
+              const res = await ensureDm.mutateAsync();
+              window.location.href = `/messages/${res.channelId}`;
+            }}
+          >
+            Direct: Command
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setShowCreateChannel(true)} className="gap-2">
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">New channel</span>
+            <span className="sm:hidden">New</span>
+          </Button>
+        </div>
       </div>
 
       {error ? <Alert className="shrink-0 border-destructive text-destructive">{error}</Alert> : null}

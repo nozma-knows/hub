@@ -124,6 +124,11 @@ export const hubChannels = pgTable("hub_channels", {
     .references(() => workspaces.id, { onDelete: "cascade" }),
   name: varchar("name", { length: 80 }).notNull(),
   description: text("description"),
+
+  kind: varchar("kind", { length: 16 }).notNull().default("public"),
+  dmOwnerUserId: text("dm_owner_user_id"),
+  dmTargetAgentId: text("dm_target_agent_id"),
+
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
 });
