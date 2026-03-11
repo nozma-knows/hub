@@ -46,6 +46,13 @@ export function IntegrationsPage() {
     onError: (e) => setSkillError(e.message)
   });
 
+  const retryInstall = trpc.skills.retryInstall.useMutation({
+    onSuccess: async () => {
+      await installs.refetch();
+    },
+    onError: (e) => setSkillError(e.message)
+  });
+
   return (
     <div className="space-y-6">
       <div>
@@ -117,7 +124,7 @@ export function IntegrationsPage() {
                     className={
                       i.status === "installed"
                         ? "border-green-600 text-green-700"
-                        : i.status === "failed"
+                        : i.status === "failed" || i.status === "rate_limited"
                           ? "border-destructive text-destructive"
                           : ""
                     }
@@ -145,21 +152,16 @@ export function IntegrationsPage() {
                   </details>
                 ) : null}
 
-                {i.status === "failed" ? (
+                {i.status === "failed" || i.status === "rate_limited" ? (
                   <div className="mt-3 flex justify-end">
                     <Button
                       variant="outline"
                       size="sm"
                       disabled={install.isPending}
                       onClick={async () => {
+                        // Re-queue the existing install row (keeps history/logs)
                         setSkillError(null);
-                        await install.mutateAsync({
-                          clawhubSkillId: i.clawhubSkillId,
-                          name: i.name ?? undefined,
-                          author: i.author ?? undefined,
-                          version: i.version ?? undefined,
-                          installSpec: i.installSpec ?? undefined
-                        });
+                        await retryInstall.mutateAsync({ installId: i.id });
                       }}
                     >
                       Retry

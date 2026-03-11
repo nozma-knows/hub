@@ -295,5 +295,29 @@ export const skillsRouter = createTrpcRouter({
         .returning();
 
       return { ok: true, installId: created.id, status: created.status as any };
+    }),
+
+  retryInstall: adminProcedure
+    .input(z.object({ installId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const row = await ctx.db.query.hubSkillInstalls.findFirst({
+        where: and(eq(hubSkillInstalls.workspaceId, ctx.workspace.id), eq(hubSkillInstalls.id, input.installId))
+      });
+      if (!row) throw new Error("Install not found");
+
+      await ctx.db
+        .update(hubSkillInstalls)
+        .set({
+          status: "queued",
+          statusDetail: "Queued",
+          progress: 0,
+          error: null,
+          lockId: null,
+          lockExpiresAt: null,
+          updatedAt: new Date()
+        })
+        .where(and(eq(hubSkillInstalls.workspaceId, ctx.workspace.id), eq(hubSkillInstalls.id, input.installId)));
+
+      return { ok: true };
     })
 });
