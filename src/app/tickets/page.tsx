@@ -6,7 +6,7 @@ export default async function TicketsRoute() {
   await requireSessionUser();
 
   return (
-    <AppShell>
+    <AppShell mainClassName="p-0 h-[calc(100dvh-56px)] overflow-hidden">
       <TicketsPage />
     </AppShell>
   );
