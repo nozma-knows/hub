@@ -217,7 +217,8 @@ Respond with:
     )
     .mutation(async ({ ctx, input }) => {
       // Default owner is the coordinator agent.
-      const ownerAgentId = input.ownerAgentId ?? "cos";
+      const rawOwnerAgentId = input.ownerAgentId ?? "cos";
+      const ownerAgentId = ["cos", "dev", "ops", "research", "main"].includes(rawOwnerAgentId) ? rawOwnerAgentId : "cos";
       const [created] = await ctx.db
         .insert(hubTickets)
         .values({
@@ -299,7 +300,8 @@ Respond with:
     )
     .mutation(async ({ ctx, input }) => {
       // Default owner is the coordinator agent.
-      const ownerAgentId = input.ownerAgentId ?? "cos";
+      const rawOwnerAgentId = input.ownerAgentId ?? "cos";
+      const ownerAgentId = ["cos", "dev", "ops", "research", "main"].includes(rawOwnerAgentId) ? rawOwnerAgentId : "cos";
       const [created] = await ctx.db
         .insert(hubTickets)
         .values({
@@ -343,7 +345,16 @@ Respond with:
           ...(input.title ? { title: input.title } : {}),
           ...(input.description !== undefined ? { description: input.description } : {}),
           ...(input.priority ? { priority: input.priority } : {}),
-          ...(input.ownerAgentId !== undefined ? { ownerAgentId: input.ownerAgentId } : {}),
+          ...(input.ownerAgentId !== undefined
+            ? {
+                ownerAgentId:
+                  input.ownerAgentId === null
+                    ? null
+                    : ["cos", "dev", "ops", "research", "main"].includes(input.ownerAgentId)
+                      ? input.ownerAgentId
+                      : "cos"
+              }
+            : {}),
           updatedAt: new Date()
         })
         .where(and(eq(hubTickets.workspaceId, ctx.workspace.id), eq(hubTickets.id, input.ticketId)));

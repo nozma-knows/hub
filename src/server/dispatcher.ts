@@ -433,21 +433,46 @@ Return:
 - next steps
 - blockers/questions (if any)`;
 
-          const result = await openClawAgentTurn({
-            agentId: ownerAgentId,
-            message: prompt,
-            timeoutSeconds: 600
-          });
+          let output = "";
+          try {
+            const result = await openClawAgentTurn({
+              agentId: ownerAgentId,
+              message: prompt,
+              timeoutSeconds: 600
+            });
+            output = (result.output || "").toString().trim() || "(no output)";
 
-          const output = (result.output || "").toString().trim() || "(no output)";
+            await db.insert(hubTicketComments).values({
+              workspaceId: ticket.workspaceId,
+              ticketId: ticket.id,
+              authorType: "agent",
+              authorAgentId: ownerAgentId,
+              body: output
+            });
+          } catch (err: any) {
+            const msg = err instanceof Error ? err.message : String(err);
+            const isUnknownAgent = /Unknown agent id/i.test(msg);
 
-          await db.insert(hubTicketComments).values({
-            workspaceId: ticket.workspaceId,
-            ticketId: ticket.id,
-            authorType: "agent",
-            authorAgentId: ownerAgentId,
-            body: output
-          });
+            await db.insert(hubTicketComments).values({
+              workspaceId: ticket.workspaceId,
+              ticketId: ticket.id,
+              authorType: "system",
+              body: isUnknownAgent
+                ? `⚠️ Dispatcher failed: unknown agent id "${ownerAgentId}". Please reassign this ticket to an existing agent (cos/dev/ops/research) in the ticket settings.`
+                : `⚠️ Dispatcher failed running owner agent (${ownerAgentId}): ${msg}`
+            });
+
+            await db
+              .update(hubTickets)
+              .set({
+                dispatchState: isUnknownAgent ? "needs_input" : "idle",
+                lastDispatchError: msg.slice(0, 8000),
+                updatedAt: new Date()
+              })
+              .where(and(eq(hubTickets.workspaceId, ticket.workspaceId), eq(hubTickets.id, ticket.id)));
+
+            continue;
+          }
 
           const actions = extractHubActions(output);
 

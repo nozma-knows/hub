@@ -378,7 +378,7 @@ ${context}
 Instructions:
 - Be concise and action-oriented.
 - If this should become a ticket, you have two options:
-  1) Suggest only: propose a title + owner agent id (ops/dev/pm/research) and ask for confirmation.
+  1) Suggest only: propose a title + owner agent id (cos/dev/ops/research) and ask for confirmation.
   2) Create it now: include EXACTLY ONE action block in your reply.
 
 Format for creating:
@@ -414,7 +414,10 @@ Rules:
               const action = extractCommandAction(output);
 
               if (action?.kind === "create_ticket") {
-                const ownerAgentId = action.ownerAgentId ?? "cos";
+                const rawOwnerAgentId = action.ownerAgentId ?? "cos";
+                const ownerAgentId = ["cos", "dev", "ops", "research", "main"].includes(rawOwnerAgentId)
+                  ? rawOwnerAgentId
+                  : "cos";
                 const [ticket] = await ctx.db
                   .insert(hubTickets)
                   .values({
