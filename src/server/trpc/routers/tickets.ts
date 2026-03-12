@@ -1,7 +1,7 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
-import { hubDispatcherState, hubThreadTickets, hubTicketComments, hubTickets } from "@/db/schema";
+import { hubDispatcherState, hubThreadTickets, hubTicketComments, hubTicketRuns, hubTickets } from "@/db/schema";
 import { logAuditEvent } from "@/lib/audit";
 import { openClawAgentTurn } from "@/lib/openclaw/cli-adapter";
 import { adminProcedure, createTrpcRouter, protectedProcedure } from "@/server/trpc/init";
@@ -75,7 +75,13 @@ export const ticketsRouter = createTrpcRouter({
         where: and(eq(hubThreadTickets.workspaceId, ctx.workspace.id), eq(hubThreadTickets.ticketId, input.ticketId))
       });
 
-      return { ticket, comments, threadLinks: links };
+      const runs = await ctx.db.query.hubTicketRuns.findMany({
+        where: and(eq(hubTicketRuns.workspaceId, ctx.workspace.id), eq(hubTicketRuns.ticketId, input.ticketId)),
+        orderBy: (t, { desc }) => [desc(t.startedAt)],
+        limit: 50
+      });
+
+      return { ticket, comments, threadLinks: links, runs };
     }),
 
   commentAdd: protectedProcedure

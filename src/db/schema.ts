@@ -253,6 +253,24 @@ export const hubTicketInvocations = pgTable("hub_ticket_invocations", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 });
 
+export const hubTicketRuns = pgTable("hub_ticket_runs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id")
+    .notNull()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  ticketId: uuid("ticket_id")
+    .notNull()
+    .references(() => hubTickets.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull().default("owner"),
+  agentId: text("agent_id").notNull(),
+  status: text("status").notNull().default("started"),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+  durationMs: integer("duration_ms"),
+  error: text("error"),
+  output: text("output")
+});
+
 export const hubSkillInstalls = pgTable("hub_skill_installs", {
   id: uuid("id").primaryKey().defaultRandom(),
   workspaceId: uuid("workspace_id")

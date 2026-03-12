@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { and, eq, isNull, lt, or } from "drizzle-orm";
 
-import { hubDispatcherState, hubSkillInstalls, hubTicketComments, hubTickets } from "@/db/schema";
+import { hubDispatcherState, hubSkillInstalls, hubTicketComments, hubTicketRuns, hubTickets } from "@/db/schema";
 
 function isStuckTicket(ticket: { status: string; dispatchState: string; updatedAt: Date; lastDispatchedAt: Date | null }) {
   if (ticket.status !== "in_progress" && ticket.status !== "doing") return false;
@@ -433,6 +433,18 @@ Return:
 - next steps
 - blockers/questions (if any)`;
 
+          const runId = randomUUID();
+          const startedAt = Date.now();
+          await db.insert(hubTicketRuns).values({
+            id: runId,
+            workspaceId: ticket.workspaceId,
+            ticketId: ticket.id,
+            kind: "owner",
+            agentId: ownerAgentId,
+            status: "started",
+            startedAt: new Date(startedAt)
+          });
+
           let output = "";
           try {
             const result = await openClawAgentTurn({
@@ -449,8 +461,28 @@ Return:
               authorAgentId: ownerAgentId,
               body: output
             });
+
+            await db
+              .update(hubTicketRuns)
+              .set({
+                status: "ok",
+                finishedAt: new Date(),
+                durationMs: Date.now() - startedAt,
+                output: output.slice(0, 20_000)
+              })
+              .where(and(eq(hubTicketRuns.workspaceId, ticket.workspaceId), eq(hubTicketRuns.id, runId)));
           } catch (err: any) {
             const msg = err instanceof Error ? err.message : String(err);
+            await db
+              .update(hubTicketRuns)
+              .set({
+                status: "error",
+                finishedAt: new Date(),
+                durationMs: Date.now() - startedAt,
+                error: msg.slice(0, 8000)
+              })
+              .where(and(eq(hubTicketRuns.workspaceId, ticket.workspaceId), eq(hubTicketRuns.id, runId)));
+
             const isUnknownAgent = /Unknown agent id/i.test(msg);
 
             await db.insert(hubTicketComments).values({
@@ -484,7 +516,24 @@ Return:
             | { kind: "collab.assign"; assign: Array<{ agentId: string; task: string }> }
             | undefined;
 
-          const nextStatus = stateAction ? normalizeTicketStatus(stateAction.status) : null;
+          let nextStatus = stateAction ? normalizeTicketStatus(stateAction.status) : null;
+          if (nextStatus === "done") {
+            const hasVerification = /\bverification\b\s*:/i.test(output) || /\bverified\b\s*:/i.test(output);
+            if (!hasVerification) nextStatus = null;
+          }
+
+          // DoD gating: do not allow marking done without explicit verification evidence.
+          if (nextStatus === "done") {
+            const hasVerification = /\bverification\b\s*:/i.test(output) || /\bverified\b\s*:/i.test(output);
+            if (!hasVerification) {
+              await db.insert(hubTicketComments).values({
+                workspaceId: ticket.workspaceId,
+                ticketId: ticket.id,
+                authorType: "system",
+                body: "⛔️ Not marking this ticket Done yet: missing a VERIFICATION: block. Please include verification steps + evidence, then re-emit the set_ticket_state action."
+              });
+            }
+          }
 
           // If coordinator requested collaboration, run specialist turns and then re-invoke coordinator.
           if (collabAction) {
