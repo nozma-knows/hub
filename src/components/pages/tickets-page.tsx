@@ -166,7 +166,7 @@ export function TicketsPage() {
   return (
     <>
       {/* Layout contract: no page scroll caused by Kanban. Only column bodies scroll. */}
-      <div className="flex h-[calc(100dvh-56px)] min-h-0 flex-col gap-4 overflow-hidden">
+      <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Tickets</h1>
