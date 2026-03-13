@@ -417,11 +417,37 @@ export function ChannelPage({ channelId }: { channelId: string }) {
   });
 
   const listRef = useRef<HTMLDivElement | null>(null);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [unseenCount, setUnseenCount] = useState(0);
+
   useEffect(() => {
     const el = listRef.current;
     if (!el) return;
-    el.scrollTop = el.scrollHeight;
-  }, [thread.data?.messages?.length]);
+
+    const onScroll = () => {
+      const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
+      const atBottom = dist < 120;
+      setIsAtBottom(atBottom);
+      if (atBottom) setUnseenCount(0);
+    };
+
+    onScroll();
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+
+    if (isAtBottom) {
+      el.scrollTop = el.scrollHeight;
+      return;
+    }
+
+    // User is reading older messages; show a lightweight unread indicator.
+    setUnseenCount((n) => n + 1);
+  }, [thread.data?.messages?.length, isAtBottom]);
 
   const title = channel ? `#${channel.name}` : "Channel";
 
@@ -651,7 +677,7 @@ export function ChannelPage({ channelId }: { channelId: string }) {
             >
               Create ticket
             </Button>
-            <Link href="/messages" className="text-sm text-muted-foreground hover:text-foreground">
+            <Link href="/messages" className="text-sm text-muted-foreground hover:text-foreground md:hidden">
               ← Channels
             </Link>
           </div>
@@ -659,80 +685,133 @@ export function ChannelPage({ channelId }: { channelId: string }) {
 
         <CardContent className="flex-1 min-h-0 p-0">
           <div className="flex h-full min-h-0 flex-col">
-            <div ref={listRef} className="flex-1 min-h-0 overflow-auto overscroll-contain px-3 py-4 space-y-2 bg-muted/10">
-              {(thread.data?.messages ?? []).filter((m) => m.body.trim().length > 0).map((m) => {
-                const isAgent = m.authorType === "agent";
-                const isSystem = m.authorType === "system";
-                const label = isAgent
-                  ? m.authorAgentId === "cos"
-                    ? "command"
-                    : m.authorAgentId || "agent"
-                  : isSystem
-                    ? "system"
-                    : "you";
+            <div ref={listRef} className="flex-1 min-h-0 overflow-auto overscroll-contain px-3 py-3 bg-muted/10">
+              {!isAtBottom && unseenCount > 0 ? (
+                <div className="sticky top-2 z-10 flex justify-center">
+                  <button
+                    type="button"
+                    className="rounded-full border bg-background/90 px-3 py-1 text-xs shadow-sm"
+                    onClick={() => {
+                      const el = listRef.current;
+                      if (!el) return;
+                      el.scrollTop = el.scrollHeight;
+                      setUnseenCount(0);
+                    }}
+                  >
+                    {unseenCount} new message{unseenCount === 1 ? "" : "s"} · Jump to latest
+                  </button>
+                </div>
+              ) : null}
 
-                const bubbleClass =
-                  "max-w-[85%] rounded-2xl px-3 py-2 text-left text-sm shadow-sm" +
-                  (isSystem
-                    ? " bg-muted/40 border"
-                    : isAgent
-                      ? " bg-background border"
-                      : " bg-primary text-primary-foreground");
+              {(() => {
+                const msgs = (thread.data?.messages ?? []).filter((m) => m.body.trim().length > 0);
 
-                const align = isSystem ? "flex justify-center" : isAgent ? "flex justify-start" : "flex justify-end";
+                if (msgs.length === 0 && thread.isFetched) {
+                  return <div className="p-3 text-sm text-muted-foreground">No messages yet.</div>;
+                }
 
-                return (
-                  <div key={m.id} className={align}>
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      className={bubbleClass}
-                      onClick={() => {
-                        setMessageMenu({ id: m.id, body: m.body });
-                      }}
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        setMessageMenu({ id: m.id, body: m.body });
-                      }}
-                    >
-                      <div className="mb-1 flex items-center justify-between gap-2 text-[10px] opacity-70">
-                        <span>
-                          {label} · {new Date(m.createdAt).toLocaleTimeString()}
-                        </span>
-                      </div>
-                      {(m.attachments?.length ?? 0) > 0 ? (
-                        <div className="mb-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                          {m.attachments.map((a: any) => (
-                            <button
-                              key={a.id}
-                              type="button"
-                              className="group relative overflow-hidden rounded-lg border bg-muted"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setLightbox({ url: a.url, name: a.originalName ?? undefined });
-                              }}
-                              title={a.originalName ?? "image"}
-                            >
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={a.url} alt={a.originalName ?? "image"} className="h-32 w-full object-cover" />
-                              <div className="absolute inset-x-0 bottom-0 bg-black/40 px-2 py-1 text-left text-[10px] text-white opacity-0 transition group-hover:opacity-100">
-                                {a.originalName ?? "image"}
-                              </div>
-                            </button>
-                          ))}
+                return msgs.map((m: any, idx: number) => {
+                  const prev = idx > 0 ? msgs[idx - 1] : null;
+
+                  const sameAuthor =
+                    prev &&
+                    prev.authorType === m.authorType &&
+                    (prev.authorUserId ?? null) === (m.authorUserId ?? null) &&
+                    (prev.authorAgentId ?? null) === (m.authorAgentId ?? null);
+
+                  const withinWindow =
+                    prev &&
+                    Math.abs(new Date(m.createdAt).getTime() - new Date(prev.createdAt).getTime()) < 5 * 60_000;
+
+                  const grouped = Boolean(sameAuthor && withinWindow && m.authorType !== "system");
+
+                  const isAgent = m.authorType === "agent";
+                  const isSystem = m.authorType === "system";
+                  const label = isAgent
+                    ? m.authorAgentId === "cos"
+                      ? "command"
+                      : m.authorAgentId || "agent"
+                    : isSystem
+                      ? "system"
+                      : "you";
+
+                  const mine = m.authorType === "human";
+
+                  const bubbleClass =
+                    "group relative max-w-[min(720px,90%)] rounded-2xl px-3 py-2 text-left text-sm shadow-sm overflow-hidden" +
+                    (isSystem
+                      ? " bg-muted/40 border"
+                      : isAgent
+                        ? " bg-background border"
+                        : " bg-primary text-primary-foreground");
+
+                  const align = isSystem ? "flex justify-center" : isAgent ? "flex justify-start" : "flex justify-end";
+
+                  return (
+                    <div key={m.id} className={align + (grouped ? " mt-1" : " mt-3")}>
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        className={bubbleClass}
+                        onClick={() => {
+                          setMessageMenu({ id: m.id, body: m.body });
+                        }}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          setMessageMenu({ id: m.id, body: m.body });
+                        }}
+                      >
+                        {!grouped ? (
+                          <div className="mb-1 flex items-center justify-between gap-2 text-[11px] opacity-70">
+                            <span>
+                              {label} · {new Date(m.createdAt).toLocaleTimeString()}
+                            </span>
+                            <div className="hidden items-center gap-2 group-hover:flex">
+                              <button
+                                type="button"
+                                className={
+                                  "rounded-md border px-2 py-0.5 text-[10px] " +
+                                  (mine ? "bg-white/10" : "bg-background")
+                                }
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void navigator.clipboard?.writeText?.(m.body ?? "");
+                                }}
+                              >
+                                Copy
+                              </button>
+                            </div>
+                          </div>
+                        ) : null}
+
+                        {(m.attachments?.length ?? 0) > 0 ? (
+                          <div className="mb-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                            {m.attachments.map((a: any) => (
+                              <button
+                                key={a.id}
+                                type="button"
+                                className="group relative overflow-hidden rounded-lg border bg-muted"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setLightbox({ url: a.url, name: a.originalName ?? undefined });
+                                }}
+                                title={a.originalName ?? "image"}
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={a.url} alt={a.originalName ?? "image"} className="h-32 w-full object-cover" />
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
+
+                        <div className="break-words leading-relaxed">
+                          <MarkdownMessage body={m.body} />
                         </div>
-                      ) : null}
-
-                      <div className="break-words">
-                        <MarkdownMessage body={m.body} />
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-              {(thread.data?.messages ?? []).filter((m) => m.body.trim().length > 0).length === 0 && thread.isFetched ? (
-                <div className="p-3 text-sm text-muted-foreground">No messages yet.</div>
-              ) : null}
+                  );
+                });
+              })()}
             </div>
 
             <div className="shrink-0 border-t bg-background/80 backdrop-blur p-3">
