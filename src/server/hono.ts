@@ -2,7 +2,21 @@ import { trpcServer } from "@hono/trpc-server";
 import { and, eq, gt } from "drizzle-orm";
 import { Hono } from "hono";
 
-import { oauthStates, toolConnections, toolProviderAppCredentials, toolProviders } from "@/db/schema";
+import { randomUUID } from "node:crypto";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { imageSize } from "image-size";
+
+import {
+  hubChannels,
+  hubMessageAttachments,
+  hubMessages,
+  hubThreads,
+  oauthStates,
+  toolConnections,
+  toolProviderAppCredentials,
+  toolProviders
+} from "@/db/schema";
 import { logAuditEvent } from "@/lib/audit";
 import { decryptString, encryptString } from "@/lib/crypto";
 import { db } from "@/lib/db";
@@ -33,6 +47,116 @@ honoApp.use(
     createContext: async (_, c) => createTrpcContext(c)
   })
 );
+
+honoApp.post("/media/upload", async (c) => {
+  const ctx = await createTrpcContext(c);
+  if (!ctx.user || !ctx.workspace) return c.json({ error: "unauthorized" }, 401);
+
+  const body = await c.req.parseBody();
+  const file = body["file"] as unknown as File | undefined;
+  if (!file) return c.json({ error: "missing_file" }, 400);
+
+  const mime = (file.type || "").toLowerCase();
+  const allowed = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
+  if (!allowed.has(mime)) return c.json({ error: "unsupported_type", mime }, 400);
+
+  const maxBytes = Number(process.env.HUB_MEDIA_MAX_BYTES ?? 10 * 1024 * 1024);
+  const ab = await file.arrayBuffer();
+  if (ab.byteLength > maxBytes) return c.json({ error: "file_too_large", maxBytes }, 413);
+
+  const mediaDir = process.env.HUB_MEDIA_DIR ?? "/root/.openclaw/hub-media";
+  await mkdir(mediaDir, { recursive: true });
+
+  const safeName = (file.name || "image")
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .slice(0, 120);
+
+  const id = randomUUID();
+  const ext = mime === "image/png" ? "png" : mime === "image/gif" ? "gif" : mime === "image/webp" ? "webp" : "jpg";
+  const rel = `${ctx.workspace.id}/${id}.${ext}`;
+  const full = path.join(mediaDir, rel);
+  await mkdir(path.dirname(full), { recursive: true });
+
+  const buf = Buffer.from(ab);
+  await writeFile(full, buf);
+
+  let dims: { width?: number; height?: number } = {};
+  try {
+    dims = imageSize(buf) as any;
+  } catch {
+    // ignore
+  }
+
+  const [row] = await db
+    .insert(hubMessageAttachments)
+    .values({
+      id,
+      workspaceId: ctx.workspace.id,
+      messageId: null,
+      createdByUserId: ctx.user.id,
+      kind: "image",
+      storagePath: rel,
+      originalName: safeName,
+      mimeType: mime,
+      sizeBytes: ab.byteLength,
+      width: typeof dims.width === "number" ? dims.width : null,
+      height: typeof dims.height === "number" ? dims.height : null
+    })
+    .returning();
+
+  return c.json({
+    id: row?.id ?? id,
+    kind: "image",
+    mimeType: mime,
+    sizeBytes: ab.byteLength,
+    width: typeof dims.width === "number" ? dims.width : null,
+    height: typeof dims.height === "number" ? dims.height : null,
+    originalName: safeName,
+    url: `/api/media/${id}`
+  });
+});
+
+honoApp.get("/media/:id", async (c) => {
+  const ctx = await createTrpcContext(c);
+  if (!ctx.user || !ctx.workspace) return c.json({ error: "unauthorized" }, 401);
+
+  const id = c.req.param("id");
+  const att = await db.query.hubMessageAttachments.findFirst({
+    where: and(eq(hubMessageAttachments.workspaceId, ctx.workspace.id), eq(hubMessageAttachments.id, id))
+  });
+  if (!att) return c.notFound();
+  if (!att.messageId) return c.json({ error: "not_attached" }, 404);
+
+  // Authorization: user must have access to the message's thread/channel.
+  const msg = await db.query.hubMessages.findFirst({
+    where: and(eq(hubMessages.workspaceId, ctx.workspace.id), eq(hubMessages.id, att.messageId))
+  });
+  if (!msg) return c.notFound();
+
+  const thread = await db.query.hubThreads.findFirst({
+    where: and(eq(hubThreads.workspaceId, ctx.workspace.id), eq(hubThreads.id, msg.threadId))
+  });
+  if (!thread) return c.notFound();
+
+  const channel = await db.query.hubChannels.findFirst({
+    where: and(eq(hubChannels.workspaceId, ctx.workspace.id), eq(hubChannels.id, thread.channelId))
+  });
+  if (!channel) return c.notFound();
+
+  if (channel.kind === "dm" && channel.dmOwnerUserId !== ctx.user.id) {
+    return c.json({ error: "forbidden" }, 403);
+  }
+
+  const mediaDir = process.env.HUB_MEDIA_DIR ?? "/root/.openclaw/hub-media";
+  const full = path.join(mediaDir, att.storagePath);
+  const data = await readFile(full);
+
+  c.header("Content-Type", att.mimeType);
+  c.header("Content-Length", String(data.byteLength));
+  c.header("Cache-Control", "private, max-age=3600");
+  c.header("Content-Disposition", `inline; filename=\"${(att.originalName ?? "image").replace(/\"/g, "")}\"`);
+  return c.body(data);
+});
 
 honoApp.post("/stt/transcribe", async (c) => {
   const ctx = await createTrpcContext(c);

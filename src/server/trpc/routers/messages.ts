@@ -32,7 +32,7 @@ function extractCommandAction(output: string):
   }
 }
 
-import { hubChannelAgents, hubChannels, hubMessages, hubThreads, hubThreadTickets, hubTickets } from "@/db/schema";
+import { hubChannelAgents, hubChannels, hubMessageAttachments, hubMessages, hubThreads, hubThreadTickets, hubTickets } from "@/db/schema";
 import { openClawAgentTurn } from "@/lib/openclaw/cli-adapter";
 import { logAuditEvent } from "@/lib/audit";
 import { adminProcedure, createTrpcRouter, protectedProcedure } from "@/server/trpc/init";
@@ -231,7 +231,38 @@ export const messagesRouter = createTrpcRouter({
         orderBy: (t, { asc }) => [asc(t.createdAt)]
       });
 
-      return { thread, messages };
+      const messageIds = messages.map((m) => m.id);
+      const attachments =
+        messageIds.length === 0
+          ? []
+          : await ctx.db.query.hubMessageAttachments.findMany({
+              where: and(eq(hubMessageAttachments.workspaceId, ctx.workspace.id), inArray(hubMessageAttachments.messageId, messageIds))
+            });
+
+      const byMessage = new Map<string, any[]>();
+      for (const a of attachments) {
+        if (!a.messageId) continue;
+        const arr = byMessage.get(a.messageId) ?? [];
+        arr.push({
+          id: a.id,
+          kind: a.kind,
+          mimeType: a.mimeType,
+          sizeBytes: a.sizeBytes,
+          width: a.width,
+          height: a.height,
+          originalName: a.originalName,
+          url: `/api/media/${a.id}`
+        });
+        byMessage.set(a.messageId, arr);
+      }
+
+      return {
+        thread,
+        messages: messages.map((m) => ({
+          ...m,
+          attachments: byMessage.get(m.id) ?? []
+        }))
+      };
     }),
 
   threadCreate: protectedProcedure
@@ -284,20 +315,38 @@ export const messagesRouter = createTrpcRouter({
     }),
 
   messageSend: protectedProcedure
-    .input(z.object({ threadId: z.string().uuid(), body: z.string().min(1).max(20_000) }))
+    .input(z.object({ threadId: z.string().uuid(), body: z.string().min(1).max(20_000), attachmentIds: z.array(z.string().uuid()).default([]) }))
     .mutation(async ({ ctx, input }) => {
       const thread = await ctx.db.query.hubThreads.findFirst({
         where: and(eq(hubThreads.workspaceId, ctx.workspace.id), eq(hubThreads.id, input.threadId))
       });
       if (!thread) throw new Error("Thread not found");
 
-      await ctx.db.insert(hubMessages).values({
-        workspaceId: ctx.workspace.id,
-        threadId: input.threadId,
-        authorType: "human",
-        authorUserId: ctx.user!.id,
-        body: input.body
-      });
+      const [created] = await ctx.db
+        .insert(hubMessages)
+        .values({
+          workspaceId: ctx.workspace.id,
+          threadId: input.threadId,
+          authorType: "human",
+          authorUserId: ctx.user!.id,
+          body: input.body
+        })
+        .returning();
+
+      if (!created) throw new Error("Failed to create message");
+
+      if (input.attachmentIds.length > 0) {
+        await ctx.db
+          .update(hubMessageAttachments)
+          .set({ messageId: created.id })
+          .where(
+            and(
+              eq(hubMessageAttachments.workspaceId, ctx.workspace.id),
+              inArray(hubMessageAttachments.id, input.attachmentIds),
+              eq(hubMessageAttachments.createdByUserId, ctx.user!.id)
+            )
+          );
+      }
 
       await ctx.db
         .update(hubThreads)

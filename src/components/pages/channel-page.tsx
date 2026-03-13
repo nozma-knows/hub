@@ -361,6 +361,40 @@ export function ChannelPage({ channelId }: { channelId: string }) {
     { enabled: Boolean(threadId), refetchInterval: 1500 }
   );
 
+  const [pendingAttachments, setPendingAttachments] = useState<any[]>([]);
+  const [uploadingCount, setUploadingCount] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [lightbox, setLightbox] = useState<{ url: string; name?: string } | null>(null);
+
+  async function uploadImages(files: FileList | File[]) {
+    const list = Array.from(files);
+    if (list.length === 0) return;
+    setError(null);
+
+    for (const f of list) {
+      if (!f.type.startsWith("image/")) {
+        setError("Only images are supported.");
+        continue;
+      }
+      setUploadingCount((n) => n + 1);
+      try {
+        const form = new FormData();
+        form.append("file", f, f.name);
+        const resp = await fetch("/api/media/upload", { method: "POST", body: form });
+        const json = await resp.json();
+        if (!resp.ok) {
+          setError(json?.error ? String(json.error) : "Upload failed");
+          continue;
+        }
+        setPendingAttachments((prev) => [...prev, json]);
+      } catch (e: any) {
+        setError(e?.message ?? String(e));
+      } finally {
+        setUploadingCount((n) => Math.max(0, n - 1));
+      }
+    }
+  }
+
   const send = trpc.messages.messageSend.useMutation({
     onSuccess: async () => {
       if (threadId) {
@@ -368,6 +402,7 @@ export function ChannelPage({ channelId }: { channelId: string }) {
         await utils.messages.threadsList.invalidate({ channelId });
       }
       setComposer("");
+      setPendingAttachments([]);
     },
     onError: (e) => setError(e.message)
   });
@@ -665,6 +700,29 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                           {label} · {new Date(m.createdAt).toLocaleTimeString()}
                         </span>
                       </div>
+                      {(m.attachments?.length ?? 0) > 0 ? (
+                        <div className="mb-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                          {m.attachments.map((a: any) => (
+                            <button
+                              key={a.id}
+                              type="button"
+                              className="group relative overflow-hidden rounded-lg border bg-muted"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setLightbox({ url: a.url, name: a.originalName ?? undefined });
+                              }}
+                              title={a.originalName ?? "image"}
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={a.url} alt={a.originalName ?? "image"} className="h-32 w-full object-cover" />
+                              <div className="absolute inset-x-0 bottom-0 bg-black/40 px-2 py-1 text-left text-[10px] text-white opacity-0 transition group-hover:opacity-100">
+                                {a.originalName ?? "image"}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+
                       <div className="break-words">
                         <MarkdownMessage body={m.body} />
                       </div>
@@ -698,7 +756,11 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                           if (!threadId) return;
                           if (!composer.trim() || send.isPending) return;
                           setError(null);
-                          await send.mutateAsync({ threadId, body: composer.trim() });
+                          await send.mutateAsync({
+                            threadId,
+                            body: composer.trim() || "(image)",
+                            attachmentIds: pendingAttachments.map((a) => a.id)
+                          });
                           return;
                         }
 
@@ -716,16 +778,52 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                           }
                         }
                       }}
-                      placeholder={isRecording ? "Recording…" : isTranscribing ? "Transcribing…" : "Message…"}
+                      onPaste={(e) => {
+                        const items = Array.from(e.clipboardData?.files ?? []);
+                        if (items.length > 0) {
+                          void uploadImages(items);
+                        }
+                      }}
+                      placeholder={
+                        isRecording
+                          ? "Recording…"
+                          : isTranscribing
+                            ? "Transcribing…"
+                            : pendingAttachments.length > 0
+                              ? `Message… (+${pendingAttachments.length} image${pendingAttachments.length === 1 ? "" : "s"})`
+                              : "Message…"
+                      }
                       className="min-h-[104px] rounded-xl text-base"
                       inputMode="text"
                       autoCorrect="on"
                       autoCapitalize="sentences"
                       disabled={isRecording || isTranscribing}
                     />
+
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/gif,image/webp"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        const files = e.target.files;
+                        if (files && files.length > 0) void uploadImages(files);
+                        e.target.value = "";
+                      }}
+                    />
                   </div>
 
                   <div className="flex flex-col gap-2">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="inline-flex h-12 w-12 items-center justify-center rounded-xl border bg-background shadow-sm transition hover:bg-muted"
+                      aria-label="Attach image"
+                      title="Attach image"
+                    >
+                      <span className="text-base">＋</span>
+                    </button>
                     <button
                       type="button"
                       onClick={async () => {
@@ -750,11 +848,15 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                     </button>
 
                     <Button
-                      disabled={!threadId || send.isPending || !composer.trim()}
+                      disabled={!threadId || send.isPending || (!composer.trim() && pendingAttachments.length === 0) || uploadingCount > 0}
                       onClick={async () => {
                         if (!threadId) return;
                         setError(null);
-                        await send.mutateAsync({ threadId, body: composer.trim() });
+                        await send.mutateAsync({
+                          threadId,
+                          body: composer.trim() || "(image)",
+                          attachmentIds: pendingAttachments.map((a) => a.id)
+                        });
                       }}
                       className="h-12 w-12 rounded-xl p-0"
                       aria-label="Send"
@@ -778,6 +880,30 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                   </div>
                 ) : null}
 
+                {pendingAttachments.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {pendingAttachments.map((a) => (
+                      <div key={a.id} className="flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-xs">
+                        <a href={a.url} target="_blank" rel="noreferrer" className="truncate max-w-[180px] hover:underline">
+                          {a.originalName ?? "image"}
+                        </a>
+                        <button
+                          type="button"
+                          className="text-muted-foreground hover:text-foreground"
+                          onClick={() => setPendingAttachments((prev) => prev.filter((x) => x.id !== a.id))}
+                          aria-label="Remove attachment"
+                          title="Remove"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                    {uploadingCount > 0 ? <div className="text-xs text-muted-foreground">Uploading…</div> : null}
+                  </div>
+                ) : uploadingCount > 0 ? (
+                  <div className="text-xs text-muted-foreground">Uploading…</div>
+                ) : null}
+
                 {mentionQuery !== null ? (
                   <div className="flex flex-wrap gap-2">
                     <button
@@ -789,6 +915,37 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                       <span className="font-medium">command</span>
                       <span className="text-muted-foreground">(tap to insert)</span>
                     </button>
+                  </div>
+                ) : null}
+
+                {lightbox ? (
+                  <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+                    role="dialog"
+                    aria-modal="true"
+                    onClick={() => setLightbox(null)}
+                  >
+                    <div className="max-h-[90vh] max-w-[90vw]" onClick={(e) => e.stopPropagation()}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={lightbox.url} alt={lightbox.name ?? "image"} className="max-h-[90vh] max-w-[90vw] rounded-lg" />
+                      <div className="mt-2 flex justify-end gap-2">
+                        <a
+                          className="rounded-md bg-background/90 px-3 py-1 text-xs"
+                          href={lightbox.url}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Open
+                        </a>
+                        <button
+                          className="rounded-md bg-background/90 px-3 py-1 text-xs"
+                          type="button"
+                          onClick={() => setLightbox(null)}
+                        >
+                          Close
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 ) : null}
 
