@@ -200,6 +200,10 @@ export const hubTickets = pgTable("hub_tickets", {
   lastDispatchedAt: timestamp("last_dispatched_at", { withTimezone: true }),
   lastDispatchError: text("last_dispatch_error"),
 
+  // FSM (XState) for professional ticket lifecycle + needs_input handshake
+  fsmState: jsonb("fsm_state"),
+  pendingQuestion: jsonb("pending_question"),
+
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
   deletedByUserId: text("deleted_by_user_id"),
 

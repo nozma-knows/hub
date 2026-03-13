@@ -84,7 +84,7 @@ export const ticketsRouter = createTrpcRouter({
         limit: 50
       });
 
-      return { ticket, comments, threadLinks: links, runs };
+      return { ticket, comments, threadLinks: links, runs, pendingQuestion: (ticket as any).pendingQuestion };
     }),
 
   commentAdd: protectedProcedure
@@ -149,14 +149,19 @@ ${context || "(none)"}
 Instructions:
 - Use best judgment and proceed with the recommended path.
 - Only ask Noah a question if you are truly blocked.
-- If you are blocked and need input, include a line starting with: NEEDS_INPUT: <your question>
+- If you are blocked and need input, you MUST include this exact structure:
+  NEEDS_INPUT: <short reason>
+  QUESTION: <exactly one question>
+  CHOICES: <a|b|c> (optional)
+  WHAT_I_WILL_DO_NEXT: <one sentence>
 - Otherwise, do not ask questions.
 
 Respond with:
 - what you did
 - what changed
 - next steps (if any)
-- blockers/questions (if any)
+- assumptions you made (if any)
+- risks/tradeoffs (if any)
 `;
 
             const { openClawAgentTurn } = await import("@/lib/openclaw/cli-adapter");

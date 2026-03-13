@@ -1,5 +1,9 @@
 import { randomUUID } from "node:crypto";
 
+import { createActor } from "xstate";
+
+import { extractNeedsInput, ticketMachine } from "@/server/tickets/fsm";
+
 import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 
 import { hubDispatcherState, hubSkillInstalls, hubTicketComments, hubTicketRuns, hubTickets } from "@/db/schema";
@@ -518,6 +522,58 @@ Return:
               .where(and(eq(hubTickets.workspaceId, ticket.workspaceId), eq(hubTickets.id, ticket.id)));
 
             continue;
+          }
+
+          // FSM: detect NEEDS_INPUT blocks and persist as structured question.
+          try {
+            const pending = extractNeedsInput(output);
+            const actor = createActor(ticketMachine, {
+              input: { ticketId: ticket.id, workspaceId: ticket.workspaceId }
+            });
+            actor.start();
+
+            // Restore (best-effort) existing snapshot if present.
+            const existingFsm: any = (ticket as any).fsmState;
+            if (existingFsm) {
+              try {
+                actor.stop();
+                const restored = createActor(ticketMachine, {
+                  input: { ticketId: ticket.id, workspaceId: ticket.workspaceId },
+                  snapshot: existingFsm
+                } as any);
+                restored.start();
+                // @ts-ignore
+                actor._snapshot = restored.getSnapshot();
+              } catch {
+                // ignore restore failures
+              }
+            }
+
+            if (pending) {
+              actor.send({ type: "NEEDS_INPUT", pending });
+              const snap = actor.getSnapshot();
+              await db
+                .update(hubTickets)
+                .set({
+                  fsmState: snap as any,
+                  pendingQuestion: pending as any,
+                  dispatchState: "needs_input",
+                  updatedAt: new Date()
+                })
+                .where(and(eq(hubTickets.workspaceId, ticket.workspaceId), eq(hubTickets.id, ticket.id)));
+            } else {
+              const snap = actor.getSnapshot();
+              await db
+                .update(hubTickets)
+                .set({
+                  fsmState: snap as any,
+                  pendingQuestion: null,
+                  updatedAt: new Date()
+                })
+                .where(and(eq(hubTickets.workspaceId, ticket.workspaceId), eq(hubTickets.id, ticket.id)));
+            }
+          } catch {
+            // best-effort
           }
 
           const actions = extractHubActions(output);
