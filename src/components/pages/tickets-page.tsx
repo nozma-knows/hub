@@ -150,6 +150,23 @@ export function TicketsPage() {
     onError: (e) => setError(e.message)
   });
 
+  const deleteTicket = trpc.tickets.remove.useMutation({
+    onSuccess: async () => {
+      await utils.tickets.list.invalidate();
+      if (openTicketId) await utils.tickets.get.invalidate({ ticketId: openTicketId });
+      setOpenTicketId(null);
+    },
+    onError: (e) => setError(e.message)
+  });
+
+  const retryDispatch = trpc.tickets.retryDispatch.useMutation({
+    onSuccess: async () => {
+      await utils.tickets.list.invalidate();
+      if (openTicketId) await utils.tickets.get.invalidate({ ticketId: openTicketId });
+    },
+    onError: (e) => setError(e.message)
+  });
+
   const [comment, setComment] = useState("");
 
   const grouped = useMemo(() => {
@@ -478,16 +495,70 @@ export function TicketsPage() {
               <div className="text-sm text-muted-foreground">
                 Owner: <span className="font-mono">{ticketDetail.data?.ticket.ownerAgentId ?? "(unassigned)"}</span>
               </div>
-              <Button
-                disabled={!ticketDetail.data?.ticket.ownerAgentId || invokeOwner.isPending}
-                onClick={async () => {
-                  setError(null);
-                  await invokeOwner.mutateAsync({ ticketId: openTicketId });
-                }}
-              >
-                {invokeOwner.isPending ? "Running…" : "Run owner agent"}
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  disabled={retryDispatch.isPending || ticketDetail.isLoading}
+                  onClick={async () => {
+                    if (!openTicketId) return;
+                    const ok = window.confirm("Retry dispatch for this ticket? This will re-queue it for the dispatcher.");
+                    if (!ok) return;
+                    setError(null);
+                    await retryDispatch.mutateAsync({ ticketId: openTicketId });
+                  }}
+                >
+                  {retryDispatch.isPending ? "Retrying…" : "Retry"}
+                </Button>
+                <Button
+                  disabled={!ticketDetail.data?.ticket.ownerAgentId || invokeOwner.isPending}
+                  onClick={async () => {
+                    setError(null);
+                    await invokeOwner.mutateAsync({ ticketId: openTicketId });
+                  }}
+                >
+                  {invokeOwner.isPending ? "Running…" : "Run owner agent"}
+                </Button>
+                <Button
+                  variant="destructive"
+                  disabled={deleteTicket.isPending || ticketDetail.isLoading}
+                  onClick={async () => {
+                    if (!openTicketId) return;
+                    const key = formatTicketKey((ticketDetail.data?.ticket as any)?.ticketNumber);
+                    const typed = window.prompt(`Type ${key} to delete this ticket (soft-delete).`);
+                    if (typed !== key) return;
+                    setError(null);
+                    await deleteTicket.mutateAsync({ ticketId: openTicketId });
+                  }}
+                >
+                  {deleteTicket.isPending ? "Deleting…" : "Delete"}
+                </Button>
+              </div>
             </div>
+
+            {(ticketDetail.data?.runs?.length ?? 0) > 0 ? (
+              <details className="rounded-md border">
+                <summary className="cursor-pointer select-none px-3 py-2 text-sm font-medium">Runs</summary>
+                <div className="space-y-2 px-3 pb-3 text-sm">
+                  {(ticketDetail.data?.runs ?? []).slice(0, 20).map((r: any) => (
+                    <div key={r.id} className="rounded-md border bg-background p-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                        <div className="font-mono">
+                          {r.agentId} · {r.status}
+                        </div>
+                        <div>{new Date(r.startedAt).toLocaleString()}</div>
+                      </div>
+                      {r.error ? <div className="mt-1 text-xs text-destructive whitespace-pre-wrap">{r.error}</div> : null}
+                      {r.output ? (
+                        <details className="mt-1">
+                          <summary className="cursor-pointer text-xs text-muted-foreground">Output</summary>
+                          <pre className="mt-2 max-h-64 overflow-auto rounded-md border bg-muted p-2 text-[11px] whitespace-pre-wrap">{r.output}</pre>
+                        </details>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </details>
+            ) : null}
 
             <div className="space-y-2">
               <div className="text-sm font-medium">Comments</div>

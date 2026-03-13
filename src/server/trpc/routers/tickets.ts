@@ -19,6 +19,7 @@ export const ticketsRouter = createTrpcRouter({
       select status, count(*)::int as count
       from hub_tickets
       where workspace_id = ${ctx.workspace.id}
+        and deleted_at is null
       group by status
     `);
 
@@ -29,6 +30,7 @@ export const ticketsRouter = createTrpcRouter({
       select count(*)::int as count
       from hub_tickets
       where workspace_id = ${ctx.workspace.id}
+        and deleted_at is null
         and dispatch_state = 'running'
     `);
 
@@ -36,6 +38,7 @@ export const ticketsRouter = createTrpcRouter({
       select count(*)::int as count
       from hub_tickets
       where workspace_id = ${ctx.workspace.id}
+        and deleted_at is null
         and dispatch_state = 'error'
     `);
 
@@ -53,7 +56,7 @@ export const ticketsRouter = createTrpcRouter({
 
   list: protectedProcedure.query(async ({ ctx }) => {
     return ctx.db.query.hubTickets.findMany({
-      where: eq(hubTickets.workspaceId, ctx.workspace.id),
+      where: and(eq(hubTickets.workspaceId, ctx.workspace.id), sql`${hubTickets.deletedAt} is null`),
       orderBy: (t, { desc: descOrder }) => [descOrder(t.updatedAt)]
     });
   }),
@@ -381,13 +384,61 @@ Respond with:
   remove: adminProcedure
     .input(z.object({ ticketId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
+      // Soft delete: keep history/runs/comments, hide from active views.
       await ctx.db
-        .delete(hubTickets)
+        .update(hubTickets)
+        .set({ deletedAt: new Date(), deletedByUserId: ctx.user!.id, updatedAt: new Date() })
         .where(and(eq(hubTickets.workspaceId, ctx.workspace.id), eq(hubTickets.id, input.ticketId)));
+
+      await ctx.db.insert(hubTicketComments).values({
+        workspaceId: ctx.workspace.id,
+        ticketId: input.ticketId,
+        authorType: "system",
+        body: `🗑️ Deleted by ${ctx.user!.id}`
+      });
 
       await logAuditEvent({
         workspaceId: ctx.workspace.id,
         eventType: "tickets.delete",
+        actorUserId: ctx.user!.id,
+        result: "success",
+        details: { ticketId: input.ticketId, kind: "soft" }
+      });
+
+      return { ok: true };
+    }),
+
+  retryDispatch: adminProcedure
+    .input(z.object({ ticketId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const ticket = await ctx.db.query.hubTickets.findFirst({
+        where: and(eq(hubTickets.workspaceId, ctx.workspace.id), eq(hubTickets.id, input.ticketId))
+      });
+      if (!ticket) throw new Error("Ticket not found");
+      if (ticket.deletedAt) throw new Error("Ticket is deleted");
+
+      // Queue for dispatcher by moving to todo and clearing locks.
+      await ctx.db
+        .update(hubTickets)
+        .set({
+          status: "todo",
+          dispatchState: "idle",
+          dispatchLockId: null,
+          dispatchLockExpiresAt: null,
+          updatedAt: new Date()
+        })
+        .where(and(eq(hubTickets.workspaceId, ctx.workspace.id), eq(hubTickets.id, input.ticketId)));
+
+      await ctx.db.insert(hubTicketComments).values({
+        workspaceId: ctx.workspace.id,
+        ticketId: input.ticketId,
+        authorType: "system",
+        body: `🔁 Manual retry queued by ${ctx.user!.id}`
+      });
+
+      await logAuditEvent({
+        workspaceId: ctx.workspace.id,
+        eventType: "tickets.retryDispatch",
         actorUserId: ctx.user!.id,
         result: "success",
         details: { ticketId: input.ticketId }

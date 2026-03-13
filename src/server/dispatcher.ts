@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { and, eq, isNull, lt, or } from "drizzle-orm";
+import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 
 import { hubDispatcherState, hubSkillInstalls, hubTicketComments, hubTicketRuns, hubTickets } from "@/db/schema";
 
@@ -294,6 +294,7 @@ export function startDispatcher(): void {
       // Also recover tickets that were moved to Doing but have an expired lock (crash/restart mid-run).
       const candidates = await db.query.hubTickets.findMany({
         where: and(
+          sql`${hubTickets.deletedAt} is null`,
           or(
             eq(hubTickets.status, "todo"),
             eq(hubTickets.status, "backlog"),

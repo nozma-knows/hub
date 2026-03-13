@@ -200,8 +200,30 @@ export const hubTickets = pgTable("hub_tickets", {
   lastDispatchedAt: timestamp("last_dispatched_at", { withTimezone: true }),
   lastDispatchError: text("last_dispatch_error"),
 
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  deletedByUserId: text("deleted_by_user_id"),
+
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+});
+
+export const hubMessageAttachments = pgTable("hub_message_attachments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workspaceId: uuid("workspace_id")
+    .notNull()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  messageId: uuid("message_id").references(() => hubMessages.id, { onDelete: "cascade" }),
+  createdByUserId: text("created_by_user_id"),
+
+  kind: varchar("kind", { length: 16 }).notNull().default("image"),
+  storagePath: text("storage_path").notNull(),
+  originalName: text("original_name"),
+  mimeType: text("mime_type").notNull(),
+  sizeBytes: integer("size_bytes").notNull(),
+  width: integer("width"),
+  height: integer("height"),
+
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 });
 
 export const hubThreadTickets = pgTable("hub_thread_tickets", {
