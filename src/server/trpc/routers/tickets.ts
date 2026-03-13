@@ -387,7 +387,15 @@ Respond with:
       // Soft delete: keep history/runs/comments, hide from active views.
       await ctx.db
         .update(hubTickets)
-        .set({ deletedAt: new Date(), deletedByUserId: ctx.user!.id, updatedAt: new Date() })
+        .set({
+          deletedAt: new Date(),
+          deletedByUserId: ctx.user!.id,
+          // Clear dispatcher locks so an in-flight dispatcher run can't write back after deletion.
+          dispatchState: "idle",
+          dispatchLockId: null,
+          dispatchLockExpiresAt: null,
+          updatedAt: new Date()
+        })
         .where(and(eq(hubTickets.workspaceId, ctx.workspace.id), eq(hubTickets.id, input.ticketId)));
 
       await ctx.db.insert(hubTicketComments).values({
@@ -409,7 +417,7 @@ Respond with:
     }),
 
   retryDispatch: adminProcedure
-    .input(z.object({ ticketId: z.string().uuid() }))
+    .input(z.object({ ticketId: z.string().uuid(), force: z.boolean().optional().default(false) }))
     .mutation(async ({ ctx, input }) => {
       const ticket = await ctx.db.query.hubTickets.findFirst({
         where: and(eq(hubTickets.workspaceId, ctx.workspace.id), eq(hubTickets.id, input.ticketId))
@@ -417,7 +425,21 @@ Respond with:
       if (!ticket) throw new Error("Ticket not found");
       if (ticket.deletedAt) throw new Error("Ticket is deleted");
 
-      // Queue for dispatcher by moving to todo and clearing locks.
+      // Guardrail: avoid creating duplicate side effects by rerunning while a run is still within its lock TTL.
+      const now = Date.now();
+      const lockActive =
+        ticket.dispatchState === "running" &&
+        ticket.dispatchLockExpiresAt &&
+        new Date(ticket.dispatchLockExpiresAt).getTime() > now;
+
+      if (lockActive && !input.force) {
+        throw new Error(
+          `Ticket is currently running (lock active until ${new Date(ticket.dispatchLockExpiresAt!).toISOString()}). ` +
+            `Wait for it to finish or retry with force=true if you're sure.`
+        );
+      }
+
+      // Queue for dispatcher by moving to todo and clearing locks + error.
       await ctx.db
         .update(hubTickets)
         .set({
@@ -425,6 +447,7 @@ Respond with:
           dispatchState: "idle",
           dispatchLockId: null,
           dispatchLockExpiresAt: null,
+          lastDispatchError: null,
           updatedAt: new Date()
         })
         .where(and(eq(hubTickets.workspaceId, ctx.workspace.id), eq(hubTickets.id, input.ticketId)));
@@ -433,7 +456,7 @@ Respond with:
         workspaceId: ctx.workspace.id,
         ticketId: input.ticketId,
         authorType: "system",
-        body: `🔁 Manual retry queued by ${ctx.user!.id}`
+        body: `🔁 Manual retry queued by ${ctx.user!.id}${input.force ? " (force)" : ""}`
       });
 
       await logAuditEvent({
@@ -441,7 +464,7 @@ Respond with:
         eventType: "tickets.retryDispatch",
         actorUserId: ctx.user!.id,
         result: "success",
-        details: { ticketId: input.ticketId }
+        details: { ticketId: input.ticketId, force: input.force }
       });
 
       return { ok: true };

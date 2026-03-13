@@ -6,9 +6,12 @@ import { hubDispatcherState, hubSkillInstalls, hubTicketComments, hubTicketRuns,
 
 function isStuckTicket(ticket: { status: string; dispatchState: string; updatedAt: Date; lastDispatchedAt: Date | null }) {
   if (ticket.status !== "in_progress" && ticket.status !== "doing") return false;
-  if (ticket.dispatchState === "running") return false;
-  const updatedMs = new Date(ticket.updatedAt).getTime();
-  if (Date.now() - updatedMs < STUCK_MS) return false;
+  if (ticket.dispatchState === "running" || ticket.dispatchState === "needs_input") return false;
+
+  // Prefer lastDispatchedAt when available; fall back to updatedAt.
+  const t = ticket.lastDispatchedAt ?? ticket.updatedAt;
+  const ms = new Date(t).getTime();
+  if (Date.now() - ms < STUCK_MS) return false;
   return true;
 }
 
@@ -296,12 +299,22 @@ export function startDispatcher(): void {
         where: and(
           sql`${hubTickets.deletedAt} is null`,
           or(
+            // normal queue
             eq(hubTickets.status, "todo"),
             eq(hubTickets.status, "backlog"),
+
+            // crash/restart recovery: was running but lock expired
             and(
               or(eq(hubTickets.status, "in_progress"), eq(hubTickets.status, "doing")),
               eq(hubTickets.dispatchState, "running"),
               lt(hubTickets.dispatchLockExpiresAt, now)
+            ),
+
+            // stuck-at-idle: ticket is in progress but dispatcher is not running it.
+            // We still require lock to be absent/expired below.
+            and(
+              or(eq(hubTickets.status, "in_progress"), eq(hubTickets.status, "doing")),
+              or(eq(hubTickets.dispatchState, "idle"), eq(hubTickets.dispatchState, "error"))
             )
           ),
           or(isNull(hubTickets.dispatchLockExpiresAt), lt(hubTickets.dispatchLockExpiresAt, now))
