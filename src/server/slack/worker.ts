@@ -3,14 +3,7 @@ import "dotenv/config";
 import { App, LogLevel } from "@slack/bolt";
 import { and, eq } from "drizzle-orm";
 
-import {
-  hubChannels,
-  hubMessages,
-  hubSlackThreads,
-  hubThreads,
-  hubTickets,
-  workspaces
-} from "@/db/schema";
+import { hubChannels, hubMessages, hubSlackThreads, hubThreads, hubTickets, workspaces } from "@/db/schema";
 import { db } from "@/lib/db";
 import { openClawAgentTurn } from "@/lib/openclaw/cli-adapter";
 
@@ -151,6 +144,7 @@ async function runCommandOnThread(workspaceId: string, threadId: string) {
   const prompt = buildCommandPrompt({ threadTitle: thread.title, recentContext: context });
   const result = await openClawAgentTurn({ agentId: "cos", message: prompt, timeoutSeconds: 300 });
   const output = (result.output || result.message || result.text || "").toString().trim();
+
   if (!output) {
     console.warn("[hub-slack] @command produced no output", {
       status: (result as any)?.status,
@@ -158,6 +152,7 @@ async function runCommandOnThread(workspaceId: string, threadId: string) {
       payloadCount: (result as any)?.result?.payloads?.length,
       rawKeys: Object.keys(result as any)
     });
+
     return {
       output:
         "I received that, but the agent returned no text output. Please try again. If this persists, I can enable verbose logging for the run.",
@@ -214,12 +209,21 @@ async function runCommandOnThread(workspaceId: string, threadId: string) {
 }
 
 async function getDefaultWorkspaceId(): Promise<string> {
-  // For now, use the first workspace. Single-user deployment assumption.
   const ws = await db.query.workspaces.findFirst({
     orderBy: (t, { asc }) => [asc(t.createdAt)]
   });
   if (!ws) throw new Error("No workspace found");
   return ws.id;
+}
+
+async function postThinking(client: any, channel: string, thread_ts: string) {
+  // Simple typing/thinking indicator: create a placeholder reply we will update.
+  const posted = await client.chat.postMessage({
+    channel,
+    thread_ts,
+    text: "Thinking…"
+  });
+  return posted?.ts as string | undefined;
 }
 
 async function main() {
@@ -233,25 +237,17 @@ async function main() {
     logLevel: LogLevel.INFO
   });
 
+  // CHANNELS: respond to @Hub mentions (no @command required)
   app.event("app_mention", async ({ event, client }) => {
     console.log("[hub-slack] app_mention", JSON.stringify(event));
     const e: any = event;
+
     const rawText: string = e.text || "";
-    // Slack sends mentions like: "<@BOTID> hello". Strip leading mention + optional @command prefix.
-    const text = rawText
-      .replace(/^<@[^>]+>\s*/i, "")
-      .replace(/^(?:@command\b\s*)/i, "")
-      .trim();
+    const text = rawText.replace(/^<@[^>]+>\s*/i, "").replace(/^(?:@command\b\s*)/i, "").trim();
+
     const channel: string = e.channel;
     const threadTs: string = e.thread_ts || e.ts;
     const team: string = e.team || "";
-
-    // Lightweight ack: react immediately so the user knows it was received.
-    try {
-      await client.reactions.add({ channel, name: "eyes", timestamp: e.ts });
-    } catch (err) {
-      console.warn("[hub-slack] reactions.add failed", err);
-    }
 
     // Insert message as human into hub thread mapped to Slack thread.
     const { hubThreadId } = await getOrCreateThread({
@@ -278,16 +274,18 @@ async function main() {
       .set({ lastMessageAt: new Date(), updatedAt: new Date() })
       .where(and(eq(hubThreads.workspaceId, workspaceId), eq(hubThreads.id, hubThreadId)));
 
-    // Run @command and post response back into Slack thread.
+    // Thinking indicator (message we will update)
+    const placeholderTs = await postThinking(client, channel, threadTs);
+
     const result = await runCommandOnThread(workspaceId, hubThreadId);
 
-    await client.chat.postMessage({
-      channel,
-      thread_ts: threadTs,
-      text: result.output.slice(0, 3900)
-    });
+    if (placeholderTs) {
+      await client.chat.update({ channel, ts: placeholderTs, text: result.output.slice(0, 3900) });
+    } else {
+      await client.chat.postMessage({ channel, thread_ts: threadTs, text: result.output.slice(0, 3900) });
+    }
 
-    // Mark done.
+    // Mark done (only after response)
     try {
       await client.reactions.add({ channel, name: "white_check_mark", timestamp: e.ts });
     } catch {
@@ -295,19 +293,12 @@ async function main() {
     }
   });
 
+  // DMs: respond to every DM message (no prefix needed)
   app.message(async ({ message, client }) => {
     console.log("[hub-slack] message", JSON.stringify(message));
     const m: any = message;
     if (m.subtype) return;
-    // Only handle DMs (im). Slack Bolt provides channel_type in events sometimes.
     if (m.channel_type && m.channel_type !== "im") return;
-
-    // Ack react
-    try {
-      await client.reactions.add({ channel: m.channel, name: "eyes", timestamp: m.ts });
-    } catch (err) {
-      console.warn("[hub-slack] reactions.add failed", err);
-    }
 
     const channel: string = m.channel;
     const threadTs: string = m.thread_ts || m.ts;
@@ -338,17 +329,17 @@ async function main() {
       .set({ lastMessageAt: new Date(), updatedAt: new Date() })
       .where(and(eq(hubThreads.workspaceId, workspaceId), eq(hubThreads.id, hubThreadId)));
 
-    // Run @command on every DM message.
+    const placeholderTs = await postThinking(client, channel, threadTs);
     const result = await runCommandOnThread(workspaceId, hubThreadId);
 
-    await client.chat.postMessage({
-      channel,
-      thread_ts: threadTs,
-      text: result.output.slice(0, 3900)
-    });
+    if (placeholderTs) {
+      await client.chat.update({ channel, ts: placeholderTs, text: result.output.slice(0, 3900) });
+    } else {
+      await client.chat.postMessage({ channel, thread_ts: threadTs, text: result.output.slice(0, 3900) });
+    }
 
     try {
-      await client.reactions.add({ channel: m.channel, name: "white_check_mark", timestamp: m.ts });
+      await client.reactions.add({ channel, name: "white_check_mark", timestamp: m.ts });
     } catch {
       // ignore
     }
