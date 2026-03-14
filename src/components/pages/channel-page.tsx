@@ -365,6 +365,7 @@ export function ChannelPage({ channelId }: { channelId: string }) {
   const [uploadingCount, setUploadingCount] = useState(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [lightbox, setLightbox] = useState<{ url: string; name?: string } | null>(null);
+  const [dragActive, setDragActive] = useState(false);
 
   async function uploadImages(files: FileList | File[]) {
     const list = Array.from(files);
@@ -815,7 +816,35 @@ export function ChannelPage({ channelId }: { channelId: string }) {
             </div>
 
             <div className="shrink-0 border-t bg-background/80 backdrop-blur p-3">
-              <div className="space-y-2">
+              <div
+                className="relative space-y-2"
+                onDragEnter={(e) => {
+                  // Only show the drop affordance for file drags.
+                  const types = Array.from(e.dataTransfer?.types ?? []);
+                  if (types.includes("Files")) setDragActive(true);
+                }}
+                onDragLeave={(e) => {
+                  // If leaving the composer container, clear the state.
+                  if (e.currentTarget === e.target) setDragActive(false);
+                }}
+                onDragOver={(e) => {
+                  const types = Array.from(e.dataTransfer?.types ?? []);
+                  if (!types.includes("Files")) return;
+                  e.preventDefault();
+                }}
+                onDrop={(e) => {
+                  if (!e.dataTransfer?.files || e.dataTransfer.files.length === 0) return;
+                  e.preventDefault();
+                  setDragActive(false);
+                  void uploadImages(e.dataTransfer.files);
+                }}
+              >
+                {dragActive ? (
+                  <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center rounded-xl border-2 border-dashed border-primary bg-background/80 text-sm font-medium">
+                    Drop images to upload
+                  </div>
+                ) : null}
+
                 <div className="flex items-stretch gap-2">
                   <div className="flex-1 min-w-0">
                     <Textarea

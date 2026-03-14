@@ -26,6 +26,7 @@ import { appRouter } from "@/server/trpc";
 import { createTrpcContext } from "@/server/trpc/context";
 import { startReconciliationSync } from "@/server/sync";
 import { startDispatcher } from "@/server/dispatcher";
+import { startMediaGc } from "@/server/media-gc";
 // (skill installer runs in dispatcher worker)
 
 export const honoApp = new Hono().basePath("/api");
@@ -312,5 +313,6 @@ const nextPhase = process.env.NEXT_PHASE;
 if (nextPhase !== "phase-production-build") {
   startReconciliationSync();
   startDispatcher();
+  startMediaGc();
   // startSkillInstaller(); (handled by dispatcher worker)
 }
