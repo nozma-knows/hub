@@ -1,12 +1,9 @@
 import "dotenv/config";
 
 import { App, LogLevel } from "@slack/bolt";
-import { and, eq } from "drizzle-orm";
-
-import { hubChannels, hubMessages, hubSlackThreads, hubThreads, hubTickets, workspaces } from "@/db/schema";
-import { db } from "@/lib/db";
-import { openClawAgentTurn } from "@/lib/openclaw/cli-adapter";
 import { writeFile } from "node:fs/promises";
+
+import { openClawAgentTurn } from "@/lib/openclaw/cli-adapter";
 
 function requireEnv(name: string): string {
   const v = process.env[name];
@@ -18,131 +15,63 @@ const SLACK_BOT_TOKEN = requireEnv("SLACK_BOT_TOKEN");
 const SLACK_APP_TOKEN = requireEnv("SLACK_APP_TOKEN");
 const SLACK_SIGNING_SECRET = process.env.SLACK_SIGNING_SECRET || "";
 
-async function ensureSlackChannel(workspaceId: string) {
-  // Create/find a single public channel "slack" to hold imported Slack conversations.
-  const existing = await db.query.hubChannels.findFirst({
-    where: and(eq(hubChannels.workspaceId, workspaceId), eq(hubChannels.name, "slack"))
-  });
-  if (existing) return existing;
-
-  const [created] = await db
-    .insert(hubChannels)
-    .values({
-      workspaceId,
-      name: "slack",
-      description: "Imported from Slack (Socket Mode)",
-      kind: "public"
-    })
-    .returning();
-  if (!created) throw new Error("Failed to create slack hub channel");
-  return created;
+function stripBotMentionAndCommand(rawText: string) {
+  return (rawText || "")
+    .replace(/^<@[^>]+>\s*/i, "")
+    .replace(/^(?:@command\b\s*)/i, "")
+    .trim();
 }
 
-async function getOrCreateThread(params: {
-  workspaceId: string;
-  slackTeamId: string;
-  slackChannelId: string;
-  slackThreadTs: string;
-  title?: string | null;
+async function buildPromptFromSlackThread(args: {
+  client: any;
+  channel: string;
+  threadTs: string;
+  incomingText: string;
 }) {
-  const map = await db.query.hubSlackThreads.findFirst({
-    where: and(
-      eq(hubSlackThreads.workspaceId, params.workspaceId),
-      eq(hubSlackThreads.slackTeamId, params.slackTeamId),
-      eq(hubSlackThreads.slackChannelId, params.slackChannelId),
-      eq(hubSlackThreads.slackThreadTs, params.slackThreadTs)
-    )
-  });
+  // Slack-native backbone approach:
+  // Use Slack thread itself as the context source of truth.
+  // Pull a small window of the thread and ask @command to reply.
+  let contextLines: string[] = [];
 
-  if (map) {
-    const thread = await db.query.hubThreads.findFirst({
-      where: and(eq(hubThreads.workspaceId, params.workspaceId), eq(hubThreads.id, map.hubThreadId))
-    });
-    if (thread) return { thread, hubThreadId: thread.id };
-  }
-
-  const hubChannel = await ensureSlackChannel(params.workspaceId);
-
-  const [thread] = await db
-    .insert(hubThreads)
-    .values({
-      workspaceId: params.workspaceId,
-      channelId: hubChannel.id,
-      title: params.title ?? null,
-      status: "open",
-      createdByUserId: null,
-      lastMessageAt: new Date()
-    })
-    .returning();
-
-  if (!thread) throw new Error("Failed to create hub thread");
-
-  await db.insert(hubSlackThreads).values({
-    workspaceId: params.workspaceId,
-    slackTeamId: params.slackTeamId,
-    slackChannelId: params.slackChannelId,
-    slackThreadTs: params.slackThreadTs,
-    hubThreadId: thread.id,
-    createdAt: new Date(),
-    updatedAt: new Date()
-  });
-
-  return { thread, hubThreadId: thread.id };
-}
-
-function buildCommandPrompt(args: { threadTitle?: string | null; recentContext: string }) {
-  return `You are @command (Chief of Staff) inside OpenClaw Hub.
-
-Thread title: ${args.threadTitle ?? "(none)"}
-
-Recent messages:
-${args.recentContext}
-
-Instructions:
-- Be concise and action-oriented.
-- If this should become a ticket, you have two options:
-  1) Suggest only: propose a title + owner agent id (cos/dev/ops/research) and ask for confirmation.
-  2) Create it now: include EXACTLY ONE action block in your reply.
-
-Format for creating:
-- Include a fenced code block with language "hub-action" containing JSON:
-  {"kind":"create_ticket","title":"...","ownerAgentId":"dev","description":"..."}
-
-Rules:
-- NEVER claim you created a ticket unless you include the hub-action block.
-- If you need clarification, ask at most 1-2 questions.`;
-}
-
-function extractCommandAction(text: string): any | null {
-  const re = /```hub-action\s*([\s\S]*?)```/i;
-  const m = text.match(re);
-  if (!m) return null;
   try {
-    return JSON.parse(m[1].trim());
+    const replies = await args.client.conversations.replies({
+      channel: args.channel,
+      ts: args.threadTs,
+      limit: 12
+    });
+
+    const msgs = Array.isArray(replies?.messages) ? replies.messages : [];
+    // Keep only a compact context of text messages.
+    contextLines = msgs
+      .map((m: any) => {
+        const who = m.user ? `user:${m.user}` : m.bot_id ? `bot:${m.bot_id}` : "unknown";
+        const text = typeof m.text === "string" ? m.text : "";
+        return `${who}: ${text}`.trim();
+      })
+      .filter(Boolean)
+      .slice(-10);
   } catch {
-    return null;
+    // If we can't fetch replies (permissions/rate limiting), fall back to just the incoming message.
+    contextLines = [];
   }
+
+  const context = contextLines.length ? contextLines.join("\n") : `user: ${args.incomingText}`;
+
+  return `You are @command (Chief of Staff).
+
+You are responding inside Slack.
+
+Conversation context (Slack thread):
+${context}
+
+Task:
+- Reply helpfully to the latest user message.
+- Be concise.
+- If you need clarification, ask at most 1-2 questions.
+- If the user wants a task tracked, suggest creating a Hub ticket (but do NOT claim you created one here).`;
 }
 
-async function runCommandOnThread(workspaceId: string, threadId: string) {
-  const thread = await db.query.hubThreads.findFirst({
-    where: and(eq(hubThreads.workspaceId, workspaceId), eq(hubThreads.id, threadId))
-  });
-  if (!thread) throw new Error("Thread not found");
-
-  const recent = await db.query.hubMessages.findMany({
-    where: and(eq(hubMessages.workspaceId, workspaceId), eq(hubMessages.threadId, threadId)),
-    orderBy: (t, { desc }) => [desc(t.createdAt)],
-    limit: 20
-  });
-
-  const context = recent
-    .slice()
-    .reverse()
-    .map((m) => `${m.authorType === "agent" ? `agent:${m.authorAgentId ?? "?"}` : "human"}: ${m.body}`)
-    .join("\n");
-
-  const prompt = buildCommandPrompt({ threadTitle: thread.title, recentContext: context });
+async function runCommand(prompt: string) {
   const result = await openClawAgentTurn({ agentId: "cos", message: prompt, timeoutSeconds: 300 });
   const output = (result.output || result.message || result.text || "").toString().trim();
 
@@ -154,9 +83,7 @@ async function runCommandOnThread(workspaceId: string, threadId: string) {
       payloadCount: (result as any)?.result?.payloads?.length,
       rawKeys: Object.keys(result as any)
     };
-    console.warn("[hub-slack] @command produced no output", dbg);
 
-    // Persist full raw result for debugging (local only)
     try {
       const ts = Date.now();
       await writeFile(
@@ -164,77 +91,50 @@ async function runCommandOnThread(workspaceId: string, threadId: string) {
         JSON.stringify({ dbg, result }, null, 2),
         "utf8"
       );
-    } catch (err) {
-      console.warn("[hub-slack] failed to write debug file", err);
+    } catch {
+      // ignore
     }
 
     return {
-      output:
-        "I received that, but the agent returned no text output. Please try again. If this persists, I can debug the exact run output on the server.",
-      createdTicketId: null
+      output: "I got your message, but I failed to produce a reply (empty agent output). Try again in a moment.",
+      debug: dbg
     };
   }
 
-  // Save the @command output into the thread.
-  await db.insert(hubMessages).values({
-    workspaceId,
-    threadId,
-    authorType: "agent",
-    authorAgentId: "cos",
-    body: output,
-    createdAt: new Date()
-  });
+  return { output, debug: null };
+}
 
-  await db
-    .update(hubThreads)
-    .set({ lastMessageAt: new Date(), updatedAt: new Date() })
-    .where(and(eq(hubThreads.workspaceId, workspaceId), eq(hubThreads.id, threadId)));
-
-  const action = extractCommandAction(output);
-  if (action?.kind !== "create_ticket") return { output, createdTicketId: null };
-
-  const rawOwnerAgentId = action.ownerAgentId ?? "cos";
-  const ownerAgentId = ["cos", "dev", "ops", "research", "main"].includes(rawOwnerAgentId) ? rawOwnerAgentId : "cos";
-
-  const [ticket] = await db
-    .insert(hubTickets)
-    .values({
-      workspaceId,
-      title: String(action.title ?? "Untitled"),
-      description: action.description ? String(action.description) : null,
-      status: "todo",
-      priority: "normal",
-      ownerAgentId,
-      createdByUserId: null
-    })
-    .returning();
-
-  if (ticket) {
-    await db.insert(hubMessages).values({
-      workspaceId,
-      threadId,
-      authorType: "agent",
-      authorAgentId: "cos",
-      body: `✅ Created ticket: ${ticket.title}\nOpen: /tickets?open=${ticket.id}`,
-      createdAt: new Date()
-    });
+async function withEyesThenCheckmark(args: {
+  client: any;
+  channel: string;
+  timestamp: string;
+  fn: () => Promise<void>;
+}) {
+  // Ack: 👀
+  try {
+    await args.client.reactions.add({ channel: args.channel, name: "eyes", timestamp: args.timestamp });
+  } catch {
+    // ignore
   }
 
-  return { output, createdTicketId: ticket?.id ?? null };
+  try {
+    await args.fn();
+  } finally {
+    // Done: remove 👀 and add ✅
+    try {
+      await args.client.reactions.remove({ channel: args.channel, name: "eyes", timestamp: args.timestamp });
+    } catch {
+      // ignore
+    }
+    try {
+      await args.client.reactions.add({ channel: args.channel, name: "white_check_mark", timestamp: args.timestamp });
+    } catch {
+      // ignore
+    }
+  }
 }
-
-async function getDefaultWorkspaceId(): Promise<string> {
-  const ws = await db.query.workspaces.findFirst({
-    orderBy: (t, { asc }) => [asc(t.createdAt)]
-  });
-  if (!ws) throw new Error("No workspace found");
-  return ws.id;
-}
-
 
 async function main() {
-  const workspaceId = await getDefaultWorkspaceId();
-
   const app = new App({
     token: SLACK_BOT_TOKEN,
     appToken: SLACK_APP_TOKEN,
@@ -245,135 +145,73 @@ async function main() {
 
   // CHANNELS: respond to @Hub mentions (no @command required)
   app.event("app_mention", async ({ event, client }) => {
-    console.log("[hub-slack] app_mention", JSON.stringify(event));
     const e: any = event;
-
-    const rawText: string = e.text || "";
-    const text = rawText.replace(/^<@[^>]+>\s*/i, "").replace(/^(?:@command\b\s*)/i, "").trim();
-
     const channel: string = e.channel;
-    const threadTs: string = e.thread_ts || e.ts;
     const team: string = e.team || "";
+    const threadTs: string = e.thread_ts || e.ts;
 
-    // Insert message as human into hub thread mapped to Slack thread.
-    const { hubThreadId } = await getOrCreateThread({
-      workspaceId,
-      slackTeamId: team,
-      slackChannelId: channel,
-      slackThreadTs: threadTs,
-      title: `Slack ${channel}`
-    });
+    const incomingText = stripBotMentionAndCommand(e.text || "");
+    if (!incomingText) return;
 
-    if (!text.trim()) return;
-
-    await db.insert(hubMessages).values({
-      workspaceId,
-      threadId: hubThreadId,
-      authorType: "human",
-      authorUserId: null,
-      body: text,
-      createdAt: new Date()
-    });
-
-    await db
-      .update(hubThreads)
-      .set({ lastMessageAt: new Date(), updatedAt: new Date() })
-      .where(and(eq(hubThreads.workspaceId, workspaceId), eq(hubThreads.id, hubThreadId)));
-
-    // Ack: show 👀 while we work
-    try {
-      await client.reactions.add({ channel, name: "eyes", timestamp: e.ts });
-    } catch {
-      // ignore
-    }
-
-    const result = await runCommandOnThread(workspaceId, hubThreadId);
-
-    await client.chat.postMessage({
+    await withEyesThenCheckmark({
+      client,
       channel,
-      thread_ts: threadTs,
-      text: result.output.slice(0, 3900)
-    });
+      timestamp: e.ts,
+      fn: async () => {
+        const prompt = await buildPromptFromSlackThread({
+          client,
+          channel,
+          threadTs,
+          incomingText
+        });
 
-    // Done: remove 👀 and add ✅
-    try {
-      await client.reactions.remove({ channel, name: "eyes", timestamp: e.ts });
-    } catch {
-      // ignore
-    }
-    try {
-      await client.reactions.add({ channel, name: "white_check_mark", timestamp: e.ts });
-    } catch {
-      // ignore
-    }
+        const { output } = await runCommand(prompt);
+
+        await client.chat.postMessage({
+          channel,
+          thread_ts: threadTs,
+          text: output.slice(0, 3900)
+        });
+      }
+    });
   });
 
-  // DMs: respond to every DM message (no prefix needed)
+  // DMs: respond to every DM message
   app.message(async ({ message, client }) => {
-    console.log("[hub-slack] message", JSON.stringify(message));
     const m: any = message;
     if (m.subtype) return;
     if (m.channel_type && m.channel_type !== "im") return;
 
     const channel: string = m.channel;
     const threadTs: string = m.thread_ts || m.ts;
-    const team: string = (m.team as string) || "";
-    const text: string = m.text || "";
+    const incomingText: string = (m.text || "").trim();
+    if (!incomingText) return;
 
-    const { hubThreadId } = await getOrCreateThread({
-      workspaceId,
-      slackTeamId: team,
-      slackChannelId: channel,
-      slackThreadTs: threadTs,
-      title: `Slack DM ${channel}`
-    });
-
-    if (!text.trim()) return;
-
-    await db.insert(hubMessages).values({
-      workspaceId,
-      threadId: hubThreadId,
-      authorType: "human",
-      authorUserId: null,
-      body: text,
-      createdAt: new Date()
-    });
-
-    await db
-      .update(hubThreads)
-      .set({ lastMessageAt: new Date(), updatedAt: new Date() })
-      .where(and(eq(hubThreads.workspaceId, workspaceId), eq(hubThreads.id, hubThreadId)));
-
-    // Ack: show 👀 while we work
-    try {
-      await client.reactions.add({ channel: m.channel, name: "eyes", timestamp: m.ts });
-    } catch {
-      // ignore
-    }
-
-    const result = await runCommandOnThread(workspaceId, hubThreadId);
-
-    await client.chat.postMessage({
+    await withEyesThenCheckmark({
+      client,
       channel,
-      thread_ts: threadTs,
-      text: result.output.slice(0, 3900)
-    });
+      timestamp: m.ts,
+      fn: async () => {
+        const prompt = await buildPromptFromSlackThread({
+          client,
+          channel,
+          threadTs,
+          incomingText
+        });
 
-    // Done: remove 👀 and add ✅
-    try {
-      await client.reactions.remove({ channel: m.channel, name: "eyes", timestamp: m.ts });
-    } catch {
-      // ignore
-    }
-    try {
-      await client.reactions.add({ channel: m.channel, name: "white_check_mark", timestamp: m.ts });
-    } catch {
-      // ignore
-    }
+        const { output } = await runCommand(prompt);
+
+        await client.chat.postMessage({
+          channel,
+          thread_ts: threadTs,
+          text: output.slice(0, 3900)
+        });
+      }
+    });
   });
 
   await app.start();
-  console.log("[hub-slack] Socket Mode worker started");
+  console.log("[hub-slack] Socket Mode worker started (slack-native backbone mode)");
 }
 
 main().catch((e) => {
