@@ -6,6 +6,7 @@ import { and, eq } from "drizzle-orm";
 import { hubChannels, hubMessages, hubSlackThreads, hubThreads, hubTickets, workspaces } from "@/db/schema";
 import { db } from "@/lib/db";
 import { openClawAgentTurn } from "@/lib/openclaw/cli-adapter";
+import { writeFile } from "node:fs/promises";
 
 function requireEnv(name: string): string {
   const v = process.env[name];
@@ -146,16 +147,30 @@ async function runCommandOnThread(workspaceId: string, threadId: string) {
   const output = (result.output || result.message || result.text || "").toString().trim();
 
   if (!output) {
-    console.warn("[hub-slack] @command produced no output", {
+    const dbg = {
       status: (result as any)?.status,
+      runId: (result as any)?.runId,
       hasPayloads: Array.isArray((result as any)?.result?.payloads),
       payloadCount: (result as any)?.result?.payloads?.length,
       rawKeys: Object.keys(result as any)
-    });
+    };
+    console.warn("[hub-slack] @command produced no output", dbg);
+
+    // Persist full raw result for debugging (local only)
+    try {
+      const ts = Date.now();
+      await writeFile(
+        `/root/.openclaw/workspace/hub/tmp/slack-empty-output-${ts}.json`,
+        JSON.stringify({ dbg, result }, null, 2),
+        "utf8"
+      );
+    } catch (err) {
+      console.warn("[hub-slack] failed to write debug file", err);
+    }
 
     return {
       output:
-        "I received that, but the agent returned no text output. Please try again. If this persists, I can enable verbose logging for the run.",
+        "I received that, but the agent returned no text output. Please try again. If this persists, I can debug the exact run output on the server.",
       createdTicketId: null
     };
   }
@@ -216,15 +231,6 @@ async function getDefaultWorkspaceId(): Promise<string> {
   return ws.id;
 }
 
-async function postThinking(client: any, channel: string, thread_ts: string) {
-  // Simple typing/thinking indicator: create a placeholder reply we will update.
-  const posted = await client.chat.postMessage({
-    channel,
-    thread_ts,
-    text: "Thinking…"
-  });
-  return posted?.ts as string | undefined;
-}
 
 async function main() {
   const workspaceId = await getDefaultWorkspaceId();
@@ -274,18 +280,27 @@ async function main() {
       .set({ lastMessageAt: new Date(), updatedAt: new Date() })
       .where(and(eq(hubThreads.workspaceId, workspaceId), eq(hubThreads.id, hubThreadId)));
 
-    // Thinking indicator (message we will update)
-    const placeholderTs = await postThinking(client, channel, threadTs);
+    // Ack: show 👀 while we work
+    try {
+      await client.reactions.add({ channel, name: "eyes", timestamp: e.ts });
+    } catch {
+      // ignore
+    }
 
     const result = await runCommandOnThread(workspaceId, hubThreadId);
 
-    if (placeholderTs) {
-      await client.chat.update({ channel, ts: placeholderTs, text: result.output.slice(0, 3900) });
-    } else {
-      await client.chat.postMessage({ channel, thread_ts: threadTs, text: result.output.slice(0, 3900) });
-    }
+    await client.chat.postMessage({
+      channel,
+      thread_ts: threadTs,
+      text: result.output.slice(0, 3900)
+    });
 
-    // Mark done (only after response)
+    // Done: remove 👀 and add ✅
+    try {
+      await client.reactions.remove({ channel, name: "eyes", timestamp: e.ts });
+    } catch {
+      // ignore
+    }
     try {
       await client.reactions.add({ channel, name: "white_check_mark", timestamp: e.ts });
     } catch {
@@ -329,17 +344,29 @@ async function main() {
       .set({ lastMessageAt: new Date(), updatedAt: new Date() })
       .where(and(eq(hubThreads.workspaceId, workspaceId), eq(hubThreads.id, hubThreadId)));
 
-    const placeholderTs = await postThinking(client, channel, threadTs);
-    const result = await runCommandOnThread(workspaceId, hubThreadId);
-
-    if (placeholderTs) {
-      await client.chat.update({ channel, ts: placeholderTs, text: result.output.slice(0, 3900) });
-    } else {
-      await client.chat.postMessage({ channel, thread_ts: threadTs, text: result.output.slice(0, 3900) });
+    // Ack: show 👀 while we work
+    try {
+      await client.reactions.add({ channel: m.channel, name: "eyes", timestamp: m.ts });
+    } catch {
+      // ignore
     }
 
+    const result = await runCommandOnThread(workspaceId, hubThreadId);
+
+    await client.chat.postMessage({
+      channel,
+      thread_ts: threadTs,
+      text: result.output.slice(0, 3900)
+    });
+
+    // Done: remove 👀 and add ✅
     try {
-      await client.reactions.add({ channel, name: "white_check_mark", timestamp: m.ts });
+      await client.reactions.remove({ channel: m.channel, name: "eyes", timestamp: m.ts });
+    } catch {
+      // ignore
+    }
+    try {
+      await client.reactions.add({ channel: m.channel, name: "white_check_mark", timestamp: m.ts });
     } catch {
       // ignore
     }
