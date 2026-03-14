@@ -151,7 +151,19 @@ async function runCommandOnThread(workspaceId: string, threadId: string) {
   const prompt = buildCommandPrompt({ threadTitle: thread.title, recentContext: context });
   const result = await openClawAgentTurn({ agentId: "cos", message: prompt, timeoutSeconds: 300 });
   const output = (result.output || result.message || result.text || "").toString().trim();
-  if (!output) return { output: "(no output)", createdTicketId: null };
+  if (!output) {
+    console.warn("[hub-slack] @command produced no output", {
+      status: (result as any)?.status,
+      hasPayloads: Array.isArray((result as any)?.result?.payloads),
+      payloadCount: (result as any)?.result?.payloads?.length,
+      rawKeys: Object.keys(result as any)
+    });
+    return {
+      output:
+        "I received that, but the agent returned no text output. Please try again. If this persists, I can enable verbose logging for the run.",
+      createdTicketId: null
+    };
+  }
 
   // Save the @command output into the thread.
   await db.insert(hubMessages).values({
