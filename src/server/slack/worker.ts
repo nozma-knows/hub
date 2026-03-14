@@ -234,6 +234,13 @@ async function main() {
     const threadTs: string = e.thread_ts || e.ts;
     const team: string = e.team || "";
 
+    // Lightweight ack: react immediately so the user knows it was received.
+    try {
+      await client.reactions.add({ channel, name: "eyes", timestamp: e.ts });
+    } catch (err) {
+      console.warn("[hub-slack] reactions.add failed", err);
+    }
+
     // Insert message as human into hub thread mapped to Slack thread.
     const { hubThreadId } = await getOrCreateThread({
       workspaceId,
@@ -267,6 +274,13 @@ async function main() {
       thread_ts: threadTs,
       text: result.output.slice(0, 3900)
     });
+
+    // Mark done.
+    try {
+      await client.reactions.add({ channel, name: "white_check_mark", timestamp: e.ts });
+    } catch {
+      // ignore
+    }
   });
 
   app.message(async ({ message, client }) => {
@@ -275,6 +289,13 @@ async function main() {
     if (m.subtype) return;
     // Only handle DMs (im). Slack Bolt provides channel_type in events sometimes.
     if (m.channel_type && m.channel_type !== "im") return;
+
+    // Ack react
+    try {
+      await client.reactions.add({ channel: m.channel, name: "eyes", timestamp: m.ts });
+    } catch (err) {
+      console.warn("[hub-slack] reactions.add failed", err);
+    }
 
     const channel: string = m.channel;
     const threadTs: string = m.thread_ts || m.ts;
@@ -313,6 +334,12 @@ async function main() {
       thread_ts: threadTs,
       text: result.output.slice(0, 3900)
     });
+
+    try {
+      await client.reactions.add({ channel: m.channel, name: "white_check_mark", timestamp: m.ts });
+    } catch {
+      // ignore
+    }
   });
 
   await app.start();
