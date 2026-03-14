@@ -222,8 +222,14 @@ async function main() {
   });
 
   app.event("app_mention", async ({ event, client }) => {
+    console.log("[hub-slack] app_mention", JSON.stringify(event));
     const e: any = event;
-    const text: string = e.text || "";
+    const rawText: string = e.text || "";
+    // Slack sends mentions like: "<@BOTID> hello". Strip leading mention + optional @command prefix.
+    const text = rawText
+      .replace(/^<@[^>]+>\s*/i, "")
+      .replace(/^(?:@command\b\s*)/i, "")
+      .trim();
     const channel: string = e.channel;
     const threadTs: string = e.thread_ts || e.ts;
     const team: string = e.team || "";
@@ -236,6 +242,8 @@ async function main() {
       slackThreadTs: threadTs,
       title: `Slack ${channel}`
     });
+
+    if (!text.trim()) return;
 
     await db.insert(hubMessages).values({
       workspaceId,
@@ -262,6 +270,7 @@ async function main() {
   });
 
   app.message(async ({ message, client }) => {
+    console.log("[hub-slack] message", JSON.stringify(message));
     const m: any = message;
     if (m.subtype) return;
     // Only handle DMs (im). Slack Bolt provides channel_type in events sometimes.
@@ -279,6 +288,8 @@ async function main() {
       slackThreadTs: threadTs,
       title: `Slack DM ${channel}`
     });
+
+    if (!text.trim()) return;
 
     await db.insert(hubMessages).values({
       workspaceId,
