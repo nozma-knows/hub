@@ -8,7 +8,8 @@ import {
   hubMessages,
   hubSlackThreads,
   hubThreads,
-  hubTickets
+  hubTickets,
+  workspaces
 } from "@/db/schema";
 import { db } from "@/lib/db";
 import { openClawAgentTurn } from "@/lib/openclaw/cli-adapter";
@@ -202,17 +203,11 @@ async function runCommandOnThread(workspaceId: string, threadId: string) {
 
 async function getDefaultWorkspaceId(): Promise<string> {
   // For now, use the first workspace. Single-user deployment assumption.
-  const rows: any = await db.execute(
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-    // @ts-ignore
-    {
-      sql: "select id from workspaces order by created_at asc limit 1",
-      params: []
-    } as any
-  );
-  const id = (rows?.rows?.[0]?.id ?? rows?.[0]?.id) as string | undefined;
-  if (!id) throw new Error("No workspace found");
-  return id;
+  const ws = await db.query.workspaces.findFirst({
+    orderBy: (t, { asc }) => [asc(t.createdAt)]
+  });
+  if (!ws) throw new Error("No workspace found");
+  return ws.id;
 }
 
 async function main() {
