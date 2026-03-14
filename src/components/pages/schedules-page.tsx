@@ -31,7 +31,7 @@ const defaultDraft: Draft = {
   scheduleValue: "10m",
   tz: "",
   message: "",
-  announce: true
+  announce: true,
 };
 
 export function SchedulesPage() {
@@ -43,23 +43,23 @@ export function SchedulesPage() {
       setOpen(false);
       setDraft(defaultDraft);
     },
-    onError: (e) => setError(e.message)
+    onError: (e) => setError(e.message),
   });
   const edit = trpc.schedules.edit.useMutation({
     onSuccess: async () => {
       await utils.schedules.list.invalidate();
       setEditId(null);
     },
-    onError: (e) => setError(e.message)
+    onError: (e) => setError(e.message),
   });
   const rm = trpc.schedules.remove.useMutation({
     onSuccess: async () => {
       await utils.schedules.list.invalidate();
     },
-    onError: (e) => setError(e.message)
+    onError: (e) => setError(e.message),
   });
   const runNow = trpc.schedules.runNow.useMutation({
-    onError: (e) => setError(e.message)
+    onError: (e) => setError(e.message),
   });
 
   const [error, setError] = useState<string | null>(null);
@@ -75,7 +75,9 @@ export function SchedulesPage() {
       <div className="flex items-end justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold truncate">Schedules</h1>
-          <p className="text-sm text-muted-foreground">OpenClaw cron jobs (agent reminders, routines, automations).</p>
+          <p className="text-sm text-muted-foreground">
+            OpenClaw cron jobs (agent reminders, routines, automations).
+          </p>
         </div>
         <Button onClick={() => setOpen(true)}>New</Button>
       </div>
@@ -105,7 +107,9 @@ export function SchedulesPage() {
                     </div>
                     <div className="mt-1 text-xs text-muted-foreground">
                       <div>Schedule: {scheduleLabel}</div>
-                      <div>Agent: {j.agentId ?? "(default)"} · Session: {j.sessionTarget ?? "(default)"}</div>
+                      <div>
+                        Agent: {j.agentId ?? "(default)"} · Session: {j.sessionTarget ?? "(default)"}
+                      </div>
                     </div>
                   </div>
 
@@ -157,7 +161,8 @@ export function SchedulesPage() {
                       </div>
                     </div>
                     <div className="mt-3 text-xs text-muted-foreground">
-                      For now, editing schedule/payload is supported via the CLI-flags patcher and will be expanded into a full form next.
+                      For now, editing schedule/payload is supported via the CLI-flags patcher and will be
+                      expanded into a full form next.
                     </div>
                   </div>
                 ) : null}
@@ -234,7 +239,13 @@ export function SchedulesPage() {
                     className="mt-1 w-full rounded-md border bg-background px-2 py-2 text-sm"
                     value={draft.scheduleValue}
                     onChange={(e) => setDraft((d) => ({ ...d, scheduleValue: e.target.value }))}
-                    placeholder={draft.scheduleKind === "cron" ? "0 13 * * *" : draft.scheduleKind === "at" ? "+20m" : "10m"}
+                    placeholder={
+                      draft.scheduleKind === "cron"
+                        ? "0 13 * * *"
+                        : draft.scheduleKind === "at"
+                          ? "+20m"
+                          : "10m"
+                    }
                   />
                 </div>
               </div>
@@ -286,10 +297,15 @@ export function SchedulesPage() {
                       scheduleValue: draft.scheduleValue,
                       tz: draft.tz?.trim() ? draft.tz.trim() : undefined,
                       message: draft.message,
-                      announce: draft.announce
+                      announce: draft.announce,
                     });
                   }}
-                  disabled={add.isPending || !draft.name.trim() || !draft.message.trim() || !draft.scheduleValue.trim()}
+                  disabled={
+                    add.isPending ||
+                    !draft.name.trim() ||
+                    !draft.message.trim() ||
+                    !draft.scheduleValue.trim()
+                  }
                 >
                   Create
                 </Button>

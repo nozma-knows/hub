@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth";
 
 export async function requireSessionUser(): Promise<{ id: string; email?: string; name?: string }> {
   const session = (await auth.api.getSession({
-    headers: await headers()
+    headers: await headers(),
   })) as { user?: { id: string; email?: string; name?: string } } | null;
 
   if (!session?.user) {

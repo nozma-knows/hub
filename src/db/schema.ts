@@ -10,7 +10,7 @@ import {
   uniqueIndex,
   uuid,
   varchar,
-  bigint
+  bigint,
 } from "drizzle-orm/pg-core";
 
 export const users = pgTable("user", {
@@ -20,7 +20,7 @@ export const users = pgTable("user", {
   emailVerified: boolean("email_verified").notNull().default(false),
   image: text("image"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 export const user = users;
 
@@ -34,7 +34,7 @@ export const sessions = pgTable("session", {
   userAgent: text("user_agent"),
   userId: text("user_id")
     .notNull()
-    .references(() => users.id, { onDelete: "cascade" })
+    .references(() => users.id, { onDelete: "cascade" }),
 });
 export const session = sessions;
 
@@ -53,7 +53,7 @@ export const accounts = pgTable("account", {
   scope: text("scope"),
   password: text("password"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 export const account = accounts;
 
@@ -63,7 +63,7 @@ export const verifications = pgTable("verification", {
   value: text("value").notNull(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow()
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
 // BetterAuth's Drizzle adapter resolves this model by the singular key.
@@ -75,7 +75,7 @@ export const workspaces = pgTable("workspaces", {
   slug: varchar("slug", { length: 120 }).notNull().unique(),
   createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const workspaceMembers = pgTable(
@@ -91,10 +91,10 @@ export const workspaceMembers = pgTable(
     invitedBy: text("invited_by").references(() => users.id, { onDelete: "set null" }),
     joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    pk: primaryKey({ columns: [table.workspaceId, table.userId] })
+    pk: primaryKey({ columns: [table.workspaceId, table.userId] }),
   })
 );
 
@@ -114,7 +114,7 @@ export const workspaceInvites = pgTable("workspace_invites", {
   revokedAt: timestamp("revoked_at", { withTimezone: true }),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const hubChannels = pgTable("hub_channels", {
@@ -130,7 +130,7 @@ export const hubChannels = pgTable("hub_channels", {
   dmTargetAgentId: text("dm_target_agent_id"),
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const hubChannelAgents = pgTable("hub_channel_agents", {
@@ -141,7 +141,7 @@ export const hubChannelAgents = pgTable("hub_channel_agents", {
     .notNull()
     .references(() => workspaces.id, { onDelete: "cascade" }),
   agentId: text("agent_id").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const hubThreads = pgTable("hub_threads", {
@@ -157,7 +157,7 @@ export const hubThreads = pgTable("hub_threads", {
   createdByUserId: text("created_by_user_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-  lastMessageAt: timestamp("last_message_at", { withTimezone: true }).notNull().defaultNow()
+  lastMessageAt: timestamp("last_message_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const hubMessages = pgTable("hub_messages", {
@@ -172,7 +172,7 @@ export const hubMessages = pgTable("hub_messages", {
   authorUserId: text("author_user_id"),
   authorAgentId: text("author_agent_id"),
   body: text("body").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const hubTickets = pgTable("hub_tickets", {
@@ -208,7 +208,7 @@ export const hubTickets = pgTable("hub_tickets", {
   deletedByUserId: text("deleted_by_user_id"),
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const hubSlackThreads = pgTable(
@@ -224,10 +224,12 @@ export const hubSlackThreads = pgTable(
       .notNull()
       .references(() => hubThreads.id, { onDelete: "cascade" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    pk: primaryKey({ columns: [table.workspaceId, table.slackTeamId, table.slackChannelId, table.slackThreadTs] })
+    pk: primaryKey({
+      columns: [table.workspaceId, table.slackTeamId, table.slackChannelId, table.slackThreadTs],
+    }),
   })
 );
 
@@ -247,7 +249,7 @@ export const hubMessageAttachments = pgTable("hub_message_attachments", {
   width: integer("width"),
   height: integer("height"),
 
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const hubThreadTickets = pgTable("hub_thread_tickets", {
@@ -260,7 +262,7 @@ export const hubThreadTickets = pgTable("hub_thread_tickets", {
   ticketId: uuid("ticket_id")
     .notNull()
     .references(() => hubTickets.id, { onDelete: "cascade" }),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const hubTicketComments = pgTable("hub_ticket_comments", {
@@ -275,14 +277,14 @@ export const hubTicketComments = pgTable("hub_ticket_comments", {
   authorUserId: text("author_user_id"),
   authorAgentId: text("author_agent_id"),
   body: text("body").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const hubDispatcherState = pgTable("hub_dispatcher_state", {
   key: varchar("key", { length: 32 }).primaryKey(),
   lastTickAt: timestamp("last_tick_at", { withTimezone: true }),
   lastError: text("last_error"),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const hubTicketInvocations = pgTable("hub_ticket_invocations", {
@@ -296,7 +298,7 @@ export const hubTicketInvocations = pgTable("hub_ticket_invocations", {
   invocationId: uuid("invocation_id")
     .notNull()
     .references(() => agentInvocations.id, { onDelete: "cascade" }),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const hubTicketRuns = pgTable("hub_ticket_runs", {
@@ -314,7 +316,7 @@ export const hubTicketRuns = pgTable("hub_ticket_runs", {
   finishedAt: timestamp("finished_at", { withTimezone: true }),
   durationMs: integer("duration_ms"),
   error: text("error"),
-  output: text("output")
+  output: text("output"),
 });
 
 export const hubSkillInstalls = pgTable("hub_skill_installs", {
@@ -357,7 +359,7 @@ export const hubSkillInstalls = pgTable("hub_skill_installs", {
 
   createdByUserId: text("created_by_user_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const hubAgentSkillPermissions = pgTable(
@@ -370,10 +372,10 @@ export const hubAgentSkillPermissions = pgTable(
     clawhubSkillId: text("clawhub_skill_id").notNull(),
     isAllowed: boolean("is_allowed").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    pk: primaryKey({ columns: [table.workspaceId, table.agentId, table.clawhubSkillId] })
+    pk: primaryKey({ columns: [table.workspaceId, table.agentId, table.clawhubSkillId] }),
   })
 );
 
@@ -395,7 +397,7 @@ export const agents = pgTable("agents", {
   lastSeenUpstreamAt: timestamp("last_seen_upstream_at", { withTimezone: true }),
   lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const agentBehaviorConfigs = pgTable(
@@ -411,13 +413,16 @@ export const agentBehaviorConfigs = pgTable(
     version: integer("version").notNull(),
     model: varchar("model", { length: 120 }).notNull(),
     instructions: text("instructions").notNull(),
-    runtimeConfig: jsonb("runtime_config").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+    runtimeConfig: jsonb("runtime_config")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
     isActive: boolean("is_active").notNull().default(false),
     updatedBy: text("updated_by").references(() => users.id, { onDelete: "set null" }),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    byAgentVersion: uniqueIndex("agent_behavior_version_unique").on(table.agentId, table.version)
+    byAgentVersion: uniqueIndex("agent_behavior_version_unique").on(table.agentId, table.version),
   })
 );
 
@@ -426,10 +431,13 @@ export const toolProviders = pgTable("tool_providers", {
   key: varchar("key", { length: 60 }).notNull().unique(),
   name: varchar("name", { length: 120 }).notNull(),
   authType: varchar("auth_type", { length: 40 }).notNull(),
-  capabilitiesSchema: jsonb("capabilities_schema").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+  capabilitiesSchema: jsonb("capabilities_schema")
+    .$type<Record<string, unknown>>()
+    .notNull()
+    .default(sql`'{}'::jsonb`),
   isEnabled: boolean("is_enabled").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 // OAuth app credentials (client_id/client_secret) for tool providers, encrypted at rest.
@@ -448,13 +456,13 @@ export const toolProviderAppCredentials = pgTable(
     scopes: text("scopes").array().notNull().default(sql`ARRAY[]::text[]`),
     updatedBy: text("updated_by").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
     byWorkspaceProvider: uniqueIndex("tool_provider_app_creds_workspace_provider_unique").on(
       table.workspaceId,
       table.providerId
-    )
+    ),
   })
 );
 
@@ -478,14 +486,14 @@ export const toolConnections = pgTable(
     externalAccountId: text("external_account_id"),
     metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
     byProviderWorkspaceUser: uniqueIndex("tool_connection_provider_workspace_user_unique").on(
       table.providerId,
       table.workspaceId,
       table.userId
-    )
+    ),
   })
 );
 
@@ -508,14 +516,14 @@ export const agentToolPermissions = pgTable(
       .notNull()
       .default(sql`'{}'::jsonb`),
     updatedBy: text("updated_by").references(() => users.id, { onDelete: "set null" }),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
     byWorkspaceAgentProvider: uniqueIndex("agent_workspace_provider_permission_unique").on(
       table.workspaceId,
       table.agentId,
       table.providerId
-    )
+    ),
   })
 );
 
@@ -531,7 +539,7 @@ export const auditEvents = pgTable("audit_events", {
   providerKey: varchar("provider_key", { length: 60 }),
   result: varchar("result", { length: 20 }).notNull(),
   details: jsonb("details").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const oauthStates = pgTable(
@@ -547,10 +555,10 @@ export const oauthStates = pgTable(
     codeVerifier: text("code_verifier"),
     redirectPath: text("redirect_path").notNull().default("/integrations"),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    byState: uniqueIndex("oauth_state_unique").on(table.workspaceId, table.state)
+    byState: uniqueIndex("oauth_state_unique").on(table.workspaceId, table.state),
   })
 );
 
@@ -569,14 +577,14 @@ export const modelProviderCredentials = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     updatedBy: text("updated_by").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
     byWorkspaceProviderLabel: uniqueIndex("model_credential_workspace_provider_label_unique").on(
       table.workspaceId,
       table.providerKey,
       table.label
-    )
+    ),
   })
 );
 
@@ -588,17 +596,20 @@ export const modelCatalogCache = pgTable(
       .notNull()
       .references(() => workspaces.id, { onDelete: "cascade" }),
     providerKey: varchar("provider_key", { length: 60 }).notNull(),
-    models: jsonb("models").$type<Array<{ id: string; name?: string; contextWindow?: number }>>().notNull().default(sql`'[]'::jsonb`),
+    models: jsonb("models")
+      .$type<Array<{ id: string; name?: string; contextWindow?: number }>>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
     fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
     byWorkspaceProvider: uniqueIndex("model_catalog_workspace_provider_unique").on(
       table.workspaceId,
       table.providerKey
-    )
+    ),
   })
 );
 
@@ -623,53 +634,53 @@ export const agentInvocations = pgTable("agent_invocations", {
   errorClass: varchar("error_class", { length: 120 }),
   usageRaw: jsonb("usage_raw").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
   requestMeta: jsonb("request_meta").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const providersRelations = relations(toolProviders, ({ many }) => ({
   connections: many(toolConnections),
   permissions: many(agentToolPermissions),
-  appCredentials: many(toolProviderAppCredentials)
+  appCredentials: many(toolProviderAppCredentials),
 }));
 
 export const agentRelations = relations(agents, ({ many }) => ({
   behaviorConfigs: many(agentBehaviorConfigs),
-  permissions: many(agentToolPermissions)
+  permissions: many(agentToolPermissions),
 }));
 
 export const connectionRelations = relations(toolConnections, ({ one }) => ({
   provider: one(toolProviders, {
     fields: [toolConnections.providerId],
-    references: [toolProviders.id]
+    references: [toolProviders.id],
   }),
   user: one(users, {
     fields: [toolConnections.userId],
-    references: [users.id]
-  })
+    references: [users.id],
+  }),
 }));
 
 export const permissionRelations = relations(agentToolPermissions, ({ one }) => ({
   agent: one(agents, {
     fields: [agentToolPermissions.agentId],
-    references: [agents.id]
+    references: [agents.id],
   }),
   provider: one(toolProviders, {
     fields: [agentToolPermissions.providerId],
-    references: [toolProviders.id]
-  })
+    references: [toolProviders.id],
+  }),
 }));
 
 export const providerAppCredentialRelations = relations(toolProviderAppCredentials, ({ one }) => ({
   provider: one(toolProviders, {
     fields: [toolProviderAppCredentials.providerId],
-    references: [toolProviders.id]
+    references: [toolProviders.id],
   }),
   workspace: one(workspaces, {
     fields: [toolProviderAppCredentials.workspaceId],
-    references: [workspaces.id]
+    references: [workspaces.id],
   }),
   updatedByUser: one(users, {
     fields: [toolProviderAppCredentials.updatedBy],
-    references: [users.id]
-  })
+    references: [users.id],
+  }),
 }));

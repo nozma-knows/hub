@@ -9,7 +9,7 @@ describe("env", () => {
       BETTER_AUTH_SECRET: "replace-this-secret-in-production-1234",
       HUB_ENCRYPTION_KEY: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
       OPENCLAW_BASE_URL: "http://localhost:18789",
-      OPENCLAW_API_KEY: "replace-me"
+      OPENCLAW_API_KEY: "replace-me",
     };
 
     // Import with a clean module context by spawning a subprocess.
@@ -17,7 +17,7 @@ describe("env", () => {
       cmd: ["bun", "-e", `process.env=${JSON.stringify(env)}; await import('./src/lib/env.ts');`],
       cwd: process.cwd(),
       stdout: "pipe",
-      stderr: "pipe"
+      stderr: "pipe",
     });
 
     const code = await proc.exited;

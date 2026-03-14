@@ -35,7 +35,7 @@ export const ticketMachine = createMachine(
       return {
         ticketId: String(i.ticketId),
         workspaceId: String(i.workspaceId),
-        pendingQuestion: null
+        pendingQuestion: null,
       };
     },
     states: {
@@ -44,37 +44,37 @@ export const ticketMachine = createMachine(
           "DISPATCH.START": "running",
           NEEDS_INPUT: {
             target: "needs_input",
-            actions: "setPending"
-          }
-        }
+            actions: "setPending",
+          },
+        },
       },
       running: {
         on: {
           "DISPATCH.OK": {
             target: "idle",
-            actions: "setNote"
+            actions: "setNote",
           },
           "DISPATCH.ERROR": {
             target: "idle",
-            actions: "setNote"
+            actions: "setNote",
           },
           NEEDS_INPUT: {
             target: "needs_input",
-            actions: "setPending"
+            actions: "setPending",
           },
           "DONE.REQUESTED": {
-            target: "done_pending_verification"
-          }
-        }
+            target: "done_pending_verification",
+          },
+        },
       },
       needs_input: {
         on: {
           "INPUT.RECEIVED": {
             target: "running",
-            actions: ["clearPending", "setNote"]
+            actions: ["clearPending", "setNote"],
           },
-          "DISPATCH.START": "running"
-        }
+          "DISPATCH.START": "running",
+        },
       },
       done_pending_verification: {
         on: {
@@ -82,41 +82,44 @@ export const ticketMachine = createMachine(
             {
               guard: "isVerified",
               target: "done",
-              actions: "setNote"
+              actions: "setNote",
             },
             {
               target: "running",
-              actions: "setNote"
-            }
+              actions: "setNote",
+            },
           ],
           NEEDS_INPUT: {
             target: "needs_input",
-            actions: "setPending"
-          }
-        }
+            actions: "setPending",
+          },
+        },
       },
       done: {
-        type: "final"
-      }
-    }
+        type: "final",
+      },
+    },
   },
   {
     actions: {
-      setPending: assign({ pendingQuestion: ({ event }) => (event.type === "NEEDS_INPUT" ? event.pending : null) }),
+      setPending: assign({
+        pendingQuestion: ({ event }) => (event.type === "NEEDS_INPUT" ? event.pending : null),
+      }),
       clearPending: assign({ pendingQuestion: null }),
       setNote: assign({
         lastNote: ({ event }) => {
           if (event.type === "DISPATCH.OK") return event.note ?? "ok";
           if (event.type === "DISPATCH.ERROR") return event.error;
           if (event.type === "INPUT.RECEIVED") return `input: ${event.answer}`;
-          if (event.type === "DONE.REQUESTED") return event.note ?? (event.verified ? "verified" : "unverified");
+          if (event.type === "DONE.REQUESTED")
+            return event.note ?? (event.verified ? "verified" : "unverified");
           return undefined;
-        }
-      })
+        },
+      }),
     },
     guards: {
-      isVerified: ({ event }) => event.type === "DONE.REQUESTED" && event.verified
-    }
+      isVerified: ({ event }) => event.type === "DONE.REQUESTED" && event.verified,
+    },
   }
 );
 
@@ -131,7 +134,8 @@ export function extractNeedsInput(text: string): PendingQuestion | null {
   if (!question) return null;
 
   const choicesRaw = matchLine(text, /^CHOICES\s*:\s*(.+)$/im);
-  const next = matchLine(text, /^WHAT_I_WILL_DO_NEXT\s*:\s*(.+)$/im) ?? matchLine(text, /^NEXT\s*:\s*(.+)$/im);
+  const next =
+    matchLine(text, /^WHAT_I_WILL_DO_NEXT\s*:\s*(.+)$/im) ?? matchLine(text, /^NEXT\s*:\s*(.+)$/im);
 
   const choices = choicesRaw
     ? choicesRaw

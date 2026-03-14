@@ -24,7 +24,7 @@ export function getProviderByKey(key: string): ToolProvider {
 export async function ensureProviderSeeds(): Promise<void> {
   for (const provider of providers) {
     const exists = await db.query.toolProviders.findFirst({
-      where: eq(toolProviders.key, provider.key)
+      where: eq(toolProviders.key, provider.key),
     });
 
     if (!exists) {
@@ -33,8 +33,8 @@ export async function ensureProviderSeeds(): Promise<void> {
         name: provider.displayName,
         authType: provider.authType,
         capabilitiesSchema: {
-          capabilities: provider.listCapabilities()
-        }
+          capabilities: provider.listCapabilities(),
+        },
       });
     }
   }
@@ -45,7 +45,7 @@ export async function getUserConnectionForProvider(params: {
   userId: string;
 }) {
   const provider = await db.query.toolProviders.findFirst({
-    where: eq(toolProviders.key, params.providerKey)
+    where: eq(toolProviders.key, params.providerKey),
   });
 
   if (!provider) {
@@ -53,7 +53,7 @@ export async function getUserConnectionForProvider(params: {
   }
 
   const connection = await db.query.toolConnections.findFirst({
-    where: and(eq(toolConnections.providerId, provider.id), eq(toolConnections.userId, params.userId))
+    where: and(eq(toolConnections.providerId, provider.id), eq(toolConnections.userId, params.userId)),
   });
 
   if (!connection) {
@@ -62,6 +62,6 @@ export async function getUserConnectionForProvider(params: {
 
   return {
     provider,
-    connection
+    connection,
   };
 }

@@ -16,7 +16,7 @@ function getState(): MicManagerState {
       stream: null,
       streamPromise: null,
       idleTimer: null,
-      idleMs: Number(process.env.NEXT_PUBLIC_HUB_MIC_IDLE_MS ?? 15_000)
+      idleMs: Number(process.env.NEXT_PUBLIC_HUB_MIC_IDLE_MS ?? 15_000),
     } satisfies MicManagerState;
   }
   return g[key] as MicManagerState;

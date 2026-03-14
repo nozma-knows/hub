@@ -14,18 +14,18 @@ export const auth = betterAuth({
       ? {
           google: {
             clientId: env.GOOGLE_CLIENT_ID,
-            clientSecret: env.GOOGLE_CLIENT_SECRET
-          }
+            clientSecret: env.GOOGLE_CLIENT_SECRET,
+          },
         }
       : {},
   database: drizzleAdapter(db, {
     provider: "pg",
-    schema
+    schema,
   }),
   emailAndPassword: {
-    enabled: false
+    enabled: false,
   },
   session: {
-    expiresIn: 60 * 60 * 24 * 7
-  }
+    expiresIn: 60 * 60 * 24 * 7,
+  },
 });

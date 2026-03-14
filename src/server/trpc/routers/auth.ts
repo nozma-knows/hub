@@ -12,8 +12,8 @@ export const authRouter = createTrpcRouter({
       name: ctx.user.name,
       workspace: {
         id: ctx.workspace.id,
-        role: ctx.workspace.role
-      }
+        role: ctx.workspace.role,
+      },
     };
-  })
+  }),
 });

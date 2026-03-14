@@ -56,7 +56,7 @@ const envSchema = z.object({
   SLACK_SCOPES: z.string().default("channels:read,chat:write,users:read"),
   LINEAR_CLIENT_ID: z.string().optional(),
   LINEAR_CLIENT_SECRET: z.string().optional(),
-  LINEAR_SCOPES: z.string().default("read,write")
+  LINEAR_SCOPES: z.string().default("read,write"),
 });
 
 const parsed = envSchema.safeParse(process.env);

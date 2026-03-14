@@ -27,13 +27,20 @@ function parseCronListJson(raw: any): HubSchedule[] {
       const schedule = j?.schedule;
       let sched: HubSchedule["schedule"] | undefined;
       if (schedule?.kind === "at") sched = { kind: "at", value: String(schedule.at ?? "") };
-      if (schedule?.kind === "every") sched = { kind: "every", value: String(schedule.everyMs ?? schedule.every ?? "") };
-      if (schedule?.kind === "cron") sched = { kind: "cron", value: String(schedule.expr ?? ""), tz: schedule.tz ? String(schedule.tz) : undefined };
+      if (schedule?.kind === "every")
+        sched = { kind: "every", value: String(schedule.everyMs ?? schedule.every ?? "") };
+      if (schedule?.kind === "cron")
+        sched = {
+          kind: "cron",
+          value: String(schedule.expr ?? ""),
+          tz: schedule.tz ? String(schedule.tz) : undefined,
+        };
 
       const payload = j?.payload;
       let pay: HubSchedule["payload"] | undefined;
       if (payload?.kind === "systemEvent") pay = { kind: "systemEvent", text: String(payload.text ?? "") };
-      if (payload?.kind === "agentTurn") pay = { kind: "agentTurn", text: String(payload.message ?? payload.text ?? "") };
+      if (payload?.kind === "agentTurn")
+        pay = { kind: "agentTurn", text: String(payload.message ?? payload.text ?? "") };
 
       const delivery = j?.delivery;
       const announce = delivery?.mode === "announce" || Boolean(j?.announce);
@@ -43,11 +50,12 @@ function parseCronListJson(raw: any): HubSchedule[] {
         name: String(j.name ?? "(unnamed)"),
         enabled: Boolean(j.enabled ?? true),
         agentId: j.agentId ? String(j.agentId) : undefined,
-        sessionTarget: j.sessionTarget === "main" || j.sessionTarget === "isolated" ? j.sessionTarget : undefined,
+        sessionTarget:
+          j.sessionTarget === "main" || j.sessionTarget === "isolated" ? j.sessionTarget : undefined,
         schedule: sched,
         payload: pay,
         delivery: { announce, channel: delivery?.channel, to: delivery?.to },
-        raw: j
+        raw: j,
       } satisfies HubSchedule;
     })
     .filter((j: HubSchedule) => Boolean(j.id));
@@ -71,7 +79,7 @@ export const schedulesRouter = createTrpcRouter({
         scheduleValue: z.string().min(1),
         tz: z.string().optional(),
         message: z.string().min(1),
-        announce: z.boolean().default(true)
+        announce: z.boolean().default(true),
       })
     )
     .mutation(async ({ input }) => {
@@ -117,7 +125,7 @@ export const schedulesRouter = createTrpcRouter({
         scheduleValue: z.string().min(1).optional(),
         tz: z.string().optional(),
         message: z.string().min(1).optional(),
-        announce: z.boolean().optional()
+        announce: z.boolean().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -153,12 +161,16 @@ export const schedulesRouter = createTrpcRouter({
     }),
 
   remove: protectedProcedure.input(z.object({ id: z.string().min(1) })).mutation(async ({ input }) => {
-    const out = await openClawCliAdapter.runCommand(`openclaw cron rm ${shQuote(input.id)}`, { timeoutMs: 30000 });
+    const out = await openClawCliAdapter.runCommand(`openclaw cron rm ${shQuote(input.id)}`, {
+      timeoutMs: 30000,
+    });
     return { ok: true, raw: out };
   }),
 
   runNow: protectedProcedure.input(z.object({ id: z.string().min(1) })).mutation(async ({ input }) => {
-    const out = await openClawCliAdapter.runCommand(`openclaw cron run ${shQuote(input.id)}`, { timeoutMs: 30000 });
+    const out = await openClawCliAdapter.runCommand(`openclaw cron run ${shQuote(input.id)}`, {
+      timeoutMs: 30000,
+    });
     return { ok: true, raw: out };
-  })
+  }),
 });

@@ -8,7 +8,7 @@ import { env } from "@/lib/env";
 import {
   getAvailableModels,
   supportedModelProviders,
-  type SupportedModelProvider
+  type SupportedModelProvider,
 } from "@/lib/model-catalog";
 import { adminProcedure, createTrpcRouter, protectedProcedure } from "@/server/trpc/init";
 
@@ -18,7 +18,7 @@ export const modelCredentialsRouter = createTrpcRouter({
   list: protectedProcedure.query(async ({ ctx }) => {
     const rows = await ctx.db.query.modelProviderCredentials.findMany({
       where: eq(modelProviderCredentials.workspaceId, ctx.workspace.id),
-      orderBy: (table, { asc }) => [asc(table.providerKey), asc(table.label)]
+      orderBy: (table, { asc }) => [asc(table.providerKey), asc(table.label)],
     });
 
     return rows.map((row) => ({
@@ -26,7 +26,7 @@ export const modelCredentialsRouter = createTrpcRouter({
       providerKey: row.providerKey,
       label: row.label,
       createdAt: row.createdAt,
-      updatedAt: row.updatedAt
+      updatedAt: row.updatedAt,
     }));
   }),
 
@@ -35,7 +35,7 @@ export const modelCredentialsRouter = createTrpcRouter({
       z.object({
         providerKey: providerSchema,
         apiKey: z.string().min(10),
-        label: z.string().min(1).default("default")
+        label: z.string().min(1).default("default"),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -49,19 +49,19 @@ export const modelCredentialsRouter = createTrpcRouter({
           encryptedApiKey,
           label: input.label,
           createdBy: ctx.user!.id,
-          updatedBy: ctx.user!.id
+          updatedBy: ctx.user!.id,
         })
         .onConflictDoUpdate({
           target: [
             modelProviderCredentials.workspaceId,
             modelProviderCredentials.providerKey,
-            modelProviderCredentials.label
+            modelProviderCredentials.label,
           ],
           set: {
             encryptedApiKey,
             updatedBy: ctx.user!.id,
-            updatedAt: new Date()
-          }
+            updatedAt: new Date(),
+          },
         });
 
       await logAuditEvent({
@@ -71,8 +71,8 @@ export const modelCredentialsRouter = createTrpcRouter({
         result: "success",
         details: {
           providerKey: input.providerKey,
-          label: input.label
-        }
+          label: input.label,
+        },
       });
 
       return { success: true };
@@ -82,7 +82,7 @@ export const modelCredentialsRouter = createTrpcRouter({
     .input(
       z.object({
         providerKey: providerSchema,
-        label: z.string().min(1).default("default")
+        label: z.string().min(1).default("default"),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -103,8 +103,8 @@ export const modelCredentialsRouter = createTrpcRouter({
         result: "success",
         details: {
           providerKey: input.providerKey,
-          label: input.label
-        }
+          label: input.label,
+        },
       });
 
       return { success: true };
@@ -113,7 +113,7 @@ export const modelCredentialsRouter = createTrpcRouter({
   seedFromEnv: adminProcedure.mutation(async ({ ctx }) => {
     const seeds: Array<{ providerKey: SupportedModelProvider; apiKey: string | undefined }> = [
       { providerKey: "openai", apiKey: env.OPENAI_API_KEY },
-      { providerKey: "anthropic", apiKey: env.ANTHROPIC_API_KEY }
+      { providerKey: "anthropic", apiKey: env.ANTHROPIC_API_KEY },
     ];
 
     const seeded: string[] = [];
@@ -131,19 +131,19 @@ export const modelCredentialsRouter = createTrpcRouter({
           encryptedApiKey,
           label: "default",
           createdBy: ctx.user!.id,
-          updatedBy: ctx.user!.id
+          updatedBy: ctx.user!.id,
         })
         .onConflictDoUpdate({
           target: [
             modelProviderCredentials.workspaceId,
             modelProviderCredentials.providerKey,
-            modelProviderCredentials.label
+            modelProviderCredentials.label,
           ],
           set: {
             encryptedApiKey,
             updatedBy: ctx.user!.id,
-            updatedAt: new Date()
-          }
+            updatedAt: new Date(),
+          },
         });
       seeded.push(seed.providerKey);
     }
@@ -154,8 +154,8 @@ export const modelCredentialsRouter = createTrpcRouter({
       actorUserId: ctx.user!.id,
       result: "success",
       details: {
-        seeded
-      }
+        seeded,
+      },
     });
 
     return { seeded };
@@ -167,15 +167,15 @@ export const modelCredentialsRouter = createTrpcRouter({
     .input(
       z.object({
         providerKey: providerSchema,
-        forceRefresh: z.boolean().default(false)
+        forceRefresh: z.boolean().default(false),
       })
     )
     .query(async ({ ctx, input }) => {
       const models = await getAvailableModels({
         workspaceId: ctx.workspace.id,
         provider: input.providerKey,
-        forceRefresh: input.forceRefresh
+        forceRefresh: input.forceRefresh,
       });
       return models;
-    })
+    }),
 });

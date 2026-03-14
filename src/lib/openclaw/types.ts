@@ -47,12 +47,12 @@ export type InvokeAgentInput = {
 export type OpenClawSession = {
   id: string;
   agentId: string;
-  kind: 'direct' | 'cron' | 'spawn' | 'webhook';
+  kind: "direct" | "cron" | "spawn" | "webhook";
   model: string;
   tokensUsed: number;
   tokensTotal: number;
   lastActivity: Date;
-  status: 'active' | 'idle' | 'ended' | 'error';
+  status: "active" | "idle" | "ended" | "error";
   errorMessage?: string;
 };
 
@@ -63,7 +63,7 @@ export type OpenClawCronJob = {
   enabled: boolean;
   nextRun?: Date;
   lastRun?: Date;
-  lastStatus?: 'success' | 'failure' | 'timeout' | 'pending';
+  lastStatus?: "success" | "failure" | "timeout" | "pending";
   agentId: string;
   errorMessage?: string;
   runCount?: number;

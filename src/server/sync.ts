@@ -38,8 +38,8 @@ export function startReconciliationSync(): void {
 
       const workspaceRows = await db.query.workspaces.findMany({
         columns: {
-          id: true
-        }
+          id: true,
+        },
       });
 
       await Promise.all(
@@ -62,7 +62,7 @@ export function startReconciliationSync(): void {
                   removedAt: null,
                   lastSeenUpstreamAt: new Date(),
                   lastSyncedAt: new Date(),
-                  updatedAt: new Date()
+                  updatedAt: new Date(),
                 })
                 .onConflictDoUpdate({
                   target: agents.id,
@@ -79,8 +79,8 @@ export function startReconciliationSync(): void {
                     removedAt: null,
                     lastSeenUpstreamAt: new Date(),
                     lastSyncedAt: new Date(),
-                    updatedAt: new Date()
-                  }
+                    updatedAt: new Date(),
+                  },
                 })
             )
           );
@@ -88,8 +88,8 @@ export function startReconciliationSync(): void {
           const existing = await db.query.agents.findMany({
             where: and(eq(agents.workspaceId, workspace.id), eq(agents.isRemoved, false)),
             columns: {
-              id: true
-            }
+              id: true,
+            },
           });
           const existingIds = existing.map((row) => row.id);
           const liveIds = live.map((agent) => agent.id);
@@ -104,7 +104,7 @@ export function startReconciliationSync(): void {
               .set({
                 isRemoved: true,
                 removedAt: new Date(),
-                updatedAt: new Date()
+                updatedAt: new Date(),
               })
               .where(and(eq(agents.workspaceId, workspace.id), inArray(agents.id, existingIds)));
             return;
@@ -115,7 +115,7 @@ export function startReconciliationSync(): void {
             .set({
               isRemoved: true,
               removedAt: new Date(),
-              updatedAt: new Date()
+              updatedAt: new Date(),
             })
             .where(
               and(

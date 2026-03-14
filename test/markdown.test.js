@@ -16,7 +16,7 @@ describe("MarkdownMessage", () => {
     expect(html).toContain("<code");
     expect(html).toContain("<pre");
     expect(html).toContain("<blockquote");
-    expect(html).toContain("href=\"https://example.com\"");
+    expect(html).toContain('href="https://example.com"');
   });
 
   test("sanitizes/does not render raw HTML", () => {

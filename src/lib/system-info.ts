@@ -105,9 +105,9 @@ export async function getHostInfo(): Promise<HubHostInfo> {
     memory: {
       total: totalMem,
       free: freeMem,
-      used: usedMem
+      used: usedMem,
     },
     swap,
-    diskRoot
+    diskRoot,
   };
 }

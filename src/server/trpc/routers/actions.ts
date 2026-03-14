@@ -8,7 +8,7 @@ import {
   agentToolPermissions,
   toolConnections,
   toolProviderAppCredentials,
-  toolProviders
+  toolProviders,
 } from "@/db/schema";
 import { logAuditEvent } from "@/lib/audit";
 import { decryptString, encryptString } from "@/lib/crypto";
@@ -22,7 +22,7 @@ export const actionsRouter = createTrpcRouter({
     .input(
       z.object({
         agentId: z.string().min(1),
-        prompt: z.string().min(1)
+        prompt: z.string().min(1),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -33,7 +33,7 @@ export const actionsRouter = createTrpcRouter({
         .select({
           providerId: agentToolPermissions.providerId,
           scopeOverrides: agentToolPermissions.scopeOverrides,
-          providerKey: toolProviders.key
+          providerKey: toolProviders.key,
         })
         .from(agentToolPermissions)
         .innerJoin(toolProviders, eq(toolProviders.id, agentToolPermissions.providerId))
@@ -54,7 +54,7 @@ export const actionsRouter = createTrpcRouter({
             eq(toolConnections.providerId, row.providerId),
             eq(toolConnections.workspaceId, ctx.workspace.id),
             eq(toolConnections.userId, ctx.user!.id)
-          )
+          ),
         });
 
         if (!connection) {
@@ -70,7 +70,7 @@ export const actionsRouter = createTrpcRouter({
           where: and(
             eq(toolProviderAppCredentials.workspaceId, ctx.workspace.id),
             eq(toolProviderAppCredentials.providerId, row.providerId)
-          )
+          ),
         });
 
         if (!appCreds) {
@@ -81,12 +81,12 @@ export const actionsRouter = createTrpcRouter({
           {
             connection,
             decryptedAccessToken: accessToken,
-            decryptedRefreshToken: refreshToken
+            decryptedRefreshToken: refreshToken,
           },
           {
             clientId: decryptString(appCreds.encryptedClientId),
             clientSecret: decryptString(appCreds.encryptedClientSecret),
-            scopes: appCreds.scopes
+            scopes: appCreds.scopes,
           }
         );
 
@@ -101,7 +101,7 @@ export const actionsRouter = createTrpcRouter({
               encryptedRefreshToken: refreshToken ? encryptString(refreshToken) : null,
               expiresAt: refreshed.expiresAt,
               scopes: refreshed.scopes,
-              updatedAt: new Date()
+              updatedAt: new Date(),
             })
             .where(
               and(
@@ -116,14 +116,14 @@ export const actionsRouter = createTrpcRouter({
           provider.buildOpenClawToolBindings({
             decryptedAccessToken: accessToken,
             decryptedRefreshToken: refreshToken,
-            scopeOverrides: row.scopeOverrides
+            scopeOverrides: row.scopeOverrides,
           })
         );
       }
 
       const result = await openClawAdapter.invokeAgent(input.agentId, {
         prompt: input.prompt,
-        toolBindings
+        toolBindings,
       });
 
       const usageRaw =
@@ -167,8 +167,8 @@ export const actionsRouter = createTrpcRouter({
         result: "success",
         usageRaw,
         requestMeta: {
-          toolBindingCount: toolBindings.length
-        }
+          toolBindingCount: toolBindings.length,
+        },
       });
 
       await logAuditEvent({
@@ -179,13 +179,13 @@ export const actionsRouter = createTrpcRouter({
         agentId: input.agentId,
         result: "success",
         details: {
-          toolBindingCount: toolBindings.length
-        }
+          toolBindingCount: toolBindings.length,
+        },
       });
 
       return {
         result,
-        toolBindingCount: toolBindings.length
+        toolBindingCount: toolBindings.length,
       };
-    })
+    }),
 });

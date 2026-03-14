@@ -1,7 +1,13 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
-import { hubDispatcherState, hubThreadTickets, hubTicketComments, hubTicketRuns, hubTickets } from "@/db/schema";
+import {
+  hubDispatcherState,
+  hubThreadTickets,
+  hubTicketComments,
+  hubTicketRuns,
+  hubTickets,
+} from "@/db/schema";
 import { logAuditEvent } from "@/lib/audit";
 import { openClawAgentTurn } from "@/lib/openclaw/cli-adapter";
 import { adminProcedure, createTrpcRouter, protectedProcedure } from "@/server/trpc/init";
@@ -12,7 +18,7 @@ const prioritySchema = z.enum(["low", "normal", "high", "urgent"]);
 export const ticketsRouter = createTrpcRouter({
   health: protectedProcedure.query(async ({ ctx }) => {
     const dispatcher = await ctx.db.query.hubDispatcherState.findFirst({
-      where: eq(hubDispatcherState.key, "main")
+      where: eq(hubDispatcherState.key, "main"),
     });
 
     const rows = await ctx.db.execute(sql`
@@ -24,7 +30,7 @@ export const ticketsRouter = createTrpcRouter({
     `);
 
     const byStatus: Record<string, number> = {};
-    for (const r of (rows.rows as any[])) byStatus[String(r.status)] = Number(r.count);
+    for (const r of rows.rows as any[]) byStatus[String(r.status)] = Number(r.count);
 
     const running = await ctx.db.execute(sql`
       select count(*)::int as count
@@ -44,48 +50,56 @@ export const ticketsRouter = createTrpcRouter({
 
     return {
       dispatcher: dispatcher
-        ? { lastTickAt: dispatcher.lastTickAt, lastError: dispatcher.lastError, updatedAt: dispatcher.updatedAt }
+        ? {
+            lastTickAt: dispatcher.lastTickAt,
+            lastError: dispatcher.lastError,
+            updatedAt: dispatcher.updatedAt,
+          }
         : null,
       tickets: {
         byStatus,
         running: Number((running.rows as any[])[0]?.count ?? 0),
-        error: Number((errored.rows as any[])[0]?.count ?? 0)
-      }
+        error: Number((errored.rows as any[])[0]?.count ?? 0),
+      },
     };
   }),
 
   list: protectedProcedure.query(async ({ ctx }) => {
     return ctx.db.query.hubTickets.findMany({
       where: and(eq(hubTickets.workspaceId, ctx.workspace.id), sql`${hubTickets.deletedAt} is null`),
-      orderBy: (t, { desc: descOrder }) => [descOrder(t.updatedAt)]
+      orderBy: (t, { desc: descOrder }) => [descOrder(t.updatedAt)],
     });
   }),
 
-  get: protectedProcedure
-    .input(z.object({ ticketId: z.string().uuid() }))
-    .query(async ({ ctx, input }) => {
-      const ticket = await ctx.db.query.hubTickets.findFirst({
-        where: and(eq(hubTickets.workspaceId, ctx.workspace.id), eq(hubTickets.id, input.ticketId))
-      });
-      if (!ticket) throw new Error("Ticket not found");
+  get: protectedProcedure.input(z.object({ ticketId: z.string().uuid() })).query(async ({ ctx, input }) => {
+    const ticket = await ctx.db.query.hubTickets.findFirst({
+      where: and(eq(hubTickets.workspaceId, ctx.workspace.id), eq(hubTickets.id, input.ticketId)),
+    });
+    if (!ticket) throw new Error("Ticket not found");
 
-      const comments = await ctx.db.query.hubTicketComments.findMany({
-        where: and(eq(hubTicketComments.workspaceId, ctx.workspace.id), eq(hubTicketComments.ticketId, input.ticketId)),
-        orderBy: (t, { asc }) => [asc(t.createdAt)]
-      });
+    const comments = await ctx.db.query.hubTicketComments.findMany({
+      where: and(
+        eq(hubTicketComments.workspaceId, ctx.workspace.id),
+        eq(hubTicketComments.ticketId, input.ticketId)
+      ),
+      orderBy: (t, { asc }) => [asc(t.createdAt)],
+    });
 
-      const links = await ctx.db.query.hubThreadTickets.findMany({
-        where: and(eq(hubThreadTickets.workspaceId, ctx.workspace.id), eq(hubThreadTickets.ticketId, input.ticketId))
-      });
+    const links = await ctx.db.query.hubThreadTickets.findMany({
+      where: and(
+        eq(hubThreadTickets.workspaceId, ctx.workspace.id),
+        eq(hubThreadTickets.ticketId, input.ticketId)
+      ),
+    });
 
-      const runs = await ctx.db.query.hubTicketRuns.findMany({
-        where: and(eq(hubTicketRuns.workspaceId, ctx.workspace.id), eq(hubTicketRuns.ticketId, input.ticketId)),
-        orderBy: (t, { desc }) => [desc(t.startedAt)],
-        limit: 50
-      });
+    const runs = await ctx.db.query.hubTicketRuns.findMany({
+      where: and(eq(hubTicketRuns.workspaceId, ctx.workspace.id), eq(hubTicketRuns.ticketId, input.ticketId)),
+      orderBy: (t, { desc }) => [desc(t.startedAt)],
+      limit: 50,
+    });
 
-      return { ticket, comments, threadLinks: links, runs, pendingQuestion: (ticket as any).pendingQuestion };
-    }),
+    return { ticket, comments, threadLinks: links, runs, pendingQuestion: (ticket as any).pendingQuestion };
+  }),
 
   commentAdd: protectedProcedure
     .input(z.object({ ticketId: z.string().uuid(), body: z.string().min(1).max(20_000) }))
@@ -95,11 +109,11 @@ export const ticketsRouter = createTrpcRouter({
         ticketId: input.ticketId,
         authorType: "human",
         authorUserId: ctx.user!.id,
-        body: input.body
+        body: input.body,
       });
 
       const ticket = await ctx.db.query.hubTickets.findFirst({
-        where: and(eq(hubTickets.workspaceId, ctx.workspace.id), eq(hubTickets.id, input.ticketId))
+        where: and(eq(hubTickets.workspaceId, ctx.workspace.id), eq(hubTickets.id, input.ticketId)),
       });
 
       await ctx.db
@@ -118,7 +132,7 @@ export const ticketsRouter = createTrpcRouter({
               workspaceId: ctx.workspace.id,
               ticketId: input.ticketId,
               authorType: "system",
-              body: `▶️ Resuming (from your comment)… (${runId})`
+              body: `▶️ Resuming (from your comment)… (${runId})`,
             });
 
             const comments = await ctx.db.query.hubTicketComments.findMany({
@@ -127,13 +141,16 @@ export const ticketsRouter = createTrpcRouter({
                 eq(hubTicketComments.ticketId, input.ticketId)
               ),
               orderBy: (t, { desc }) => [desc(t.createdAt)],
-              limit: 12
+              limit: 12,
             });
 
             const context = comments
               .slice()
               .reverse()
-              .map((c) => `${c.authorType === "agent" ? `agent:${c.authorAgentId ?? "?"}` : c.authorType}: ${c.body}`)
+              .map(
+                (c) =>
+                  `${c.authorType === "agent" ? `agent:${c.authorAgentId ?? "?"}` : c.authorType}: ${c.body}`
+              )
               .join("\n");
 
             const prompt = `You are working a ticket in OpenClaw Hub.
@@ -168,7 +185,7 @@ Respond with:
             const result = await openClawAgentTurn({
               agentId: ticket.ownerAgentId!,
               message: prompt,
-              timeoutSeconds: 600
+              timeoutSeconds: 600,
             });
 
             const output = (result.output || result.message || result.text || "").toString();
@@ -178,7 +195,7 @@ Respond with:
               ticketId: input.ticketId,
               authorType: "agent",
               authorAgentId: ticket.ownerAgentId!,
-              body: output
+              body: output,
             });
 
             const needsInput = /(^|\n)\s*NEEDS_INPUT\s*:/i.test(output);
@@ -189,7 +206,7 @@ Respond with:
                 status: needsInput ? "todo" : "in_progress",
                 dispatchState: needsInput ? "needs_input" : "idle",
                 lastDispatchedAt: new Date(),
-                updatedAt: new Date()
+                updatedAt: new Date(),
               })
               .where(and(eq(hubTickets.workspaceId, ctx.workspace.id), eq(hubTickets.id, input.ticketId)));
 
@@ -198,7 +215,7 @@ Respond with:
                 workspaceId: ctx.workspace.id,
                 ticketId: input.ticketId,
                 authorType: "system",
-                body: `❓ Waiting on input from Noah. Reply with a ticket comment and I'll auto-resume.`
+                body: `❓ Waiting on input from Noah. Reply with a ticket comment and I'll auto-resume.`,
               });
             }
           } catch (err) {
@@ -208,7 +225,7 @@ Respond with:
                 workspaceId: ctx.workspace.id,
                 ticketId: input.ticketId,
                 authorType: "system",
-                body: `⚠️ Auto-resume failed (${runId}): ${msg}`
+                body: `⚠️ Auto-resume failed (${runId}): ${msg}`,
               });
             } catch {
               // ignore
@@ -217,7 +234,10 @@ Respond with:
         })();
       }
 
-      return { ok: true, autoResumed: Boolean(ticket?.dispatchState === "needs_input" && ticket?.ownerAgentId) };
+      return {
+        ok: true,
+        autoResumed: Boolean(ticket?.dispatchState === "needs_input" && ticket?.ownerAgentId),
+      };
     }),
 
   createFromThread: protectedProcedure
@@ -226,13 +246,15 @@ Respond with:
         threadId: z.string().uuid(),
         title: z.string().min(1).max(200),
         description: z.string().optional(),
-        ownerAgentId: z.string().optional()
+        ownerAgentId: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
       // Default owner is the coordinator agent.
       const rawOwnerAgentId = input.ownerAgentId ?? "cos";
-      const ownerAgentId = ["cos", "dev", "ops", "research", "main"].includes(rawOwnerAgentId) ? rawOwnerAgentId : "cos";
+      const ownerAgentId = ["cos", "dev", "ops", "research", "main"].includes(rawOwnerAgentId)
+        ? rawOwnerAgentId
+        : "cos";
       const [created] = await ctx.db
         .insert(hubTickets)
         .values({
@@ -242,7 +264,7 @@ Respond with:
           status: "todo",
           priority: "normal",
           ownerAgentId,
-          createdByUserId: ctx.user!.id
+          createdByUserId: ctx.user!.id,
         })
         .returning();
 
@@ -251,7 +273,7 @@ Respond with:
       await ctx.db.insert(hubThreadTickets).values({
         workspaceId: ctx.workspace.id,
         threadId: input.threadId,
-        ticketId: created.id
+        ticketId: created.id,
       });
 
       await logAuditEvent({
@@ -259,7 +281,7 @@ Respond with:
         eventType: "tickets.createFromThread",
         actorUserId: ctx.user!.id,
         result: "success",
-        details: { ticketId: created.id, threadId: input.threadId }
+        details: { ticketId: created.id, threadId: input.threadId },
       });
 
       return created;
@@ -269,7 +291,7 @@ Respond with:
     .input(z.object({ ticketId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const ticket = await ctx.db.query.hubTickets.findFirst({
-        where: and(eq(hubTickets.workspaceId, ctx.workspace.id), eq(hubTickets.id, input.ticketId))
+        where: and(eq(hubTickets.workspaceId, ctx.workspace.id), eq(hubTickets.id, input.ticketId)),
       });
       if (!ticket) throw new Error("Ticket not found");
       if (!ticket.ownerAgentId) throw new Error("Ticket has no owner agent");
@@ -279,7 +301,7 @@ Respond with:
       const result = await openClawAgentTurn({
         agentId: ticket.ownerAgentId,
         message: prompt,
-        timeoutSeconds: 300
+        timeoutSeconds: 300,
       });
 
       const output = (result.output || result.message || result.text || "").toString();
@@ -290,7 +312,7 @@ Respond with:
         ticketId: ticket.id,
         authorType: "agent",
         authorAgentId: ticket.ownerAgentId,
-        body: output
+        body: output,
       });
 
       await ctx.db
@@ -309,13 +331,15 @@ Respond with:
         title: z.string().min(1).max(200),
         description: z.string().optional(),
         priority: prioritySchema.default("normal"),
-        ownerAgentId: z.string().optional()
+        ownerAgentId: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
       // Default owner is the coordinator agent.
       const rawOwnerAgentId = input.ownerAgentId ?? "cos";
-      const ownerAgentId = ["cos", "dev", "ops", "research", "main"].includes(rawOwnerAgentId) ? rawOwnerAgentId : "cos";
+      const ownerAgentId = ["cos", "dev", "ops", "research", "main"].includes(rawOwnerAgentId)
+        ? rawOwnerAgentId
+        : "cos";
       const [created] = await ctx.db
         .insert(hubTickets)
         .values({
@@ -325,7 +349,7 @@ Respond with:
           priority: input.priority,
           status: "todo",
           ownerAgentId,
-          createdByUserId: ctx.user!.id
+          createdByUserId: ctx.user!.id,
         })
         .returning();
 
@@ -336,7 +360,7 @@ Respond with:
         eventType: "tickets.create",
         actorUserId: ctx.user!.id,
         result: "success",
-        details: { ticketId: created.id }
+        details: { ticketId: created.id },
       });
 
       return created;
@@ -349,7 +373,7 @@ Respond with:
         title: z.string().min(1).max(200).optional(),
         description: z.string().optional(),
         priority: prioritySchema.optional(),
-        ownerAgentId: z.string().nullable().optional()
+        ownerAgentId: z.string().nullable().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -366,10 +390,10 @@ Respond with:
                     ? null
                     : ["cos", "dev", "ops", "research", "main"].includes(input.ownerAgentId)
                       ? input.ownerAgentId
-                      : "cos"
+                      : "cos",
               }
             : {}),
-          updatedAt: new Date()
+          updatedAt: new Date(),
         })
         .where(and(eq(hubTickets.workspaceId, ctx.workspace.id), eq(hubTickets.id, input.ticketId)));
 
@@ -386,46 +410,44 @@ Respond with:
       return { ok: true };
     }),
 
-  remove: adminProcedure
-    .input(z.object({ ticketId: z.string().uuid() }))
-    .mutation(async ({ ctx, input }) => {
-      // Soft delete: keep history/runs/comments, hide from active views.
-      await ctx.db
-        .update(hubTickets)
-        .set({
-          deletedAt: new Date(),
-          deletedByUserId: ctx.user!.id,
-          // Clear dispatcher locks so an in-flight dispatcher run can't write back after deletion.
-          dispatchState: "idle",
-          dispatchLockId: null,
-          dispatchLockExpiresAt: null,
-          updatedAt: new Date()
-        })
-        .where(and(eq(hubTickets.workspaceId, ctx.workspace.id), eq(hubTickets.id, input.ticketId)));
+  remove: adminProcedure.input(z.object({ ticketId: z.string().uuid() })).mutation(async ({ ctx, input }) => {
+    // Soft delete: keep history/runs/comments, hide from active views.
+    await ctx.db
+      .update(hubTickets)
+      .set({
+        deletedAt: new Date(),
+        deletedByUserId: ctx.user!.id,
+        // Clear dispatcher locks so an in-flight dispatcher run can't write back after deletion.
+        dispatchState: "idle",
+        dispatchLockId: null,
+        dispatchLockExpiresAt: null,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(hubTickets.workspaceId, ctx.workspace.id), eq(hubTickets.id, input.ticketId)));
 
-      await ctx.db.insert(hubTicketComments).values({
-        workspaceId: ctx.workspace.id,
-        ticketId: input.ticketId,
-        authorType: "system",
-        body: `🗑️ Deleted by ${ctx.user!.id}`
-      });
+    await ctx.db.insert(hubTicketComments).values({
+      workspaceId: ctx.workspace.id,
+      ticketId: input.ticketId,
+      authorType: "system",
+      body: `🗑️ Deleted by ${ctx.user!.id}`,
+    });
 
-      await logAuditEvent({
-        workspaceId: ctx.workspace.id,
-        eventType: "tickets.delete",
-        actorUserId: ctx.user!.id,
-        result: "success",
-        details: { ticketId: input.ticketId, kind: "soft" }
-      });
+    await logAuditEvent({
+      workspaceId: ctx.workspace.id,
+      eventType: "tickets.delete",
+      actorUserId: ctx.user!.id,
+      result: "success",
+      details: { ticketId: input.ticketId, kind: "soft" },
+    });
 
-      return { ok: true };
-    }),
+    return { ok: true };
+  }),
 
   retryDispatch: adminProcedure
     .input(z.object({ ticketId: z.string().uuid(), force: z.boolean().optional().default(false) }))
     .mutation(async ({ ctx, input }) => {
       const ticket = await ctx.db.query.hubTickets.findFirst({
-        where: and(eq(hubTickets.workspaceId, ctx.workspace.id), eq(hubTickets.id, input.ticketId))
+        where: and(eq(hubTickets.workspaceId, ctx.workspace.id), eq(hubTickets.id, input.ticketId)),
       });
       if (!ticket) throw new Error("Ticket not found");
       if (ticket.deletedAt) throw new Error("Ticket is deleted");
@@ -453,7 +475,7 @@ Respond with:
           dispatchLockId: null,
           dispatchLockExpiresAt: null,
           lastDispatchError: null,
-          updatedAt: new Date()
+          updatedAt: new Date(),
         })
         .where(and(eq(hubTickets.workspaceId, ctx.workspace.id), eq(hubTickets.id, input.ticketId)));
 
@@ -461,7 +483,7 @@ Respond with:
         workspaceId: ctx.workspace.id,
         ticketId: input.ticketId,
         authorType: "system",
-        body: `🔁 Manual retry queued by ${ctx.user!.id}${input.force ? " (force)" : ""}`
+        body: `🔁 Manual retry queued by ${ctx.user!.id}${input.force ? " (force)" : ""}`,
       });
 
       await logAuditEvent({
@@ -469,9 +491,9 @@ Respond with:
         eventType: "tickets.retryDispatch",
         actorUserId: ctx.user!.id,
         result: "success",
-        details: { ticketId: input.ticketId, force: input.force }
+        details: { ticketId: input.ticketId, force: input.force },
       });
 
       return { ok: true };
-    })
+    }),
 });

@@ -5,9 +5,9 @@ import { z } from "zod";
 
 const activeCommandRuns = new Map<string, { runId: string; startedAt: number }>();
 
-function extractCommandAction(output: string):
-  | { kind: "create_ticket"; title: string; ownerAgentId?: string; description?: string }
-  | null {
+function extractCommandAction(
+  output: string
+): { kind: "create_ticket"; title: string; ownerAgentId?: string; description?: string } | null {
   // Expected format from @command:
   // ```hub-action
   // {"kind":"create_ticket","title":"...","ownerAgentId":"dev","description":"..."}
@@ -24,15 +24,29 @@ function extractCommandAction(output: string):
     return {
       kind: "create_ticket",
       title: parsed.title.trim(),
-      ownerAgentId: typeof parsed.ownerAgentId === "string" && parsed.ownerAgentId.trim() ? parsed.ownerAgentId.trim() : undefined,
-      description: typeof parsed.description === "string" && parsed.description.trim() ? parsed.description.trim() : undefined
+      ownerAgentId:
+        typeof parsed.ownerAgentId === "string" && parsed.ownerAgentId.trim()
+          ? parsed.ownerAgentId.trim()
+          : undefined,
+      description:
+        typeof parsed.description === "string" && parsed.description.trim()
+          ? parsed.description.trim()
+          : undefined,
     };
   } catch {
     return null;
   }
 }
 
-import { hubChannelAgents, hubChannels, hubMessageAttachments, hubMessages, hubThreads, hubThreadTickets, hubTickets } from "@/db/schema";
+import {
+  hubChannelAgents,
+  hubChannels,
+  hubMessageAttachments,
+  hubMessages,
+  hubThreads,
+  hubThreadTickets,
+  hubTickets,
+} from "@/db/schema";
 import { openClawAgentTurn } from "@/lib/openclaw/cli-adapter";
 import { logAuditEvent } from "@/lib/audit";
 import { adminProcedure, createTrpcRouter, protectedProcedure } from "@/server/trpc/init";
@@ -47,14 +61,19 @@ export const messagesRouter = createTrpcRouter({
           and(eq(hubChannels.kind, "dm"), eq(hubChannels.dmOwnerUserId, ctx.user!.id))
         )
       ),
-      orderBy: (t, { asc }) => [asc(t.name)]
+      orderBy: (t, { asc }) => [asc(t.name)],
     });
 
     // Bootstrap: ensure #general exists
     if (rows.length === 0) {
       const [general] = await ctx.db
         .insert(hubChannels)
-        .values({ workspaceId: ctx.workspace.id, name: "general", description: "Default channel", kind: "public" })
+        .values({
+          workspaceId: ctx.workspace.id,
+          name: "general",
+          description: "Default channel",
+          kind: "public",
+        })
         .returning();
       return general ? [general] : [];
     }
@@ -70,7 +89,7 @@ export const messagesRouter = createTrpcRouter({
         eq(hubChannels.kind, "dm"),
         eq(hubChannels.dmOwnerUserId, ctx.user!.id),
         eq(hubChannels.dmTargetAgentId, "cos")
-      )
+      ),
     });
     if (existing) return { channelId: existing.id };
 
@@ -82,7 +101,7 @@ export const messagesRouter = createTrpcRouter({
         dmOwnerUserId: ctx.user!.id,
         dmTargetAgentId: "cos",
         name: `direct-command-${ctx.user!.id.slice(0, 6)}`,
-        description: "Direct messages with Command"
+        description: "Direct messages with Command",
       })
       .returning();
 
@@ -99,7 +118,7 @@ export const messagesRouter = createTrpcRouter({
         createdByUserId: ctx.user!.id,
         createdAt: new Date(),
         updatedAt: new Date(),
-        lastMessageAt: new Date()
+        lastMessageAt: new Date(),
       })
       .returning();
 
@@ -115,7 +134,7 @@ export const messagesRouter = createTrpcRouter({
           .max(80)
           .regex(/^[a-z0-9-]+$/, "Use lowercase letters, numbers, and hyphens"),
         description: z.string().optional(),
-        agentIds: z.array(z.string()).default([])
+        agentIds: z.array(z.string()).default([]),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -124,7 +143,7 @@ export const messagesRouter = createTrpcRouter({
         .values({
           workspaceId: ctx.workspace.id,
           name: input.name,
-          description: input.description
+          description: input.description,
         })
         .returning();
 
@@ -135,7 +154,7 @@ export const messagesRouter = createTrpcRouter({
           input.agentIds.map((agentId) => ({
             workspaceId: ctx.workspace.id,
             channelId: created.id,
-            agentId
+            agentId,
           }))
         );
       }
@@ -145,7 +164,7 @@ export const messagesRouter = createTrpcRouter({
         eventType: "messages.channel.create",
         actorUserId: ctx.user!.id,
         result: "success",
-        details: { name: input.name }
+        details: { name: input.name },
       });
 
       return created;
@@ -155,7 +174,10 @@ export const messagesRouter = createTrpcRouter({
     .input(z.object({ channelId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const rows = await ctx.db.query.hubChannelAgents.findMany({
-        where: and(eq(hubChannelAgents.workspaceId, ctx.workspace.id), eq(hubChannelAgents.channelId, input.channelId))
+        where: and(
+          eq(hubChannelAgents.workspaceId, ctx.workspace.id),
+          eq(hubChannelAgents.channelId, input.channelId)
+        ),
       });
       return rows.map((r) => r.agentId);
     }),
@@ -166,14 +188,19 @@ export const messagesRouter = createTrpcRouter({
       // replace set
       await ctx.db
         .delete(hubChannelAgents)
-        .where(and(eq(hubChannelAgents.workspaceId, ctx.workspace.id), eq(hubChannelAgents.channelId, input.channelId)));
+        .where(
+          and(
+            eq(hubChannelAgents.workspaceId, ctx.workspace.id),
+            eq(hubChannelAgents.channelId, input.channelId)
+          )
+        );
 
       if (input.agentIds.length > 0) {
         await ctx.db.insert(hubChannelAgents).values(
           input.agentIds.map((agentId) => ({
             workspaceId: ctx.workspace.id,
             channelId: input.channelId,
-            agentId
+            agentId,
           }))
         );
       }
@@ -183,7 +210,7 @@ export const messagesRouter = createTrpcRouter({
         eventType: "messages.channel.agents.set",
         actorUserId: ctx.user!.id,
         result: "success",
-        details: { channelId: input.channelId, count: input.agentIds.length }
+        details: { channelId: input.channelId, count: input.agentIds.length },
       });
 
       return { ok: true };
@@ -194,7 +221,7 @@ export const messagesRouter = createTrpcRouter({
     .query(async ({ ctx, input }) => {
       const threads = await ctx.db.query.hubThreads.findMany({
         where: and(eq(hubThreads.workspaceId, ctx.workspace.id), eq(hubThreads.channelId, input.channelId)),
-        orderBy: (t, { desc: descOrder }) => [descOrder(t.lastMessageAt)]
+        orderBy: (t, { desc: descOrder }) => [descOrder(t.lastMessageAt)],
       });
 
       if (threads.length === 0) return [];
@@ -202,7 +229,7 @@ export const messagesRouter = createTrpcRouter({
       const threadIds = threads.map((t) => t.id);
       const lastMessages = await ctx.db.query.hubMessages.findMany({
         where: and(eq(hubMessages.workspaceId, ctx.workspace.id), inArray(hubMessages.threadId, threadIds)),
-        orderBy: (t, { desc: descOrder }) => [descOrder(t.createdAt)]
+        orderBy: (t, { desc: descOrder }) => [descOrder(t.createdAt)],
       });
 
       const lastByThread = new Map<string, string>();
@@ -214,7 +241,7 @@ export const messagesRouter = createTrpcRouter({
 
       return threads.map((t) => ({
         ...t,
-        lastMessagePreview: (lastByThread.get(t.id) || "").slice(0, 200)
+        lastMessagePreview: (lastByThread.get(t.id) || "").slice(0, 200),
       }));
     }),
 
@@ -222,13 +249,13 @@ export const messagesRouter = createTrpcRouter({
     .input(z.object({ threadId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const thread = await ctx.db.query.hubThreads.findFirst({
-        where: and(eq(hubThreads.workspaceId, ctx.workspace.id), eq(hubThreads.id, input.threadId))
+        where: and(eq(hubThreads.workspaceId, ctx.workspace.id), eq(hubThreads.id, input.threadId)),
       });
       if (!thread) throw new Error("Thread not found");
 
       const messages = await ctx.db.query.hubMessages.findMany({
         where: and(eq(hubMessages.workspaceId, ctx.workspace.id), eq(hubMessages.threadId, input.threadId)),
-        orderBy: (t, { asc }) => [asc(t.createdAt)]
+        orderBy: (t, { asc }) => [asc(t.createdAt)],
       });
 
       const messageIds = messages.map((m) => m.id);
@@ -236,7 +263,10 @@ export const messagesRouter = createTrpcRouter({
         messageIds.length === 0
           ? []
           : await ctx.db.query.hubMessageAttachments.findMany({
-              where: and(eq(hubMessageAttachments.workspaceId, ctx.workspace.id), inArray(hubMessageAttachments.messageId, messageIds))
+              where: and(
+                eq(hubMessageAttachments.workspaceId, ctx.workspace.id),
+                inArray(hubMessageAttachments.messageId, messageIds)
+              ),
             });
 
       const byMessage = new Map<string, any[]>();
@@ -251,7 +281,7 @@ export const messagesRouter = createTrpcRouter({
           width: a.width,
           height: a.height,
           originalName: a.originalName,
-          url: `/api/media/${a.id}`
+          url: `/api/media/${a.id}`,
         });
         byMessage.set(a.messageId, arr);
       }
@@ -260,8 +290,8 @@ export const messagesRouter = createTrpcRouter({
         thread,
         messages: messages.map((m) => ({
           ...m,
-          attachments: byMessage.get(m.id) ?? []
-        }))
+          attachments: byMessage.get(m.id) ?? [],
+        })),
       };
     }),
 
@@ -270,7 +300,7 @@ export const messagesRouter = createTrpcRouter({
       z.object({
         channelId: z.string().uuid(),
         title: z.string().min(1).max(200).optional(),
-        body: z.string().max(20_000).default("")
+        body: z.string().max(20_000).default(""),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -282,7 +312,7 @@ export const messagesRouter = createTrpcRouter({
           title: input.title,
           status: "open",
           createdByUserId: ctx.user!.id,
-          lastMessageAt: new Date()
+          lastMessageAt: new Date(),
         })
         .returning();
 
@@ -294,7 +324,7 @@ export const messagesRouter = createTrpcRouter({
           threadId: thread.id,
           authorType: "human",
           authorUserId: ctx.user!.id,
-          body: input.body
+          body: input.body,
         });
 
         await ctx.db
@@ -308,17 +338,23 @@ export const messagesRouter = createTrpcRouter({
         eventType: "messages.thread.create",
         actorUserId: ctx.user!.id,
         result: "success",
-        details: { channelId: input.channelId }
+        details: { channelId: input.channelId },
       });
 
       return { threadId: thread.id };
     }),
 
   messageSend: protectedProcedure
-    .input(z.object({ threadId: z.string().uuid(), body: z.string().min(1).max(20_000), attachmentIds: z.array(z.string().uuid()).default([]) }))
+    .input(
+      z.object({
+        threadId: z.string().uuid(),
+        body: z.string().min(1).max(20_000),
+        attachmentIds: z.array(z.string().uuid()).default([]),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       const thread = await ctx.db.query.hubThreads.findFirst({
-        where: and(eq(hubThreads.workspaceId, ctx.workspace.id), eq(hubThreads.id, input.threadId))
+        where: and(eq(hubThreads.workspaceId, ctx.workspace.id), eq(hubThreads.id, input.threadId)),
       });
       if (!thread) throw new Error("Thread not found");
 
@@ -329,7 +365,7 @@ export const messagesRouter = createTrpcRouter({
           threadId: input.threadId,
           authorType: "human",
           authorUserId: ctx.user!.id,
-          body: input.body
+          body: input.body,
         })
         .returning();
 
@@ -354,7 +390,7 @@ export const messagesRouter = createTrpcRouter({
         .where(and(eq(hubThreads.workspaceId, ctx.workspace.id), eq(hubThreads.id, input.threadId)));
 
       const channel = await ctx.db.query.hubChannels.findFirst({
-        where: and(eq(hubChannels.workspaceId, ctx.workspace.id), eq(hubChannels.id, thread.channelId))
+        where: and(eq(hubChannels.workspaceId, ctx.workspace.id), eq(hubChannels.id, thread.channelId)),
       });
 
       const shouldInvoke =
@@ -377,7 +413,7 @@ export const messagesRouter = createTrpcRouter({
           authorType: "agent",
           authorAgentId: "cos",
           body: `Thinking… (${runId.slice(0, 6)})`,
-          createdAt: new Date()
+          createdAt: new Date(),
         });
 
         // Fire-and-forget: continue work after responding to the client.
@@ -391,7 +427,7 @@ export const messagesRouter = createTrpcRouter({
                 authorType: "agent",
                 authorAgentId: "cos",
                 body: `Still thinking… (${prefix})`,
-                createdAt: new Date()
+                createdAt: new Date(),
               });
               await ctx.db
                 .update(hubThreads)
@@ -404,16 +440,20 @@ export const messagesRouter = createTrpcRouter({
 
           try {
             const recent = await ctx.db.query.hubMessages.findMany({
-          where: and(eq(hubMessages.workspaceId, ctx.workspace.id), eq(hubMessages.threadId, input.threadId)),
-          orderBy: (t, { desc: descOrder }) => [descOrder(t.createdAt)],
-          limit: 20
-        });
+              where: and(
+                eq(hubMessages.workspaceId, ctx.workspace.id),
+                eq(hubMessages.threadId, input.threadId)
+              ),
+              orderBy: (t, { desc: descOrder }) => [descOrder(t.createdAt)],
+              limit: 20,
+            });
 
             const context = recent
               .slice()
               .reverse()
-              .map((m) =>
-                `${m.authorType === "agent" ? `agent:${m.authorAgentId ?? "?"}` : `user:${m.authorUserId ?? "?"}`}: ${m.body}`
+              .map(
+                (m) =>
+                  `${m.authorType === "agent" ? `agent:${m.authorAgentId ?? "?"}` : `user:${m.authorUserId ?? "?"}`}: ${m.body}`
               )
               .join("\n");
 
@@ -472,11 +512,13 @@ Rules:
                   .values({
                     workspaceId: ctx.workspace.id,
                     title: action.title,
-                    description: action.description ?? `Created by @command from channel thread: ${thread.title ?? "(no title)"}`,
+                    description:
+                      action.description ??
+                      `Created by @command from channel thread: ${thread.title ?? "(no title)"}`,
                     status: "todo",
                     priority: "normal",
                     ownerAgentId,
-                    createdByUserId: ctx.user!.id
+                    createdByUserId: ctx.user!.id,
                   })
                   .returning();
 
@@ -484,7 +526,7 @@ Rules:
                   await ctx.db.insert(hubThreadTickets).values({
                     workspaceId: ctx.workspace.id,
                     threadId: input.threadId,
-                    ticketId: ticket.id
+                    ticketId: ticket.id,
                   });
 
                   await logAuditEvent({
@@ -493,7 +535,7 @@ Rules:
                     actorUserId: ctx.user!.id,
                     agentId: "cos",
                     result: "success",
-                    details: { ticketId: ticket.id, threadId: input.threadId }
+                    details: { ticketId: ticket.id, threadId: input.threadId },
                   });
 
                   // Post a confirmation message (as @command) with a direct link.
@@ -502,7 +544,7 @@ Rules:
                     threadId: input.threadId,
                     authorType: "agent",
                     authorAgentId: "cos",
-                    body: `✅ Ticket created: "${ticket.title}" (Todo) · owner: ${ticket.ownerAgentId}. Open: /tickets?open=${ticket.id}`
+                    body: `✅ Ticket created: "${ticket.title}" (Todo) · owner: ${ticket.ownerAgentId}. Open: /tickets?open=${ticket.id}`,
                   });
                 }
               }
@@ -512,7 +554,7 @@ Rules:
                 threadId: input.threadId,
                 authorType: "agent",
                 authorAgentId: "cos",
-                body: output
+                body: output,
               });
 
               await ctx.db
@@ -533,7 +575,7 @@ Rules:
                 threadId: input.threadId,
                 authorType: "system",
                 body: `@command failed to respond (${prefix}). Error: ${msg.slice(0, 180)}`,
-                createdAt: new Date()
+                createdAt: new Date(),
               });
             } catch {
               // ignore
@@ -548,5 +590,5 @@ Rules:
       }
 
       return { ok: true, invoked: false };
-    })
+    }),
 });

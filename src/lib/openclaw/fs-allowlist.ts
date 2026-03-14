@@ -2,7 +2,7 @@ import path from "node:path";
 import fs from "node:fs/promises";
 
 export function expandHome(p: string): string {
-  if (p.startsWith("~\/")) {
+  if (p.startsWith("~/")) {
     return path.join(process.env.HOME || "/root", p.slice(2));
   }
   if (p === "~") return process.env.HOME || "/root";

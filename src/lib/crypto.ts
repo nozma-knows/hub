@@ -41,9 +41,6 @@ export function decryptString(payload: string): string {
 
   const decipher = createDecipheriv(ALGORITHM, key, Buffer.from(iv, "base64"));
   decipher.setAuthTag(Buffer.from(tag, "base64"));
-  const plaintext = Buffer.concat([
-    decipher.update(Buffer.from(encrypted, "base64")),
-    decipher.final()
-  ]);
+  const plaintext = Buffer.concat([decipher.update(Buffer.from(encrypted, "base64")), decipher.final()]);
   return plaintext.toString("utf8");
 }

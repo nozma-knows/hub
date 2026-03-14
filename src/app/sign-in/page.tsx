@@ -20,7 +20,7 @@ export default function SignInPage() {
       await authClient.signIn.social({
         provider: "google",
         callbackURL: `${origin}/`,
-        errorCallbackURL: `${origin}/sign-in`
+        errorCallbackURL: `${origin}/sign-in`,
       });
     } catch (submissionError) {
       setError(

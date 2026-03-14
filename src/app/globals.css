@@ -52,8 +52,8 @@
 
 body {
   @apply bg-background text-foreground antialiased;
-  background-image: radial-gradient(circle at 10% 5%, rgba(45, 212, 191, 0.10), transparent 32%),
-    radial-gradient(circle at 90% 0%, rgba(250, 204, 21, 0.10), transparent 28%);
+  background-image: radial-gradient(circle at 10% 5%, rgba(45, 212, 191, 0.1), transparent 32%),
+    radial-gradient(circle at 90% 0%, rgba(250, 204, 21, 0.1), transparent 28%);
 }
 
 /* Syntax highlighting (rehype-highlight / highlight.js)

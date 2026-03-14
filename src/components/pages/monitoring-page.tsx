@@ -29,20 +29,24 @@ export function MonitoringPage() {
     { refetchInterval: realTimeEnabled ? refreshInterval : false }
   );
 
-  const [timeRange, setTimeRange] = useState<'1h' | '6h' | '24h' | '7d'>('1h');
+  const [timeRange, setTimeRange] = useState<"1h" | "6h" | "24h" | "7d">("1h");
 
   const { data: performance, isLoading: performanceLoading } = trpc.monitoring.getPerformanceMetrics.useQuery(
     { timeRange },
     { refetchInterval: realTimeEnabled ? refreshInterval : false }
   );
 
-  const { data: vpsMetrics, isLoading: vpsLoading, error: vpsError } = trpc.monitoring.getVpsMetrics.useQuery(
+  const {
+    data: vpsMetrics,
+    isLoading: vpsLoading,
+    error: vpsError,
+  } = trpc.monitoring.getVpsMetrics.useQuery(
     { timeRange },
     { refetchInterval: realTimeEnabled ? refreshInterval : 60_000 }
   );
 
   const { data: hostInfo } = trpc.monitoring.getSystemInfo.useQuery(undefined, {
-    refetchInterval: realTimeEnabled ? refreshInterval : 60_000
+    refetchInterval: realTimeEnabled ? refreshInterval : 60_000,
   });
 
   const startRealTimeMonitoring = trpc.monitoring.startRealTimeMonitoring.useMutation();
@@ -62,9 +66,12 @@ export function MonitoringPage() {
 
   const getHealthColor = (health: string) => {
     switch (health) {
-      case 'healthy': return 'text-green-600 bg-green-100';
-      case 'unhealthy': return 'text-red-600 bg-red-100';
-      default: return 'text-yellow-600 bg-yellow-100';
+      case "healthy":
+        return "text-green-600 bg-green-100";
+      case "unhealthy":
+        return "text-red-600 bg-red-100";
+      default:
+        return "text-yellow-600 bg-yellow-100";
     }
   };
 
@@ -79,11 +86,11 @@ export function MonitoringPage() {
   };
 
   const formatBytes = (bytes: number) => {
-    if (bytes === 0) return '0 B';
+    if (bytes === 0) return "0 B";
     const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const sizes = ["B", "KB", "MB", "GB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
 
   const formatPercentage = (value: number) => {
@@ -104,10 +111,10 @@ export function MonitoringPage() {
             onChange={(e) => setTimeRange(e.target.value as any)}
             className="w-full px-3 py-2 border rounded-md sm:w-auto"
           >
-            <option value={'1h'}>Last 1h</option>
-            <option value={'6h'}>Last 6h</option>
-            <option value={'24h'}>Last 24h</option>
-            <option value={'7d'}>Last 7d</option>
+            <option value={"1h"}>Last 1h</option>
+            <option value={"6h"}>Last 6h</option>
+            <option value={"24h"}>Last 24h</option>
+            <option value={"7d"}>Last 7d</option>
           </select>
 
           <select
@@ -124,7 +131,9 @@ export function MonitoringPage() {
             onClick={async () => {
               try {
                 const result = await triggerSync.mutateAsync();
-                alert(`✅ Sync successful! Synced ${result.agentCount} agents: ${result.agentNames.join(', ')}`);
+                alert(
+                  `✅ Sync successful! Synced ${result.agentCount} agents: ${result.agentNames.join(", ")}`
+                );
                 window.location.reload();
               } catch (error) {
                 alert(`❌ Sync failed: ${error}`);
@@ -133,19 +142,19 @@ export function MonitoringPage() {
             className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 font-medium sm:w-auto"
             disabled={triggerSync.isPending}
           >
-            {triggerSync.isPending ? 'Syncing...' : 'Sync from OpenClaw'}
+            {triggerSync.isPending ? "Syncing..." : "Sync from OpenClaw"}
           </button>
 
           <button
             onClick={handleToggleRealTime}
             className={`w-full px-4 py-2 rounded-md font-medium sm:w-auto ${
               realTimeEnabled
-                ? 'bg-red-600 text-white hover:bg-red-700'
-                : 'bg-blue-600 text-white hover:bg-blue-700'
+                ? "bg-red-600 text-white hover:bg-red-700"
+                : "bg-blue-600 text-white hover:bg-blue-700"
             }`}
             disabled={startRealTimeMonitoring.isPending || stopRealTimeMonitoring.isPending}
           >
-            {realTimeEnabled ? 'Stop Monitoring' : 'Start Real-Time'}
+            {realTimeEnabled ? "Stop Monitoring" : "Start Real-Time"}
           </button>
         </div>
       </div>
@@ -157,13 +166,20 @@ export function MonitoringPage() {
           <div className="mt-2 text-sm text-gray-700">
             <div className="font-semibold truncate">{hostInfo?.hostname ?? "—"}</div>
             <div className="text-xs text-gray-600">
-              CPU: {hostInfo?.cpus ?? "—"} · Load: {hostInfo ? hostInfo.loadAvg.map((v) => v.toFixed(2)).join(" ") : "—"}
+              CPU: {hostInfo?.cpus ?? "—"} · Load:{" "}
+              {hostInfo ? hostInfo.loadAvg.map((v) => v.toFixed(2)).join(" ") : "—"}
             </div>
             <div className="text-xs text-gray-600">
-              RAM: {hostInfo ? `${formatBytes(hostInfo.memory.used)} / ${formatBytes(hostInfo.memory.total)}` : "—"}
+              RAM:{" "}
+              {hostInfo
+                ? `${formatBytes(hostInfo.memory.used)} / ${formatBytes(hostInfo.memory.total)}`
+                : "—"}
             </div>
             <div className="text-xs text-gray-600">
-              Disk: {hostInfo?.diskRoot ? `${formatBytes(hostInfo.diskRoot.used)} / ${formatBytes(hostInfo.diskRoot.total)}` : "—"}
+              Disk:{" "}
+              {hostInfo?.diskRoot
+                ? `${formatBytes(hostInfo.diskRoot.used)} / ${formatBytes(hostInfo.diskRoot.total)}`
+                : "—"}
             </div>
             {hostInfo?.swap ? (
               <div className="text-xs text-gray-600">
@@ -188,53 +204,51 @@ export function MonitoringPage() {
         <div className="bg-white p-6 rounded-lg shadow">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-medium text-gray-900">System Health</h3>
-            <div 
+            <div
               className={`px-2 py-1 rounded-full text-xs font-medium ${
-                systemHealth ? getHealthColor(systemHealth.overallHealth) : 'text-gray-600 bg-gray-100'
+                systemHealth ? getHealthColor(systemHealth.overallHealth) : "text-gray-600 bg-gray-100"
               }`}
             >
-              {healthLoading ? 'Loading...' : systemHealth?.overallHealth || 'Unknown'}
+              {healthLoading ? "Loading..." : systemHealth?.overallHealth || "Unknown"}
             </div>
           </div>
           <div className="mt-2 text-2xl font-bold">
-            {healthLoading ? '...' : systemHealth?.timestamp ? formatTimestamp(systemHealth.timestamp) : 'No data'}
+            {healthLoading
+              ? "..."
+              : systemHealth?.timestamp
+                ? formatTimestamp(systemHealth.timestamp)
+                : "No data"}
           </div>
         </div>
 
         <div className="bg-white p-6 rounded-lg shadow">
           <h3 className="text-sm font-medium text-gray-900">Gateway Status</h3>
           <div className="mt-2 flex items-center space-x-2">
-            <div 
-              className={`w-3 h-3 rounded-full ${
-                gatewayStatus?.online ? 'bg-green-500' : 'bg-red-500'
-              }`}
+            <div
+              className={`w-3 h-3 rounded-full ${gatewayStatus?.online ? "bg-green-500" : "bg-red-500"}`}
             />
             <span className="text-lg font-semibold">
-              {gatewayLoading ? 'Loading...' : gatewayStatus?.online ? 'Online' : 'Offline'}
+              {gatewayLoading ? "Loading..." : gatewayStatus?.online ? "Online" : "Offline"}
             </span>
           </div>
-          <div className="text-sm text-gray-600 mt-1">
-            Response: {gatewayStatus?.responseTime || 0}ms
-          </div>
+          <div className="text-sm text-gray-600 mt-1">Response: {gatewayStatus?.responseTime || 0}ms</div>
         </div>
 
         <div className="bg-white p-6 rounded-lg shadow">
           <h3 className="text-sm font-medium text-gray-900">Active Sessions</h3>
           <div className="mt-2 text-2xl font-bold">
-            {sessionsLoading ? '...' : sessions?.filter(s => s.status === 'active').length || 0}
+            {sessionsLoading ? "..." : sessions?.filter((s) => s.status === "active").length || 0}
           </div>
-          <div className="text-sm text-gray-600">
-            of {sessions?.length || 0} total
-          </div>
+          <div className="text-sm text-gray-600">of {sessions?.length || 0} total</div>
         </div>
 
         <div className="bg-white p-6 rounded-lg shadow">
           <h3 className="text-sm font-medium text-gray-900">Cron Jobs</h3>
           <div className="mt-2 text-2xl font-bold">
-            {cronLoading ? '...' : cronJobs?.filter(j => j.enabled).length || 0}
+            {cronLoading ? "..." : cronJobs?.filter((j) => j.enabled).length || 0}
           </div>
           <div className="text-sm text-gray-600">
-            enabled, {cronJobs?.filter(j => j.lastStatus === 'failure').length || 0} failed
+            enabled, {cronJobs?.filter((j) => j.lastStatus === "failure").length || 0} failed
           </div>
         </div>
       </div>
@@ -263,7 +277,7 @@ export function MonitoringPage() {
               points={vpsMetrics.points.map((p: any) => ({
                 x: new Date(p.ts).getTime(),
                 y: p.cpuUsage,
-                label: new Date(p.ts).toLocaleString()
+                label: new Date(p.ts).toLocaleString(),
               }))}
               valueLabel={(y) => `${(y * 100).toFixed(1)}%`}
             />
@@ -272,8 +286,8 @@ export function MonitoringPage() {
               title="Memory used (GB)"
               points={vpsMetrics.points.map((p: any) => ({
                 x: new Date(p.ts).getTime(),
-                y: p.memUsed / (1024 ** 3),
-                label: new Date(p.ts).toLocaleString()
+                y: p.memUsed / 1024 ** 3,
+                label: new Date(p.ts).toLocaleString(),
               }))}
               valueLabel={(y) => `${y.toFixed(2)} GB`}
             />
@@ -283,7 +297,7 @@ export function MonitoringPage() {
               points={vpsMetrics.points.map((p: any) => ({
                 x: new Date(p.ts).getTime(),
                 y: p.load1,
-                label: new Date(p.ts).toLocaleString()
+                label: new Date(p.ts).toLocaleString(),
               }))}
               valueLabel={(y) => y.toFixed(2)}
             />
@@ -292,15 +306,15 @@ export function MonitoringPage() {
               title="Network (rx+tx MB)"
               points={vpsMetrics.points.map((p: any) => ({
                 x: new Date(p.ts).getTime(),
-                y: ((p.netRxBytes ?? 0) + (p.netTxBytes ?? 0)) / (1024 ** 2),
-                label: new Date(p.ts).toLocaleString()
+                y: ((p.netRxBytes ?? 0) + (p.netTxBytes ?? 0)) / 1024 ** 2,
+                label: new Date(p.ts).toLocaleString(),
               }))}
               valueLabel={(y) => `${y.toFixed(1)} MB`}
             />
           </div>
         ) : null}
 
-        {!vpsLoading && !vpsError && (!vpsMetrics?.points?.length) ? (
+        {!vpsLoading && !vpsError && !vpsMetrics?.points?.length ? (
           <div className="rounded-md border border-dashed p-6 text-sm text-gray-600">
             No time-series data yet. Charts will populate after the server collects a few samples.
           </div>
@@ -320,15 +334,11 @@ export function MonitoringPage() {
             </div>
             <div>
               <h4 className="text-sm font-medium text-gray-900">Failure Rate</h4>
-              <div className="text-2xl font-bold">
-                {formatPercentage(performance.current.failureRate)}
-              </div>
+              <div className="text-2xl font-bold">{formatPercentage(performance.current.failureRate)}</div>
             </div>
             <div>
               <h4 className="text-sm font-medium text-gray-900">Tokens/min</h4>
-              <div className="text-2xl font-bold">
-                {performance.current.tokensPerMinute.toLocaleString()}
-              </div>
+              <div className="text-2xl font-bold">{performance.current.tokensPerMinute.toLocaleString()}</div>
             </div>
           </div>
         </div>
@@ -361,24 +371,26 @@ export function MonitoringPage() {
                     <td className="py-2">
                       {session.tokensUsed.toLocaleString()} / {session.tokensTotal.toLocaleString()}
                       <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
-                        <div 
-                          className="bg-blue-600 h-2 rounded-full" 
+                        <div
+                          className="bg-blue-600 h-2 rounded-full"
                           style={{ width: `${(session.tokensUsed / session.tokensTotal) * 100}%` }}
                         />
                       </div>
                     </td>
                     <td className="py-2">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        session.status === 'active' ? 'bg-green-100 text-green-800' :
-                        session.status === 'error' ? 'bg-red-100 text-red-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          session.status === "active"
+                            ? "bg-green-100 text-green-800"
+                            : session.status === "error"
+                              ? "bg-red-100 text-red-800"
+                              : "bg-gray-100 text-gray-800"
+                        }`}
+                      >
                         {session.status}
                       </span>
                     </td>
-                    <td className="py-2 text-sm">
-                      {formatTimestamp(session.lastActivity)}
-                    </td>
+                    <td className="py-2 text-sm">{formatTimestamp(session.lastActivity)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -410,26 +422,30 @@ export function MonitoringPage() {
                     <td className="py-2 font-mono text-sm">{job.schedule}</td>
                     <td className="py-2">{job.agentId}</td>
                     <td className="py-2">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        job.enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {job.enabled ? 'Enabled' : 'Disabled'}
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          job.enabled ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
+                        }`}
+                      >
+                        {job.enabled ? "Enabled" : "Disabled"}
                       </span>
                       {job.lastStatus && (
-                        <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${
-                          job.lastStatus === 'success' ? 'bg-green-100 text-green-800' :
-                          job.lastStatus === 'failure' ? 'bg-red-100 text-red-800' :
-                          'bg-yellow-100 text-yellow-800'
-                        }`}>
+                        <span
+                          className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${
+                            job.lastStatus === "success"
+                              ? "bg-green-100 text-green-800"
+                              : job.lastStatus === "failure"
+                                ? "bg-red-100 text-red-800"
+                                : "bg-yellow-100 text-yellow-800"
+                          }`}
+                        >
                           {job.lastStatus}
                         </span>
                       )}
                     </td>
+                    <td className="py-2 text-sm">{job.lastRun ? formatTimestamp(job.lastRun) : "Never"}</td>
                     <td className="py-2 text-sm">
-                      {job.lastRun ? formatTimestamp(job.lastRun) : 'Never'}
-                    </td>
-                    <td className="py-2 text-sm">
-                      {job.nextRun ? formatTimestamp(job.nextRun) : 'Not scheduled'}
+                      {job.nextRun ? formatTimestamp(job.nextRun) : "Not scheduled"}
                     </td>
                   </tr>
                 ))}

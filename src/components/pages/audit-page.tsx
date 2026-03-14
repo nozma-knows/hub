@@ -16,14 +16,16 @@ export function AuditPage() {
   const auditQuery = trpc.audit.list.useQuery({
     limit: Number(limit) || 50,
     agentId: agentId || undefined,
-    providerKey: providerKey || undefined
+    providerKey: providerKey || undefined,
   });
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Audit Log</h1>
-        <p className="text-sm text-muted-foreground">Immutable history for connections, permissions, and agent writes.</p>
+        <p className="text-sm text-muted-foreground">
+          Immutable history for connections, permissions, and agent writes.
+        </p>
       </div>
 
       <Card>
@@ -31,7 +33,11 @@ export function AuditPage() {
           <CardTitle>Filters</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-4">
-          <Input placeholder="agent id" value={agentId} onChange={(event) => setAgentId(event.target.value)} />
+          <Input
+            placeholder="agent id"
+            value={agentId}
+            onChange={(event) => setAgentId(event.target.value)}
+          />
           <Input
             placeholder="provider key"
             value={providerKey}
@@ -50,14 +56,23 @@ export function AuditPage() {
         </CardHeader>
         <CardContent className="space-y-2">
           {(auditQuery.data ?? []).map((event) => (
-            <div key={event.id} className="flex flex-col gap-2 rounded-md border px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+            <div
+              key={event.id}
+              className="flex flex-col gap-2 rounded-md border px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+            >
               <div>
                 <div className="text-sm font-medium">{event.eventType}</div>
                 <div className="text-xs text-muted-foreground">
                   {new Date(event.createdAt).toLocaleString()} {event.agentId ? `· ${event.agentId}` : ""}
                 </div>
               </div>
-              <Badge className={event.result === "success" ? "border-green-600 text-green-700" : "border-destructive text-destructive"}>
+              <Badge
+                className={
+                  event.result === "success"
+                    ? "border-green-600 text-green-700"
+                    : "border-destructive text-destructive"
+                }
+              >
                 {event.result}
               </Badge>
             </div>

@@ -6,9 +6,20 @@ import { extractNeedsInput, ticketMachine } from "@/server/tickets/fsm";
 
 import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 
-import { hubDispatcherState, hubSkillInstalls, hubTicketComments, hubTicketRuns, hubTickets } from "@/db/schema";
+import {
+  hubDispatcherState,
+  hubSkillInstalls,
+  hubTicketComments,
+  hubTicketRuns,
+  hubTickets,
+} from "@/db/schema";
 
-function isStuckTicket(ticket: { status: string; dispatchState: string; updatedAt: Date; lastDispatchedAt: Date | null }) {
+function isStuckTicket(ticket: {
+  status: string;
+  dispatchState: string;
+  updatedAt: Date;
+  lastDispatchedAt: Date | null;
+}) {
   if (ticket.status !== "in_progress" && ticket.status !== "doing") return false;
   if (ticket.dispatchState === "running" || ticket.dispatchState === "needs_input") return false;
 
@@ -24,12 +35,15 @@ async function hasRecentAutoRetry(ticketId: string): Promise<boolean> {
     const recent = await db.query.hubTicketComments.findMany({
       where: eq(hubTicketComments.ticketId, ticketId),
       orderBy: (t, { desc }) => [desc(t.createdAt)],
-      limit: 30
+      limit: 30,
     });
 
     const cutoff = Date.now() - AUTO_RETRY_WINDOW_MS;
-    return recent.some((c: any) =>
-      typeof c.body === "string" && c.body.includes("🔁 Auto-retry") && new Date(c.createdAt).getTime() > cutoff
+    return recent.some(
+      (c: any) =>
+        typeof c.body === "string" &&
+        c.body.includes("🔁 Auto-retry") &&
+        new Date(c.createdAt).getTime() > cutoff
     );
   } catch {
     return false;
@@ -41,7 +55,7 @@ async function lastCommentAt(ticketId: string): Promise<number | null> {
     const rows = await db.query.hubTicketComments.findMany({
       where: eq(hubTicketComments.ticketId, ticketId),
       orderBy: (t, { desc }) => [desc(t.createdAt)],
-      limit: 1
+      limit: 1,
     });
     const row: any = rows?.[0];
     return row?.createdAt ? new Date(row.createdAt).getTime() : null;
@@ -49,7 +63,6 @@ async function lastCommentAt(ticketId: string): Promise<number | null> {
     return null;
   }
 }
-
 
 type HubAction =
   | { kind: "set_ticket_state"; status: string; note?: string }
@@ -133,7 +146,7 @@ async function runSkillInstallerTick() {
       or(isNull(hubSkillInstalls.lockExpiresAt), lt(hubSkillInstalls.lockExpiresAt, now))
     ),
     orderBy: (t, { asc }) => [asc(t.updatedAt)],
-    limit: 10
+    limit: 10,
   });
 
   const due = candidates.slice(0, SKILL_INSTALL_MAX_PER_TICK);
@@ -153,7 +166,7 @@ async function runSkillInstallerTick() {
         installStartedAt: row.installStartedAt ?? new Date(),
         attempts: (row.attempts ?? 0) + 1,
         error: null,
-        updatedAt: new Date()
+        updatedAt: new Date(),
       })
       .where(
         and(
@@ -184,7 +197,7 @@ async function runSkillInstallerTick() {
         workdir,
         "--dir",
         "skills",
-        "--no-input"
+        "--no-input",
       ];
       if (version) args.push("--version", version);
 
@@ -195,7 +208,7 @@ async function runSkillInstallerTick() {
 
       const res: any = await execFileAsync("bunx", args, {
         timeout: 10 * 60_000,
-        maxBuffer: 5 * 1024 * 1024
+        maxBuffer: 5 * 1024 * 1024,
       });
 
       const out = String(res?.stdout ?? "");
@@ -213,7 +226,7 @@ async function runSkillInstallerTick() {
           finishedAt: new Date(),
           lockId: null,
           lockExpiresAt: null,
-          updatedAt: new Date()
+          updatedAt: new Date(),
         })
         .where(and(eq(hubSkillInstalls.id, row.id), eq(hubSkillInstalls.lockId, lockId)));
     } catch (err: any) {
@@ -236,7 +249,7 @@ async function runSkillInstallerTick() {
             logs: logs || null,
             lockId: null,
             lockExpiresAt: new Date(Date.now() + backoffMs),
-            updatedAt: new Date()
+            updatedAt: new Date(),
           })
           .where(and(eq(hubSkillInstalls.id, row.id), eq(hubSkillInstalls.lockId, lockId)));
         continue;
@@ -253,7 +266,7 @@ async function runSkillInstallerTick() {
           finishedAt: new Date(),
           lockId: null,
           lockExpiresAt: null,
-          updatedAt: new Date()
+          updatedAt: new Date(),
         })
         .where(and(eq(hubSkillInstalls.id, row.id), eq(hubSkillInstalls.lockId, lockId)));
     }
@@ -289,7 +302,7 @@ export function startDispatcher(): void {
           .values({ key: "main", lastTickAt: new Date(), lastError: null, updatedAt: new Date() })
           .onConflictDoUpdate({
             target: hubDispatcherState.key,
-            set: { lastTickAt: new Date(), lastError: null, updatedAt: new Date() }
+            set: { lastTickAt: new Date(), lastError: null, updatedAt: new Date() },
           });
       } catch {
         // ignore
@@ -324,7 +337,7 @@ export function startDispatcher(): void {
           or(isNull(hubTickets.dispatchLockExpiresAt), lt(hubTickets.dispatchLockExpiresAt, now))
         ),
         orderBy: (t, { asc }) => [asc(t.updatedAt)],
-        limit: 25
+        limit: 25,
       });
 
       // Identify stuck tickets (in_progress but no dispatcher activity for a while).
@@ -332,12 +345,14 @@ export function startDispatcher(): void {
       const stuck: typeof candidates = [];
       for (const t of candidates) {
         if (!t.ownerAgentId) continue;
-        if (!isStuckTicket({
-          status: t.status as any,
-          dispatchState: (t.dispatchState as any) ?? "idle",
-          updatedAt: t.updatedAt as any,
-          lastDispatchedAt: (t.lastDispatchedAt as any) ?? null
-        })) {
+        if (
+          !isStuckTicket({
+            status: t.status as any,
+            dispatchState: (t.dispatchState as any) ?? "idle",
+            updatedAt: t.updatedAt as any,
+            lastDispatchedAt: (t.lastDispatchedAt as any) ?? null,
+          })
+        ) {
           continue;
         }
 
@@ -349,7 +364,8 @@ export function startDispatcher(): void {
         if (stuck.length >= MAX_PER_TICK) break;
       }
 
-      const due = [...stuck,
+      const due = [
+        ...stuck,
         ...candidates
           .filter((t) => Boolean(t.ownerAgentId))
           // Don't spam the same ticket unless the previous lock expired (recovery)
@@ -360,7 +376,7 @@ export function startDispatcher(): void {
             if (lockExpired && t.dispatchState === "running") return true;
             if (!last) return true;
             return Date.now() - last > COOLDOWN_MS;
-          })
+          }),
       ].slice(0, MAX_PER_TICK);
 
       // eslint-disable-next-line no-console
@@ -379,7 +395,7 @@ export function startDispatcher(): void {
             dispatchLockExpiresAt: lockExpiresAt,
             lastDispatchedAt: new Date(),
             lastDispatchError: null,
-            updatedAt: new Date()
+            updatedAt: new Date(),
           })
           .where(
             and(
@@ -405,14 +421,14 @@ export function startDispatcher(): void {
             workspaceId: ticket.workspaceId,
             ticketId: ticket.id,
             authorType: "system",
-            body: `🔁 Auto-retry (1/1): no updates for ${Math.round(STUCK_MS / 60_000)}m. Re-running owner agent (${ownerAgentId})…`
+            body: `🔁 Auto-retry (1/1): no updates for ${Math.round(STUCK_MS / 60_000)}m. Re-running owner agent (${ownerAgentId})…`,
           });
         } else {
           await db.insert(hubTicketComments).values({
             workspaceId: ticket.workspaceId,
             ticketId: ticket.id,
             authorType: "system",
-            body: `🤖 Dispatcher: running owner agent (${ownerAgentId})…`
+            body: `🤖 Dispatcher: running owner agent (${ownerAgentId})…`,
           });
         }
 
@@ -460,7 +476,7 @@ Return:
             kind: "owner",
             agentId: ownerAgentId,
             status: "started",
-            startedAt: new Date(startedAt)
+            startedAt: new Date(startedAt),
           });
 
           let output = "";
@@ -468,7 +484,7 @@ Return:
             const result = await openClawAgentTurn({
               agentId: ownerAgentId,
               message: prompt,
-              timeoutSeconds: 600
+              timeoutSeconds: 600,
             });
             output = (result.output || "").toString().trim() || "(no output)";
 
@@ -477,7 +493,7 @@ Return:
               ticketId: ticket.id,
               authorType: "agent",
               authorAgentId: ownerAgentId,
-              body: output
+              body: output,
             });
 
             await db
@@ -486,7 +502,7 @@ Return:
                 status: "ok",
                 finishedAt: new Date(),
                 durationMs: Date.now() - startedAt,
-                output: output.slice(0, 20_000)
+                output: output.slice(0, 20_000),
               })
               .where(and(eq(hubTicketRuns.workspaceId, ticket.workspaceId), eq(hubTicketRuns.id, runId)));
           } catch (err: any) {
@@ -497,7 +513,7 @@ Return:
                 status: "error",
                 finishedAt: new Date(),
                 durationMs: Date.now() - startedAt,
-                error: msg.slice(0, 8000)
+                error: msg.slice(0, 8000),
               })
               .where(and(eq(hubTicketRuns.workspaceId, ticket.workspaceId), eq(hubTicketRuns.id, runId)));
 
@@ -509,7 +525,7 @@ Return:
               authorType: "system",
               body: isUnknownAgent
                 ? `⚠️ Dispatcher failed: unknown agent id "${ownerAgentId}". Please reassign this ticket to an existing agent (cos/dev/ops/research) in the ticket settings.`
-                : `⚠️ Dispatcher failed running owner agent (${ownerAgentId}): ${msg}`
+                : `⚠️ Dispatcher failed running owner agent (${ownerAgentId}): ${msg}`,
             });
 
             await db
@@ -517,7 +533,7 @@ Return:
               .set({
                 dispatchState: isUnknownAgent ? "needs_input" : "idle",
                 lastDispatchError: msg.slice(0, 8000),
-                updatedAt: new Date()
+                updatedAt: new Date(),
               })
               .where(and(eq(hubTickets.workspaceId, ticket.workspaceId), eq(hubTickets.id, ticket.id)));
 
@@ -528,7 +544,7 @@ Return:
           try {
             const pending = extractNeedsInput(output);
             const actor = createActor(ticketMachine, {
-              input: { ticketId: ticket.id, workspaceId: ticket.workspaceId }
+              input: { ticketId: ticket.id, workspaceId: ticket.workspaceId },
             });
             actor.start();
 
@@ -539,7 +555,7 @@ Return:
                 actor.stop();
                 const restored = createActor(ticketMachine, {
                   input: { ticketId: ticket.id, workspaceId: ticket.workspaceId },
-                  snapshot: existingFsm
+                  snapshot: existingFsm,
                 } as any);
                 restored.start();
                 // @ts-ignore
@@ -558,7 +574,7 @@ Return:
                   fsmState: snap as any,
                   pendingQuestion: pending as any,
                   dispatchState: "needs_input",
-                  updatedAt: new Date()
+                  updatedAt: new Date(),
                 })
                 .where(and(eq(hubTickets.workspaceId, ticket.workspaceId), eq(hubTickets.id, ticket.id)));
             } else {
@@ -568,7 +584,7 @@ Return:
                 .set({
                   fsmState: snap as any,
                   pendingQuestion: null,
-                  updatedAt: new Date()
+                  updatedAt: new Date(),
                 })
                 .where(and(eq(hubTickets.workspaceId, ticket.workspaceId), eq(hubTickets.id, ticket.id)));
             }
@@ -600,7 +616,7 @@ Return:
                 workspaceId: ticket.workspaceId,
                 ticketId: ticket.id,
                 authorType: "system",
-                body: "⛔️ Not marking this ticket Done yet: missing a VERIFICATION: block. Please include verification steps + evidence, then re-emit the set_ticket_state action."
+                body: "⛔️ Not marking this ticket Done yet: missing a VERIFICATION: block. Please include verification steps + evidence, then re-emit the set_ticket_state action.",
               });
             }
           }
@@ -611,7 +627,7 @@ Return:
               workspaceId: ticket.workspaceId,
               ticketId: ticket.id,
               authorType: "system",
-              body: `🤝 Collaboration: spawning ${collabAction.assign.length} specialist run(s)…`
+              body: `🤝 Collaboration: spawning ${collabAction.assign.length} specialist run(s)…`,
             });
 
             const results: Array<{ agentId: string; task: string; output: string }> = [];
@@ -621,13 +637,13 @@ Return:
                 workspaceId: ticket.workspaceId,
                 ticketId: ticket.id,
                 authorType: "system",
-                body: `🤖 Running ${item.agentId}: ${item.task}`
+                body: `🤖 Running ${item.agentId}: ${item.task}`,
               });
 
               const specialist = await openClawAgentTurn({
                 agentId: item.agentId,
                 message: `You are a specialist agent helping on a Hub ticket.\n\nTicket title: ${ticket.title}\n\nTicket description:\n${ticket.description || "(none)"}\n\nYour task:\n${item.task}\n\nReturn a concise result with:\n- findings/changes\n- any commands run\n- next steps\n- blockers`,
-                timeoutSeconds: 600
+                timeoutSeconds: 600,
               });
 
               const specialistOutput = (specialist.output || "").toString().trim() || "(no output)";
@@ -639,20 +655,18 @@ Return:
                 ticketId: ticket.id,
                 authorType: "agent",
                 authorAgentId: item.agentId,
-                body: specialistOutput
+                body: specialistOutput,
               });
             }
 
             // Re-invoke coordinator to integrate.
-            const summary = results
-              .map((r) => `- ${r.agentId}: ${r.task}\n${r.output}`)
-              .join("\n\n");
+            const summary = results.map((r) => `- ${r.agentId}: ${r.task}\n${r.output}`).join("\n\n");
 
             await db.insert(hubTicketComments).values({
               workspaceId: ticket.workspaceId,
               ticketId: ticket.id,
               authorType: "system",
-              body: `🧠 Coordinator (${ownerAgentId}): integrating specialist results…`
+              body: `🧠 Coordinator (${ownerAgentId}): integrating specialist results…`,
             });
 
             const coordinator = await openClawAgentTurn({
@@ -677,7 +691,7 @@ Use:
 {"kind":"set_ticket_state","status":"done","note":"short reason"}
 \`\`\`
 `,
-              timeoutSeconds: 600
+              timeoutSeconds: 600,
             });
 
             const coordOut = (coordinator.output || "").toString().trim() || "(no output)";
@@ -686,7 +700,7 @@ Use:
               ticketId: ticket.id,
               authorType: "agent",
               authorAgentId: ownerAgentId,
-              body: coordOut
+              body: coordOut,
             });
 
             const postActions = extractHubActions(coordOut);
@@ -700,7 +714,7 @@ Use:
                 workspaceId: ticket.workspaceId,
                 ticketId: ticket.id,
                 authorType: "system",
-                body: `✅ State updated by coordinator: ${postNextStatus}${postState?.note ? ` — ${postState.note}` : ""}`
+                body: `✅ State updated by coordinator: ${postNextStatus}${postState?.note ? ` — ${postState.note}` : ""}`,
               });
             }
 
@@ -711,7 +725,7 @@ Use:
                 dispatchState: "idle",
                 dispatchLockId: null,
                 dispatchLockExpiresAt: null,
-                updatedAt: new Date()
+                updatedAt: new Date(),
               })
               .where(and(eq(hubTickets.id, ticket.id), eq(hubTickets.dispatchLockId, lockId)));
 
@@ -723,7 +737,7 @@ Use:
               workspaceId: ticket.workspaceId,
               ticketId: ticket.id,
               authorType: "system",
-              body: `✅ State updated by agent: ${nextStatus}${stateAction?.note ? ` — ${stateAction.note}` : ""}`
+              body: `✅ State updated by agent: ${nextStatus}${stateAction?.note ? ` — ${stateAction.note}` : ""}`,
             });
           }
 
@@ -734,7 +748,7 @@ Use:
               dispatchState: "idle",
               dispatchLockId: null,
               dispatchLockExpiresAt: null,
-              updatedAt: new Date()
+              updatedAt: new Date(),
             })
             .where(and(eq(hubTickets.id, ticket.id), eq(hubTickets.dispatchLockId, lockId)));
         } catch (err) {
@@ -744,7 +758,7 @@ Use:
             workspaceId: ticket.workspaceId,
             ticketId: ticket.id,
             authorType: "system",
-            body: `⚠️ Dispatcher failed: ${msg}`
+            body: `⚠️ Dispatcher failed: ${msg}`,
           });
 
           await db
@@ -755,7 +769,7 @@ Use:
               lastDispatchError: msg,
               dispatchLockId: null,
               dispatchLockExpiresAt: null,
-              updatedAt: new Date()
+              updatedAt: new Date(),
             })
             .where(and(eq(hubTickets.id, ticket.id), eq(hubTickets.dispatchLockId, lockId)));
         }
@@ -777,7 +791,7 @@ Use:
           .values({ key: "main", lastTickAt: new Date(), lastError: msg, updatedAt: new Date() })
           .onConflictDoUpdate({
             target: hubDispatcherState.key,
-            set: { lastTickAt: new Date(), lastError: msg, updatedAt: new Date() }
+            set: { lastTickAt: new Date(), lastError: msg, updatedAt: new Date() },
           });
       } catch {
         // ignore

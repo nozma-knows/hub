@@ -5,7 +5,7 @@ import type {
   OpenClawBindingInput,
   ProviderAuthUrlInput,
   ProviderTokenResult,
-  ToolProvider
+  ToolProvider,
 } from "@/lib/providers/types";
 
 function dateFromExpiresIn(expiresIn?: number): Date | undefined {
@@ -21,33 +21,39 @@ export class LinearProvider implements ToolProvider {
   readonly displayName = "Linear";
   readonly authType = "oauth2" as const;
 
-  getAuthUrl(input: ProviderAuthUrlInput, app: import("@/lib/providers/types").ProviderAppCredentials): string {
+  getAuthUrl(
+    input: ProviderAuthUrlInput,
+    app: import("@/lib/providers/types").ProviderAppCredentials
+  ): string {
     const params = new URLSearchParams({
       client_id: app.clientId,
       redirect_uri: input.redirectUri,
       response_type: "code",
       scope: app.scopes.join(" "),
-      state: input.state
+      state: input.state,
     });
 
     return `https://linear.app/oauth/authorize?${params.toString()}`;
   }
 
-  async exchangeCode(input: ExchangeCodeInput, app: import("@/lib/providers/types").ProviderAppCredentials): Promise<ProviderTokenResult> {
+  async exchangeCode(
+    input: ExchangeCodeInput,
+    app: import("@/lib/providers/types").ProviderAppCredentials
+  ): Promise<ProviderTokenResult> {
     const payload = {
       grant_type: "authorization_code",
       code: input.code,
       redirect_uri: input.redirectUri,
       client_id: app.clientId,
-      client_secret: app.clientSecret
+      client_secret: app.clientSecret,
     };
 
     const response = await fetch("https://api.linear.app/oauth/token", {
       method: "POST",
       headers: {
-        "content-type": "application/json"
+        "content-type": "application/json",
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
     });
 
     const body = (await response.json()) as {
@@ -65,7 +71,7 @@ export class LinearProvider implements ToolProvider {
       accessToken: body.access_token,
       refreshToken: body.refresh_token,
       scopes: (body.scope ?? env.LINEAR_SCOPES).split(" ").filter(Boolean),
-      expiresAt: dateFromExpiresIn(body.expires_in)
+      expiresAt: dateFromExpiresIn(body.expires_in),
     };
   }
 
@@ -88,14 +94,14 @@ export class LinearProvider implements ToolProvider {
     const response = await fetch("https://api.linear.app/oauth/token", {
       method: "POST",
       headers: {
-        "content-type": "application/json"
+        "content-type": "application/json",
       },
       body: JSON.stringify({
         grant_type: "refresh_token",
         refresh_token: input.decryptedRefreshToken,
         client_id: app.clientId,
-        client_secret: app.clientSecret
-      })
+        client_secret: app.clientSecret,
+      }),
     });
 
     const body = (await response.json()) as {
@@ -113,7 +119,7 @@ export class LinearProvider implements ToolProvider {
       accessToken: body.access_token,
       refreshToken: body.refresh_token ?? input.decryptedRefreshToken,
       scopes: (body.scope ?? env.LINEAR_SCOPES).split(" ").filter(Boolean),
-      expiresAt: dateFromExpiresIn(body.expires_in)
+      expiresAt: dateFromExpiresIn(body.expires_in),
     };
   }
 
@@ -135,9 +141,9 @@ export class LinearProvider implements ToolProvider {
       capabilities,
       credentials: {
         accessToken: input.decryptedAccessToken,
-        refreshToken: input.decryptedRefreshToken
+        refreshToken: input.decryptedRefreshToken,
       },
-      constraints: input.scopeOverrides?.constraints
+      constraints: input.scopeOverrides?.constraints,
     };
   }
 }

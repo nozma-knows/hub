@@ -6,12 +6,14 @@ import { db } from "@/lib/db";
 export type WorkspaceRole = "owner" | "admin" | "operator";
 
 function slugify(input: string): string {
-  return input
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "")
-    .slice(0, 80) || "workspace";
+  return (
+    input
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "")
+      .slice(0, 80) || "workspace"
+  );
 }
 
 export async function ensureUserWorkspace(user: { id: string; email?: string; name?: string }): Promise<{
@@ -20,7 +22,7 @@ export async function ensureUserWorkspace(user: { id: string; email?: string; na
 }> {
   const existingMembership = await db.query.workspaceMembers.findFirst({
     where: eq(workspaceMembers.userId, user.id),
-    orderBy: (table, { desc }) => [desc(table.joinedAt)]
+    orderBy: (table, { desc }) => [desc(table.joinedAt)],
   });
 
   // If we have a membership, make sure it's pointing at the most "real" workspace.
@@ -31,7 +33,7 @@ export async function ensureUserWorkspace(user: { id: string; email?: string; na
       // Prefer a workspace created by this user with the most agents, if current is empty.
       const candidates = await db.query.workspaces.findMany({
         where: eq(workspaces.createdBy, user.id),
-        columns: { id: true }
+        columns: { id: true },
       });
 
       if (candidates.length > 0) {
@@ -40,7 +42,7 @@ export async function ensureUserWorkspace(user: { id: string; email?: string; na
           candidates.map(async (w) => {
             const rows = await db.query.agents.findMany({
               where: eq(agents.workspaceId, w.id),
-              columns: { id: true }
+              columns: { id: true },
             });
             return { id: w.id, count: rows.length };
           })
@@ -64,7 +66,7 @@ export async function ensureUserWorkspace(user: { id: string; email?: string; na
 
     return {
       workspaceId: existingMembership.workspaceId,
-      role: existingMembership.role as WorkspaceRole
+      role: existingMembership.role as WorkspaceRole,
     };
   }
 
@@ -72,7 +74,7 @@ export async function ensureUserWorkspace(user: { id: string; email?: string; na
   let slug = base;
   for (let i = 1; i <= 20; i += 1) {
     const existingWorkspace = await db.query.workspaces.findFirst({
-      where: eq(workspaces.slug, slug)
+      where: eq(workspaces.slug, slug),
     });
 
     if (!existingWorkspace) {
@@ -81,7 +83,7 @@ export async function ensureUserWorkspace(user: { id: string; email?: string; na
         .values({
           name: `${user.name || user.email || "User"} Workspace`,
           slug,
-          createdBy: user.id
+          createdBy: user.id,
         })
         .returning({ id: workspaces.id });
 
@@ -95,12 +97,12 @@ export async function ensureUserWorkspace(user: { id: string; email?: string; na
         role: "owner",
         joinedAt: new Date(),
         createdAt: new Date(),
-        updatedAt: new Date()
+        updatedAt: new Date(),
       });
 
       return {
         workspaceId: created.id,
-        role: "owner"
+        role: "owner",
       };
     }
 
@@ -109,7 +111,7 @@ export async function ensureUserWorkspace(user: { id: string; email?: string; na
 
   const fallback = await db.query.workspaceMembers.findFirst({
     where: eq(workspaceMembers.userId, user.id),
-    orderBy: (table, { desc }) => [desc(table.joinedAt)]
+    orderBy: (table, { desc }) => [desc(table.joinedAt)],
   });
 
   if (!fallback) {
@@ -118,7 +120,7 @@ export async function ensureUserWorkspace(user: { id: string; email?: string; na
 
   return {
     workspaceId: fallback.workspaceId,
-    role: fallback.role as WorkspaceRole
+    role: fallback.role as WorkspaceRole,
   };
 }
 
@@ -130,7 +132,7 @@ export async function getWorkspaceMembership(input: {
     where: and(
       eq(workspaceMembers.workspaceId, input.workspaceId),
       eq(workspaceMembers.userId, input.userId)
-    )
+    ),
   });
 
   if (!membership) {
@@ -140,6 +142,6 @@ export async function getWorkspaceMembership(input: {
   return {
     workspaceId: membership.workspaceId,
     userId: membership.userId,
-    role: membership.role as WorkspaceRole
+    role: membership.role as WorkspaceRole,
   };
 }

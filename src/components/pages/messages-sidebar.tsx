@@ -18,7 +18,7 @@ export function MessagesSidebar({ activeChannelId }: { activeChannelId?: string 
     gcTime: 15 * 60_000,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
-    placeholderData: (prev) => prev
+    placeholderData: (prev) => prev,
   });
 
   const ensureDm = trpc.messages.channelDmCommandEnsure.useMutation();
@@ -45,12 +45,7 @@ export function MessagesSidebar({ activeChannelId }: { activeChannelId?: string 
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search"
-              className="pl-8"
-            />
+            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" className="pl-8" />
           </div>
           <Button
             size="sm"
@@ -90,7 +85,9 @@ export function MessagesSidebar({ activeChannelId }: { activeChannelId?: string 
                   </Link>
                 );
               })}
-              {dms.length === 0 ? <div className="px-2 py-1 text-xs text-muted-foreground">No DMs</div> : null}
+              {dms.length === 0 ? (
+                <div className="px-2 py-1 text-xs text-muted-foreground">No DMs</div>
+              ) : null}
             </div>
           </div>
 
@@ -120,7 +117,9 @@ export function MessagesSidebar({ activeChannelId }: { activeChannelId?: string 
                     <div className="min-w-0 flex items-center gap-2">
                       <Hash className="h-4 w-4 text-muted-foreground shrink-0" />
                       <span className="truncate">{c.name}</span>
-                      {c.name === "general" ? <Badge className="bg-muted text-muted-foreground">default</Badge> : null}
+                      {c.name === "general" ? (
+                        <Badge className="bg-muted text-muted-foreground">default</Badge>
+                      ) : null}
                     </div>
                   </Link>
                 );

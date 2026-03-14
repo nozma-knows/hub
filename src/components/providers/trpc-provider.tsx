@@ -18,9 +18,9 @@ export function TrpcProvider({ children }: { children: React.ReactNode }) {
             gcTime: 10 * 60_000,
             refetchOnWindowFocus: false,
             refetchOnMount: false,
-            retry: 1
-          }
-        }
+            retry: 1,
+          },
+        },
       })
   );
   const [trpcClient] = useState(() =>
@@ -28,9 +28,9 @@ export function TrpcProvider({ children }: { children: React.ReactNode }) {
       links: [
         httpBatchLink({
           url: "/api/trpc",
-          transformer: superjson
-        })
-      ]
+          transformer: superjson,
+        }),
+      ],
     })
   );
 

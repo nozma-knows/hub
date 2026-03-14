@@ -7,7 +7,7 @@ import type {
   InvokeAgentInput,
   OpenClawAgent,
   OpenClawAgentConfig,
-  UpdateAgentInput
+  UpdateAgentInput,
 } from "@/lib/openclaw/types";
 
 type OpenClawSdkClient = {
@@ -32,10 +32,9 @@ class OpenClawError extends Error {
   }
 }
 
-const dynamicImport = new Function(
-  "moduleName",
-  "return import(moduleName)"
-) as (moduleName: string) => Promise<Record<string, unknown>>;
+const dynamicImport = new Function("moduleName", "return import(moduleName)") as (
+  moduleName: string
+) => Promise<Record<string, unknown>>;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -55,10 +54,7 @@ function firstString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value : undefined;
 }
 
-function firstStringFromRecord(
-  record: Record<string, unknown>,
-  keys: readonly string[]
-): string | undefined {
+function firstStringFromRecord(record: Record<string, unknown>, keys: readonly string[]): string | undefined {
   for (const key of keys) {
     const value = firstString(record[key]);
     if (value) {
@@ -68,11 +64,12 @@ function firstStringFromRecord(
   return undefined;
 }
 
-function checksumBehavior(input: { model: string; instructions: string; runtimeConfig?: Record<string, unknown> }): string {
-  return createHash("sha256")
-    .update(JSON.stringify(input))
-    .digest("hex")
-    .slice(0, 32);
+function checksumBehavior(input: {
+  model: string;
+  instructions: string;
+  runtimeConfig?: Record<string, unknown>;
+}): string {
+  return createHash("sha256").update(JSON.stringify(input)).digest("hex").slice(0, 32);
 }
 
 function extractAgentRows(payload: unknown): { recognized: boolean; rows: unknown[] } {
@@ -109,10 +106,7 @@ function parseAgentRecord(value: unknown): OpenClawAgent | null {
     return null;
   }
 
-  const id =
-    firstStringFromRecord(value, ["id", "agentId", "slug", "key"]) ??
-    firstString(value.name) ??
-    "";
+  const id = firstStringFromRecord(value, ["id", "agentId", "slug", "key"]) ?? firstString(value.name) ?? "";
   if (!id) {
     return null;
   }
@@ -130,7 +124,7 @@ function parseAgentRecord(value: unknown): OpenClawAgent | null {
     name: firstStringFromRecord(value, ["name", "displayName", "title"]) ?? id,
     status,
     version: firstStringFromRecord(value, ["version", "openclawVersion", "revision"]),
-    behaviorChecksum: firstStringFromRecord(value, ["behaviorChecksum", "checksum"])
+    behaviorChecksum: firstStringFromRecord(value, ["behaviorChecksum", "checksum"]),
   };
 }
 
@@ -217,7 +211,9 @@ export class OpenClawAdapter {
       this.sdkClientPromise = dynamicImport(env.OPENCLAW_SDK_PACKAGE)
         .then((mod) => {
           const OpenClawCtor = mod.OpenClaw as
-            | (new (config: Record<string, unknown>) => OpenClawSdkClient)
+            | (new (
+                config: Record<string, unknown>
+              ) => OpenClawSdkClient)
             | undefined;
           if (!OpenClawCtor) {
             return null;
@@ -226,7 +222,7 @@ export class OpenClawAdapter {
           return new OpenClawCtor({
             apiKey: this.apiKey,
             baseUrl: this.configuredBaseUrl,
-            timeoutMs: env.OPENCLAW_TIMEOUT_MS
+            timeoutMs: env.OPENCLAW_TIMEOUT_MS,
           });
         })
         .catch(() => null);
@@ -292,9 +288,9 @@ export class OpenClawAdapter {
         "x-api-key": this.apiKey,
         "x-gateway-token": this.apiKey,
         ...(idempotencyKey ? { "idempotency-key": idempotencyKey } : {}),
-        ...(init.headers ?? {})
+        ...(init.headers ?? {}),
       },
-      signal: controller.signal
+      signal: controller.signal,
     }).finally(() => {
       clearTimeout(timeout);
     });
@@ -372,11 +368,18 @@ export class OpenClawAdapter {
       }
 
       return this.firstCompatibleResponse({
-        paths: ["/agents", "/api/agents", "/v1/agents", "/control/agents", "/api/control/agents", "/v1/control/agents"],
+        paths: [
+          "/agents",
+          "/api/agents",
+          "/v1/agents",
+          "/control/agents",
+          "/api/control/agents",
+          "/v1/control/agents",
+        ],
         parse: (payload) => {
           const parsed = parseAgentCollection(payload);
           return parsed.recognized ? parsed.agents : undefined;
-        }
+        },
       });
     });
   }
@@ -396,7 +399,7 @@ export class OpenClawAdapter {
           `/v1/agents/${encodedAgentId}`,
           `/control/agents/${encodedAgentId}`,
           `/api/control/agents/${encodedAgentId}`,
-          `/v1/control/agents/${encodedAgentId}`
+          `/v1/control/agents/${encodedAgentId}`,
         ],
         parse: (payload) => {
           try {
@@ -404,7 +407,7 @@ export class OpenClawAdapter {
           } catch {
             return undefined;
           }
-        }
+        },
       });
     });
   }
@@ -418,7 +421,14 @@ export class OpenClawAdapter {
       }
 
       return this.firstCompatibleResponse({
-        paths: ["/agents", "/api/agents", "/v1/agents", "/control/agents", "/api/control/agents", "/v1/control/agents"],
+        paths: [
+          "/agents",
+          "/api/agents",
+          "/v1/agents",
+          "/control/agents",
+          "/api/control/agents",
+          "/v1/control/agents",
+        ],
         init: { method: "POST", body: JSON.stringify(input) },
         idempotencyKey,
         parse: (payload) => {
@@ -427,7 +437,7 @@ export class OpenClawAdapter {
           } catch {
             return undefined;
           }
-        }
+        },
       });
     });
   }
@@ -448,11 +458,11 @@ export class OpenClawAdapter {
           `/v1/agents/${encodedAgentId}`,
           `/control/agents/${encodedAgentId}`,
           `/api/control/agents/${encodedAgentId}`,
-          `/v1/control/agents/${encodedAgentId}`
+          `/v1/control/agents/${encodedAgentId}`,
         ],
         init: {
           method: "PATCH",
-          body: JSON.stringify(input)
+          body: JSON.stringify(input),
         },
         idempotencyKey,
         parse: (payload) => {
@@ -461,7 +471,7 @@ export class OpenClawAdapter {
           } catch {
             return undefined;
           }
-        }
+        },
       });
     });
   }
@@ -482,7 +492,7 @@ export class OpenClawAdapter {
         `/v1/agents/${encodedAgentId}`,
         `/control/agents/${encodedAgentId}`,
         `/api/control/agents/${encodedAgentId}`,
-        `/v1/control/agents/${encodedAgentId}`
+        `/v1/control/agents/${encodedAgentId}`,
       ];
 
       let lastError: unknown;
@@ -523,10 +533,14 @@ export class OpenClawAdapter {
 
       try {
         const result = await this.firstCompatibleResponse({
-          paths: ["/agents/validate-behavior", "/api/agents/validate-behavior", "/v1/agents/validate-behavior"],
+          paths: [
+            "/agents/validate-behavior",
+            "/api/agents/validate-behavior",
+            "/v1/agents/validate-behavior",
+          ],
           init: {
             method: "POST",
-            body: JSON.stringify(input)
+            body: JSON.stringify(input),
           },
           parse: (payload) => {
             if (!isRecord(payload)) {
@@ -542,7 +556,7 @@ export class OpenClawAdapter {
               ? payload.issues.filter((issue): issue is string => typeof issue === "string")
               : [];
             return { valid, issues };
-          }
+          },
         });
 
         return { valid: result.valid, issues: result.issues, checksum };
@@ -573,13 +587,13 @@ export class OpenClawAdapter {
             `/v1/agents/${encodedAgentId}/invoke`,
             `/control/agents/${encodedAgentId}/invoke`,
             `/api/control/agents/${encodedAgentId}/invoke`,
-            `/v1/control/agents/${encodedAgentId}/invoke`
+            `/v1/control/agents/${encodedAgentId}/invoke`,
           ],
           init: {
             method: "POST",
-            body: JSON.stringify(input)
+            body: JSON.stringify(input),
           },
-          parse: (payload) => (isRecord(payload) ? payload : undefined)
+          parse: (payload) => (isRecord(payload) ? payload : undefined),
         });
       } catch (error) {
         if (!this.isUnsupportedEndpoint(error)) {
@@ -596,19 +610,19 @@ export class OpenClawAdapter {
             input: input.prompt,
             metadata: {
               source: "openclaw-hub",
-              toolBindingCount: input.toolBindings.length
+              toolBindingCount: input.toolBindings.length,
             },
-            toolBindings: input.toolBindings
-          })
+            toolBindings: input.toolBindings,
+          }),
         },
         parse: (payload) => {
           if (isRecord(payload)) {
             return payload;
           }
           return {
-            output: payload
+            output: payload,
           };
-        }
+        },
       });
     });
   }
@@ -624,7 +638,7 @@ export class OpenClawAdapter {
             `/v1/agents/${encodedAgentId}/config`,
             `/control/agents/${encodedAgentId}/config`,
             `/api/control/agents/${encodedAgentId}/config`,
-            `/v1/control/agents/${encodedAgentId}/config`
+            `/v1/control/agents/${encodedAgentId}/config`,
           ],
           parse: (payload) => {
             if (!isRecord(payload)) {
@@ -652,9 +666,9 @@ export class OpenClawAdapter {
             return {
               agentId,
               files,
-              readOnly: Boolean(payload.readOnly)
+              readOnly: Boolean(payload.readOnly),
             };
-          }
+          },
         });
       } catch (error) {
         if (!this.isUnsupportedEndpoint(error)) {
@@ -669,9 +683,9 @@ export class OpenClawAdapter {
         files: [
           {
             path: "instructions.md",
-            content: `# ${fallback.name}\n\nOpenClaw config endpoint is unavailable on this gateway.`
-          }
-        ]
+            content: `# ${fallback.name}\n\nOpenClaw config endpoint is unavailable on this gateway.`,
+          },
+        ],
       };
     });
   }
@@ -686,13 +700,13 @@ export class OpenClawAdapter {
           `/v1/agents/${encodedAgentId}/config`,
           `/control/agents/${encodedAgentId}/config`,
           `/api/control/agents/${encodedAgentId}/config`,
-          `/v1/control/agents/${encodedAgentId}/config`
+          `/v1/control/agents/${encodedAgentId}/config`,
         ],
         init: {
           method: "PUT",
           body: JSON.stringify({
-            files: input.files
-          })
+            files: input.files,
+          }),
         },
         parse: (payload) => {
           if (!isRecord(payload) || !Array.isArray(payload.files)) {
@@ -714,9 +728,9 @@ export class OpenClawAdapter {
           return {
             agentId: input.agentId,
             files,
-            readOnly: Boolean(payload.readOnly)
+            readOnly: Boolean(payload.readOnly),
           };
-        }
+        },
       });
     });
   }

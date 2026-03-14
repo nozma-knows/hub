@@ -21,7 +21,7 @@ export function MessagesPage() {
     gcTime: 15 * 60_000,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
-    placeholderData: (prev) => prev
+    placeholderData: (prev) => prev,
   });
   const agents = trpc.agents.list.useQuery();
 
@@ -43,7 +43,7 @@ export function MessagesPage() {
       setShowCreateChannel(false);
       window.location.href = `/messages/${created.id}`;
     },
-    onError: (e) => setError(e.message)
+    onError: (e) => setError(e.message),
   });
 
   const list = useMemo(() => channels.data ?? [], [channels.data]);
@@ -102,7 +102,9 @@ export function MessagesPage() {
           <CardTitle className="text-base">Channels</CardTitle>
         </CardHeader>
         <CardContent
-          className={"min-h-0 p-2 overscroll-contain " + ((list.length > 6) ? "overflow-auto" : "overflow-hidden")}
+          className={
+            "min-h-0 p-2 overscroll-contain " + (list.length > 6 ? "overflow-auto" : "overflow-hidden")
+          }
           style={{ WebkitOverflowScrolling: "touch" }}
         >
           <div className="space-y-1">
@@ -127,10 +129,14 @@ export function MessagesPage() {
                 <div className="min-w-0 flex items-center gap-2">
                   <Hash className="h-4 w-4 text-muted-foreground shrink-0" />
                   <span className="truncate font-medium">{c.name}</span>
-                  {c.name === "general" ? <Badge className="bg-muted text-muted-foreground shrink-0">default</Badge> : null}
+                  {c.name === "general" ? (
+                    <Badge className="bg-muted text-muted-foreground shrink-0">default</Badge>
+                  ) : null}
                 </div>
                 {c.description ? (
-                  <span className="hidden sm:block max-w-[45%] truncate text-xs text-muted-foreground">{c.description}</span>
+                  <span className="hidden sm:block max-w-[45%] truncate text-xs text-muted-foreground">
+                    {c.description}
+                  </span>
                 ) : (
                   <span className="hidden sm:block text-xs text-muted-foreground">&nbsp;</span>
                 )}
@@ -145,17 +151,27 @@ export function MessagesPage() {
           <div className="w-full max-w-xl rounded-lg bg-background shadow-lg">
             <div className="border-b p-4">
               <div className="text-lg font-semibold">Create channel</div>
-              <div className="mt-1 text-sm text-muted-foreground">Create a Hub-native channel and (optionally) assign agents.</div>
+              <div className="mt-1 text-sm text-muted-foreground">
+                Create a Hub-native channel and (optionally) assign agents.
+              </div>
             </div>
             <div className="space-y-3 p-4">
               <div className="space-y-1">
                 <Label>Name</Label>
-                <Input value={channelName} onChange={(e) => setChannelName(e.target.value)} placeholder="e.g. ops" />
+                <Input
+                  value={channelName}
+                  onChange={(e) => setChannelName(e.target.value)}
+                  placeholder="e.g. ops"
+                />
                 <div className="text-xs text-muted-foreground">Lowercase, numbers, hyphens only.</div>
               </div>
               <div className="space-y-1">
                 <Label>Description</Label>
-                <Input value={channelDescription} onChange={(e) => setChannelDescription(e.target.value)} placeholder="What is this channel for?" />
+                <Input
+                  value={channelDescription}
+                  onChange={(e) => setChannelDescription(e.target.value)}
+                  placeholder="What is this channel for?"
+                />
               </div>
               <div className="space-y-2">
                 <Label>Agents in channel</Label>
@@ -168,7 +184,9 @@ export function MessagesPage() {
                           type="checkbox"
                           checked={checked}
                           onChange={() => {
-                            setChannelAgentIds((prev) => (checked ? prev.filter((x) => x !== a.id) : [...prev, a.id]));
+                            setChannelAgentIds((prev) =>
+                              checked ? prev.filter((x) => x !== a.id) : [...prev, a.id]
+                            );
                           }}
                         />
                         <span className="truncate">{a.name}</span>
@@ -190,7 +208,7 @@ export function MessagesPage() {
                     createChannel.mutate({
                       name: channelName.trim(),
                       description: channelDescription.trim() || undefined,
-                      agentIds: channelAgentIds
+                      agentIds: channelAgentIds,
                     });
                   }}
                 >

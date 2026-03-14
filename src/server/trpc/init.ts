@@ -4,7 +4,7 @@ import superjson from "superjson";
 import type { TrpcContext } from "@/server/trpc/context";
 
 const t = initTRPC.context<TrpcContext>().create({
-  transformer: superjson
+  transformer: superjson,
 });
 
 const requireUser = t.middleware(({ ctx, next }) => {
@@ -16,8 +16,8 @@ const requireUser = t.middleware(({ ctx, next }) => {
     ctx: {
       ...ctx,
       user: ctx.user,
-      workspace: ctx.workspace
-    }
+      workspace: ctx.workspace,
+    },
   });
 });
 
@@ -29,8 +29,8 @@ const requireAdmin = t.middleware(({ ctx, next }) => {
   return next({
     ctx: {
       ...ctx,
-      workspace: ctx.workspace
-    }
+      workspace: ctx.workspace,
+    },
   });
 });
 

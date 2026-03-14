@@ -26,7 +26,7 @@ export function NewTicketPage() {
       await utils.tickets.list.invalidate();
       window.location.href = "/tickets";
     },
-    onError: (e) => setError(e.message)
+    onError: (e) => setError(e.message),
   });
 
   return (
@@ -71,7 +71,11 @@ export function NewTicketPage() {
 
           <div className="space-y-1 md:col-span-2">
             <Label>Description</Label>
-            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} className="min-h-32" />
+            <Textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="min-h-32"
+            />
           </div>
 
           <div className="md:col-span-2 flex gap-2">
@@ -82,7 +86,7 @@ export function NewTicketPage() {
                 create.mutate({
                   title: title.trim(),
                   description: description.trim() || undefined,
-                  ownerAgentId: ownerAgentId || undefined
+                  ownerAgentId: ownerAgentId || undefined,
                 });
               }}
             >

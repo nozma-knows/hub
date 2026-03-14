@@ -21,7 +21,7 @@ export async function logAuditEvent(input: {
       agentId: input.agentId,
       providerKey: input.providerKey,
       result: input.result,
-      details: input.details ?? {}
+      details: input.details ?? {},
     });
   } catch (err) {
     // eslint-disable-next-line no-console

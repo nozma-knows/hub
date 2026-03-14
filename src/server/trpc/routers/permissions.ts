@@ -10,27 +10,27 @@ export const permissionsRouter = createTrpcRouter({
     const [agentRows, providerRows, permissionRows] = await Promise.all([
       ctx.db.query.agents.findMany({
         where: eq(agents.workspaceId, ctx.workspace.id),
-        orderBy: (table, { asc }) => [asc(table.name)]
+        orderBy: (table, { asc }) => [asc(table.name)],
       }),
       ctx.db.query.toolProviders.findMany({
-        orderBy: (table, { asc }) => [asc(table.name)]
+        orderBy: (table, { asc }) => [asc(table.name)],
       }),
       ctx.db.query.agentToolPermissions.findMany({
-        where: eq(agentToolPermissions.workspaceId, ctx.workspace.id)
-      })
+        where: eq(agentToolPermissions.workspaceId, ctx.workspace.id),
+      }),
     ]);
 
     const permissions = permissionRows.map((row) => ({
       agentId: row.agentId,
       providerId: row.providerId,
       isAllowed: row.isAllowed,
-      scopeOverrides: row.scopeOverrides
+      scopeOverrides: row.scopeOverrides,
     }));
 
     return {
       agents: agentRows,
       providers: providerRows,
-      permissions
+      permissions,
     };
   }),
 
@@ -43,9 +43,9 @@ export const permissionsRouter = createTrpcRouter({
         scopeOverrides: z
           .object({
             capabilities: z.array(z.string()).optional(),
-            constraints: z.record(z.string(), z.any()).optional()
+            constraints: z.record(z.string(), z.any()).optional(),
           })
-          .default({})
+          .default({}),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -58,24 +58,24 @@ export const permissionsRouter = createTrpcRouter({
           isAllowed: input.isAllowed,
           scopeOverrides: input.scopeOverrides,
           updatedBy: ctx.user!.id,
-          updatedAt: new Date()
+          updatedAt: new Date(),
         })
         .onConflictDoUpdate({
           target: [
             agentToolPermissions.workspaceId,
             agentToolPermissions.agentId,
-            agentToolPermissions.providerId
+            agentToolPermissions.providerId,
           ],
           set: {
             isAllowed: input.isAllowed,
             scopeOverrides: input.scopeOverrides,
             updatedBy: ctx.user!.id,
-            updatedAt: new Date()
-          }
+            updatedAt: new Date(),
+          },
         });
 
       const provider = await ctx.db.query.toolProviders.findFirst({
-        where: eq(toolProviders.id, input.providerId)
+        where: eq(toolProviders.id, input.providerId),
       });
 
       await logAuditEvent({
@@ -87,10 +87,10 @@ export const permissionsRouter = createTrpcRouter({
         result: "success",
         details: {
           isAllowed: input.isAllowed,
-          scopeOverrides: input.scopeOverrides
-        }
+          scopeOverrides: input.scopeOverrides,
+        },
       });
 
       return { success: true };
-    })
+    }),
 });

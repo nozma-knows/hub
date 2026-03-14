@@ -15,7 +15,7 @@ import {
   oauthStates,
   toolConnections,
   toolProviderAppCredentials,
-  toolProviders
+  toolProviders,
 } from "@/db/schema";
 import { logAuditEvent } from "@/lib/audit";
 import { decryptString, encryptString } from "@/lib/crypto";
@@ -37,7 +37,7 @@ honoApp.get("/health", async (c) => {
   return c.json({
     ok: true,
     providerCount: count,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -45,7 +45,7 @@ honoApp.use(
   "/trpc/*",
   trpcServer({
     router: appRouter,
-    createContext: async (_, c) => createTrpcContext(c)
+    createContext: async (_, c) => createTrpcContext(c),
   })
 );
 
@@ -68,12 +68,11 @@ honoApp.post("/media/upload", async (c) => {
   const mediaDir = process.env.HUB_MEDIA_DIR ?? "/root/.openclaw/hub-media";
   await mkdir(mediaDir, { recursive: true });
 
-  const safeName = (file.name || "image")
-    .replace(/[^a-zA-Z0-9._-]+/g, "-")
-    .slice(0, 120);
+  const safeName = (file.name || "image").replace(/[^a-zA-Z0-9._-]+/g, "-").slice(0, 120);
 
   const id = randomUUID();
-  const ext = mime === "image/png" ? "png" : mime === "image/gif" ? "gif" : mime === "image/webp" ? "webp" : "jpg";
+  const ext =
+    mime === "image/png" ? "png" : mime === "image/gif" ? "gif" : mime === "image/webp" ? "webp" : "jpg";
   const rel = `${ctx.workspace.id}/${id}.${ext}`;
   const full = path.join(mediaDir, rel);
   await mkdir(path.dirname(full), { recursive: true });
@@ -101,7 +100,7 @@ honoApp.post("/media/upload", async (c) => {
       mimeType: mime,
       sizeBytes: ab.byteLength,
       width: typeof dims.width === "number" ? dims.width : null,
-      height: typeof dims.height === "number" ? dims.height : null
+      height: typeof dims.height === "number" ? dims.height : null,
     })
     .returning();
 
@@ -113,7 +112,7 @@ honoApp.post("/media/upload", async (c) => {
     width: typeof dims.width === "number" ? dims.width : null,
     height: typeof dims.height === "number" ? dims.height : null,
     originalName: safeName,
-    url: `/api/media/${id}`
+    url: `/api/media/${id}`,
   });
 });
 
@@ -123,24 +122,24 @@ honoApp.get("/media/:id", async (c) => {
 
   const id = c.req.param("id");
   const att = await db.query.hubMessageAttachments.findFirst({
-    where: and(eq(hubMessageAttachments.workspaceId, ctx.workspace.id), eq(hubMessageAttachments.id, id))
+    where: and(eq(hubMessageAttachments.workspaceId, ctx.workspace.id), eq(hubMessageAttachments.id, id)),
   });
   if (!att) return c.notFound();
   if (!att.messageId) return c.json({ error: "not_attached" }, 404);
 
   // Authorization: user must have access to the message's thread/channel.
   const msg = await db.query.hubMessages.findFirst({
-    where: and(eq(hubMessages.workspaceId, ctx.workspace.id), eq(hubMessages.id, att.messageId))
+    where: and(eq(hubMessages.workspaceId, ctx.workspace.id), eq(hubMessages.id, att.messageId)),
   });
   if (!msg) return c.notFound();
 
   const thread = await db.query.hubThreads.findFirst({
-    where: and(eq(hubThreads.workspaceId, ctx.workspace.id), eq(hubThreads.id, msg.threadId))
+    where: and(eq(hubThreads.workspaceId, ctx.workspace.id), eq(hubThreads.id, msg.threadId)),
   });
   if (!thread) return c.notFound();
 
   const channel = await db.query.hubChannels.findFirst({
-    where: and(eq(hubChannels.workspaceId, ctx.workspace.id), eq(hubChannels.id, thread.channelId))
+    where: and(eq(hubChannels.workspaceId, ctx.workspace.id), eq(hubChannels.id, thread.channelId)),
   });
   if (!channel) return c.notFound();
 
@@ -180,9 +179,9 @@ honoApp.post("/stt/transcribe", async (c) => {
   const resp = await fetch("https://api.openai.com/v1/audio/transcriptions", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${env.OPENAI_API_KEY}`
+      Authorization: `Bearer ${env.OPENAI_API_KEY}`,
     },
-    body: form as any
+    body: form as any,
   });
 
   if (!resp.ok) {
@@ -221,7 +220,7 @@ honoApp.get("/oauth/:provider/callback", async (c) => {
         eq(oauthStates.providerKey, provider.key),
         eq(oauthStates.state, state),
         gt(oauthStates.expiresAt, new Date())
-      )
+      ),
     });
 
     if (!oauthState || !oauthState.userId) {
@@ -229,7 +228,7 @@ honoApp.get("/oauth/:provider/callback", async (c) => {
     }
 
     const providerRow = await db.query.toolProviders.findFirst({
-      where: eq(toolProviders.key, provider.key)
+      where: eq(toolProviders.key, provider.key),
     });
 
     if (!providerRow) {
@@ -240,7 +239,7 @@ honoApp.get("/oauth/:provider/callback", async (c) => {
       where: and(
         eq(toolProviderAppCredentials.workspaceId, oauthState.workspaceId),
         eq(toolProviderAppCredentials.providerId, providerRow.id)
-      )
+      ),
     });
 
     if (!appCreds) {
@@ -252,12 +251,12 @@ honoApp.get("/oauth/:provider/callback", async (c) => {
       {
         code,
         redirectUri,
-        codeVerifier: oauthState.codeVerifier ?? undefined
+        codeVerifier: oauthState.codeVerifier ?? undefined,
       },
       {
         clientId: decryptString(appCreds.encryptedClientId),
         clientSecret: decryptString(appCreds.encryptedClientSecret),
-        scopes: appCreds.scopes
+        scopes: appCreds.scopes,
       }
     );
 
@@ -273,7 +272,7 @@ honoApp.get("/oauth/:provider/callback", async (c) => {
         expiresAt: tokenResult.expiresAt,
         externalAccountId: tokenResult.externalAccountId,
         metadata: tokenResult.metadata ?? {},
-        updatedAt: new Date()
+        updatedAt: new Date(),
       })
       .onConflictDoUpdate({
         target: [toolConnections.providerId, toolConnections.workspaceId, toolConnections.userId],
@@ -284,8 +283,8 @@ honoApp.get("/oauth/:provider/callback", async (c) => {
           expiresAt: tokenResult.expiresAt,
           externalAccountId: tokenResult.externalAccountId,
           metadata: tokenResult.metadata ?? {},
-          updatedAt: new Date()
-        }
+          updatedAt: new Date(),
+        },
       });
 
     await db.delete(oauthStates).where(eq(oauthStates.id, oauthState.id));
@@ -295,10 +294,12 @@ honoApp.get("/oauth/:provider/callback", async (c) => {
       eventType: "providers.connect",
       actorUserId: oauthState.userId,
       providerKey: provider.key,
-      result: "success"
+      result: "success",
     });
 
-    return c.redirect(`${env.NEXT_PUBLIC_APP_URL}${oauthState.redirectPath}?provider=${provider.key}&status=connected`);
+    return c.redirect(
+      `${env.NEXT_PUBLIC_APP_URL}${oauthState.redirectPath}?provider=${provider.key}&status=connected`
+    );
   } catch (error) {
     return c.redirect(
       `${env.NEXT_PUBLIC_APP_URL}/integrations?status=oauth_failed&error=${encodeURIComponent(

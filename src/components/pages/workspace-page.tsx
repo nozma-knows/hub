@@ -20,28 +20,28 @@ export function WorkspacePage() {
     onSuccess: async () => {
       await members.refetch();
       await utils.members.list.invalidate();
-    }
+    },
   });
   const updateRole = trpc.members.updateRole.useMutation({
     onSuccess: async () => {
       await members.refetch();
-    }
+    },
   });
   const remove = trpc.members.remove.useMutation({
     onSuccess: async () => {
       await members.refetch();
-    }
+    },
   });
   const upsertModelCredential = trpc.modelCredentials.upsert.useMutation({
     onSuccess: async () => {
       await modelCredentials.refetch();
       setApiKey("");
-    }
+    },
   });
   const removeModelCredential = trpc.modelCredentials.remove.useMutation({
     onSuccess: async () => {
       await modelCredentials.refetch();
-    }
+    },
   });
 
   const [email, setEmail] = useState("");
@@ -76,7 +76,11 @@ export function WorkspacePage() {
           <div className="grid gap-3 md:grid-cols-3">
             <div className="space-y-1">
               <Label>Email</Label>
-              <Input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="friend@example.com" />
+              <Input
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="friend@example.com"
+              />
             </div>
             <div className="space-y-1">
               <Label>Role</Label>
@@ -97,7 +101,7 @@ export function WorkspacePage() {
                   try {
                     const result = await invite.mutateAsync({
                       email,
-                      role
+                      role,
                     });
                     setInviteToken(result.token);
                     setEmail("");
@@ -145,7 +149,7 @@ export function WorkspacePage() {
                       onChange={(event) =>
                         updateRole.mutate({
                           userId: member.userId,
-                          role: event.target.value as "owner" | "admin" | "operator"
+                          role: event.target.value as "owner" | "admin" | "operator",
                         })
                       }
                     >
@@ -194,7 +198,7 @@ export function WorkspacePage() {
               onClick={() =>
                 upsertModelCredential.mutate({
                   providerKey: modelProvider,
-                  apiKey
+                  apiKey,
                 })
               }
             >
@@ -202,7 +206,10 @@ export function WorkspacePage() {
             </Button>
           </div>
           {(modelCredentials.data ?? []).map((credential) => (
-            <div key={credential.id} className="flex items-center justify-between rounded-md border p-2 text-sm">
+            <div
+              key={credential.id}
+              className="flex items-center justify-between rounded-md border p-2 text-sm"
+            >
               <div>
                 {credential.providerKey} · {credential.label}
               </div>
@@ -213,7 +220,7 @@ export function WorkspacePage() {
                   onClick={() =>
                     removeModelCredential.mutate({
                       providerKey: credential.providerKey as "openai" | "anthropic",
-                      label: credential.label
+                      label: credential.label,
                     })
                   }
                 >

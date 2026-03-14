@@ -18,7 +18,13 @@ type AnyStatus = Status | "doing"; // legacy
 
 function normalizeStatus(status: string | null | undefined): Status {
   if (status === "doing") return "in_progress";
-  if (status === "backlog" || status === "todo" || status === "in_progress" || status === "done" || status === "canceled") {
+  if (
+    status === "backlog" ||
+    status === "todo" ||
+    status === "in_progress" ||
+    status === "done" ||
+    status === "canceled"
+  ) {
     return status;
   }
   return "todo";
@@ -29,7 +35,7 @@ const columns: Array<{ key: Status; title: string }> = [
   { key: "todo", title: "Todo" },
   { key: "in_progress", title: "In Progress" },
   { key: "done", title: "Done" },
-  { key: "canceled", title: "Canceled" }
+  { key: "canceled", title: "Canceled" },
 ];
 
 export function TicketsPage() {
@@ -42,14 +48,14 @@ export function TicketsPage() {
     todo: false,
     in_progress: false,
     done: false,
-    canceled: false
+    canceled: false,
   });
   const [collapsedMobile, setCollapsedMobile] = useState<Record<Status, boolean>>({
     backlog: false,
     todo: false,
     in_progress: false,
     done: false,
-    canceled: false
+    canceled: false,
   });
 
   const [isMobile, setIsMobile] = useState(false);
@@ -105,7 +111,7 @@ export function TicketsPage() {
         todo: value,
         in_progress: value,
         done: value,
-        canceled: value
+        canceled: value,
       };
       persistCollapsed(next);
       return next;
@@ -117,7 +123,7 @@ export function TicketsPage() {
       await utils.tickets.list.invalidate();
       if (vars?.ticketId) await utils.tickets.get.invalidate({ ticketId: vars.ticketId });
     },
-    onError: (e) => setError(e.message)
+    onError: (e) => setError(e.message),
   });
 
   const [error, setError] = useState<string | null>(null);
@@ -141,13 +147,13 @@ export function TicketsPage() {
       if (openTicketId) await utils.tickets.get.invalidate({ ticketId: openTicketId });
       setComment("");
     },
-    onError: (e) => setError(e.message)
+    onError: (e) => setError(e.message),
   });
   const invokeOwner = trpc.tickets.invokeOwner.useMutation({
     onSuccess: async () => {
       if (openTicketId) await utils.tickets.get.invalidate({ ticketId: openTicketId });
     },
-    onError: (e) => setError(e.message)
+    onError: (e) => setError(e.message),
   });
 
   const deleteTicket = trpc.tickets.remove.useMutation({
@@ -156,7 +162,7 @@ export function TicketsPage() {
       if (openTicketId) await utils.tickets.get.invalidate({ ticketId: openTicketId });
       setOpenTicketId(null);
     },
-    onError: (e) => setError(e.message)
+    onError: (e) => setError(e.message),
   });
 
   const retryDispatch = trpc.tickets.retryDispatch.useMutation({
@@ -164,7 +170,7 @@ export function TicketsPage() {
       await utils.tickets.list.invalidate();
       if (openTicketId) await utils.tickets.get.invalidate({ ticketId: openTicketId });
     },
-    onError: (e) => setError(e.message)
+    onError: (e) => setError(e.message),
   });
 
   const [comment, setComment] = useState("");
@@ -184,144 +190,175 @@ export function TicketsPage() {
     <>
       {/* Layout contract: no page scroll caused by Kanban. Only column bodies scroll. */}
       <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Tickets</h1>
-          <p className="text-sm text-muted-foreground">Kanban board aligned with Linear workflow states.</p>
-        </div>
-        <Button type="button" onClick={() => (window.location.href = "/tickets/new")}>
-          New ticket
-        </Button>
-      </div>
-
-      {error ? <Alert className="border-destructive text-destructive">{error}</Alert> : null}
-
-
-      <div className="min-h-0 flex-1 rounded-xl border bg-muted/5 p-2 sm:p-3 overflow-hidden">
-        {/* Board region: fills remaining viewport height */}
-        <div className="flex h-full min-h-0 min-w-0 flex-col">
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-1">
-            <div className="text-xs text-muted-foreground">{isMobile ? "Mobile" : "Desktop"} view</div>
-            <div className="flex gap-2">
-              <Button type="button" size="sm" variant="outline" onClick={() => setAllColumnsCollapsed(true)}>
-                Collapse all
-              </Button>
-              <Button type="button" size="sm" variant="outline" onClick={() => setAllColumnsCollapsed(false)}>
-                Expand all
-              </Button>
-            </div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold">Tickets</h1>
+            <p className="text-sm text-muted-foreground">Kanban board aligned with Linear workflow states.</p>
           </div>
-          {/* Desktop: horizontal board */}
-          <div className="hidden h-full min-h-0 min-w-0 gap-3 overflow-x-auto overscroll-x-contain sm:flex">
-            {columns.map((col) => {
-              const isCollapsed = Boolean(collapsed[col.key]);
-              return (
-                <div
-                  key={col.key}
-                  className={
-                    "flex h-full min-h-0 flex-col rounded-xl border bg-background/60 shadow-sm backdrop-blur transition-[width] duration-200 " +
-                    (isCollapsed ? "w-14" : "w-[320px]")
-                  }
+          <Button type="button" onClick={() => (window.location.href = "/tickets/new")}>
+            New ticket
+          </Button>
+        </div>
+
+        {error ? <Alert className="border-destructive text-destructive">{error}</Alert> : null}
+
+        <div className="min-h-0 flex-1 rounded-xl border bg-muted/5 p-2 sm:p-3 overflow-hidden">
+          {/* Board region: fills remaining viewport height */}
+          <div className="flex h-full min-h-0 min-w-0 flex-col">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-1">
+              <div className="text-xs text-muted-foreground">{isMobile ? "Mobile" : "Desktop"} view</div>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setAllColumnsCollapsed(true)}
                 >
-                  <div className="shrink-0 border-b bg-background/80 p-2">
-                    <button
-                      type="button"
-                      onClick={() => toggleColumn(col.key)}
-                      className={
-                        "flex w-full items-center justify-between gap-2 rounded-md px-2 py-1 text-left hover:bg-muted/40 " +
-                        (isCollapsed ? "flex-col" : "")
-                      }
-                      aria-expanded={!isCollapsed}
-                    >
-                      <span className={"flex items-center gap-2 " + (isCollapsed ? "justify-center" : "min-w-0")}
+                  Collapse all
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setAllColumnsCollapsed(false)}
+                >
+                  Expand all
+                </Button>
+              </div>
+            </div>
+            {/* Desktop: horizontal board */}
+            <div className="hidden h-full min-h-0 min-w-0 gap-3 overflow-x-auto overscroll-x-contain sm:flex">
+              {columns.map((col) => {
+                const isCollapsed = Boolean(collapsed[col.key]);
+                return (
+                  <div
+                    key={col.key}
+                    className={
+                      "flex h-full min-h-0 flex-col rounded-xl border bg-background/60 shadow-sm backdrop-blur transition-[width] duration-200 " +
+                      (isCollapsed ? "w-14" : "w-[320px]")
+                    }
+                  >
+                    <div className="shrink-0 border-b bg-background/80 p-2">
+                      <button
+                        type="button"
+                        onClick={() => toggleColumn(col.key)}
+                        className={
+                          "flex w-full items-center justify-between gap-2 rounded-md px-2 py-1 text-left hover:bg-muted/40 " +
+                          (isCollapsed ? "flex-col" : "")
+                        }
+                        aria-expanded={!isCollapsed}
                       >
-                        <span className="inline-block w-4 text-muted-foreground">{isCollapsed ? ">" : "v"}</span>
-                        <span className={isCollapsed ? "sr-only" : "truncate text-sm font-medium"}>{col.title}</span>
-                        {isCollapsed ? (
-                          <span className="text-xs font-semibold" style={{ writingMode: "vertical-rl" as any }}>
+                        <span
+                          className={
+                            "flex items-center gap-2 " + (isCollapsed ? "justify-center" : "min-w-0")
+                          }
+                        >
+                          <span className="inline-block w-4 text-muted-foreground">
+                            {isCollapsed ? ">" : "v"}
+                          </span>
+                          <span className={isCollapsed ? "sr-only" : "truncate text-sm font-medium"}>
                             {col.title}
                           </span>
-                        ) : null}
-                      </span>
-                      <Badge className="bg-muted text-muted-foreground shrink-0 min-w-9 justify-center tabular-nums">
-                        {grouped[col.key].length}
-                      </Badge>
-                    </button>
-                  </div>
-
-                  {isCollapsed ? (
-                    <div className="flex-1 min-h-0" />
-                  ) : (
-                    <div
-                      className="min-h-0 flex-1 overflow-auto overscroll-contain p-2 transition-opacity duration-200"
-                      onDragOver={(e) => e.preventDefault()}
-                      onDrop={(e) => {
-                        const ticketId = e.dataTransfer.getData("text/ticketId");
-                        if (!ticketId) return;
-                        setError(null);
-                        move.mutate({ ticketId, status: col.key });
-                      }}
-                    >
-                      {loadingTickets ? (
-                        <div className="space-y-2">
-                          {Array.from({ length: 3 }).map((_, i) => (
-                            <div key={i} className="h-20 w-full animate-pulse rounded-md border bg-muted/30" />
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          {grouped[col.key].map((t) => (
-                            <button
-                              key={t.id}
-                              draggable
-                              onDragStart={(e) => {
-                                e.dataTransfer.setData("text/ticketId", t.id);
-                              }}
-                              onClick={() => setOpenTicketId(t.id)}
-                              className="w-full rounded-md border bg-background p-3 text-left shadow-sm hover:bg-muted/40"
+                          {isCollapsed ? (
+                            <span
+                              className="text-xs font-semibold"
+                              style={{ writingMode: "vertical-rl" as any }}
                             >
-                              <div className="flex items-baseline justify-between gap-2">
-                                <div className="text-sm font-medium line-clamp-2">{t.title}</div>
-                                <button
-                                  type="button"
-                                  className="shrink-0 rounded-md border bg-background px-2 py-0.5 text-[11px] font-mono text-muted-foreground hover:bg-muted"
-                                  title="Copy ticket key"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const key = formatTicketKey(t.ticketNumber);
-                                    void navigator.clipboard?.writeText?.(key);
-                                  }}
-                                >
-                                  {formatTicketKey(t.ticketNumber)}
-                                </button>
-                              </div>
-                              {t.ownerAgentId ? (
-                                <div className="mt-1 text-xs text-muted-foreground">Owner: {t.ownerAgentId}</div>
-                              ) : (
-                                <div className="mt-1 text-xs text-muted-foreground">Unassigned</div>
-                              )}
-                              {t.description ? (
-                                <div className="mt-2 line-clamp-3 whitespace-pre-wrap text-xs text-muted-foreground">{t.description}</div>
-                              ) : null}
-                              <div className="mt-2 text-[11px] text-muted-foreground">Updated: {new Date(t.updatedAt).toLocaleString()}</div>
-                            </button>
-                          ))}
-                        </div>
-                      )}
+                              {col.title}
+                            </span>
+                          ) : null}
+                        </span>
+                        <Badge className="bg-muted text-muted-foreground shrink-0 min-w-9 justify-center tabular-nums">
+                          {grouped[col.key].length}
+                        </Badge>
+                      </button>
                     </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
 
-          {/* Mobile: vertical multi-accordion. No outer scroll; only column bodies scroll. */}
-          <div className="flex h-full min-h-0 flex-col gap-2 sm:hidden overflow-hidden">
-            <div className="min-h-0 flex-1 space-y-2 overflow-hidden">
+                    {isCollapsed ? (
+                      <div className="flex-1 min-h-0" />
+                    ) : (
+                      <div
+                        className="min-h-0 flex-1 overflow-auto overscroll-contain p-2 transition-opacity duration-200"
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => {
+                          const ticketId = e.dataTransfer.getData("text/ticketId");
+                          if (!ticketId) return;
+                          setError(null);
+                          move.mutate({ ticketId, status: col.key });
+                        }}
+                      >
+                        {loadingTickets ? (
+                          <div className="space-y-2">
+                            {Array.from({ length: 3 }).map((_, i) => (
+                              <div
+                                key={i}
+                                className="h-20 w-full animate-pulse rounded-md border bg-muted/30"
+                              />
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {grouped[col.key].map((t) => (
+                              <button
+                                key={t.id}
+                                draggable
+                                onDragStart={(e) => {
+                                  e.dataTransfer.setData("text/ticketId", t.id);
+                                }}
+                                onClick={() => setOpenTicketId(t.id)}
+                                className="w-full rounded-md border bg-background p-3 text-left shadow-sm hover:bg-muted/40"
+                              >
+                                <div className="flex items-baseline justify-between gap-2">
+                                  <div className="text-sm font-medium line-clamp-2">{t.title}</div>
+                                  <button
+                                    type="button"
+                                    className="shrink-0 rounded-md border bg-background px-2 py-0.5 text-[11px] font-mono text-muted-foreground hover:bg-muted"
+                                    title="Copy ticket key"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const key = formatTicketKey(t.ticketNumber);
+                                      void navigator.clipboard?.writeText?.(key);
+                                    }}
+                                  >
+                                    {formatTicketKey(t.ticketNumber)}
+                                  </button>
+                                </div>
+                                {t.ownerAgentId ? (
+                                  <div className="mt-1 text-xs text-muted-foreground">
+                                    Owner: {t.ownerAgentId}
+                                  </div>
+                                ) : (
+                                  <div className="mt-1 text-xs text-muted-foreground">Unassigned</div>
+                                )}
+                                {t.description ? (
+                                  <div className="mt-2 line-clamp-3 whitespace-pre-wrap text-xs text-muted-foreground">
+                                    {t.description}
+                                  </div>
+                                ) : null}
+                                <div className="mt-2 text-[11px] text-muted-foreground">
+                                  Updated: {new Date(t.updatedAt).toLocaleString()}
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Mobile: vertical multi-accordion. No outer scroll; only column bodies scroll. */}
+            <div className="flex h-full min-h-0 flex-col gap-2 sm:hidden overflow-hidden">
+              <div className="min-h-0 flex-1 space-y-2 overflow-hidden">
                 {columns.map((col) => {
                   const isCollapsed = Boolean(collapsed[col.key]);
                   return (
-                    <div key={col.key} className="flex min-h-0 flex-col rounded-xl border bg-background/60 overflow-hidden">
+                    <div
+                      key={col.key}
+                      className="flex min-h-0 flex-col rounded-xl border bg-background/60 overflow-hidden"
+                    >
                       <button
                         type="button"
                         onClick={() => toggleColumn(col.key)}
@@ -329,7 +366,9 @@ export function TicketsPage() {
                         aria-expanded={!isCollapsed}
                       >
                         <span className="flex min-w-0 items-center gap-2">
-                          <span className="inline-block w-4 text-muted-foreground">{isCollapsed ? ">" : "v"}</span>
+                          <span className="inline-block w-4 text-muted-foreground">
+                            {isCollapsed ? ">" : "v"}
+                          </span>
                           <span className="truncate text-sm font-medium">{col.title}</span>
                         </span>
                         <Badge className="bg-muted text-muted-foreground shrink-0 min-w-9 justify-center tabular-nums">
@@ -369,7 +408,9 @@ export function TicketsPage() {
                                   </span>
                                 </div>
                                 {t.ownerAgentId ? (
-                                  <div className="mt-1 text-xs text-muted-foreground">Owner: {t.ownerAgentId}</div>
+                                  <div className="mt-1 text-xs text-muted-foreground">
+                                    Owner: {t.ownerAgentId}
+                                  </div>
                                 ) : (
                                   <div className="mt-1 text-xs text-muted-foreground">Unassigned</div>
                                 )}
@@ -388,223 +429,244 @@ export function TicketsPage() {
       </div>
 
       {openTicketId ? (
-      <div className="fixed inset-0 z-50 bg-black/50 p-2 sm:p-4">
-        <div className="mx-auto flex h-full w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-background shadow-lg">
-          <div className="flex items-start justify-between gap-3 border-b p-4 shrink-0">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <div className="text-lg font-semibold truncate">{ticketDetail.data?.ticket.title ?? "Ticket"}</div>
-                <button
-                  type="button"
-                  className="rounded-md border bg-background px-2 py-0.5 text-[11px] font-mono text-muted-foreground hover:bg-muted"
-                  title="Copy ticket key"
-                  onClick={() => {
-                    const key = formatTicketKey((ticketDetail.data?.ticket as any)?.ticketNumber);
-                    void navigator.clipboard?.writeText?.(key);
-                  }}
-                >
-                  {formatTicketKey((ticketDetail.data?.ticket as any)?.ticketNumber)}
-                </button>
-              </div>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <div className="text-xs text-muted-foreground">State</div>
-                <select
-                  className="rounded-md border bg-background px-2 py-1 text-xs"
-                  value={normalizeStatus(ticketDetail.data?.ticket.status)}
-                  onChange={(e) => {
-                    if (!openTicketId) return;
-                    setError(null);
-                    move.mutate({ ticketId: openTicketId, status: e.target.value as Status });
-                  }}
-                  disabled={move.isPending || ticketDetail.isLoading}
-                >
-                  {columns.map((c) => (
-                    <option key={c.key} value={c.key}>
-                      {c.title}
-                    </option>
-                  ))}
-                </select>
-                {move.isPending ? <span className="text-xs text-muted-foreground">Saving…</span> : null}
-              </div>
-            </div>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setOpenTicketId(null);
-                try {
-                  const url = new URL(window.location.href);
-                  url.searchParams.delete("open");
-                  window.history.replaceState({}, "", url.toString());
-                } catch {
-                  // ignore
-                }
-              }}
-            >
-              Close
-            </Button>
-          </div>
-
-          <div className="flex-1 min-h-0 overflow-auto space-y-4 p-4">
-            {ticketDetail.error ? (
-              <Alert className="border-destructive text-destructive">{ticketDetail.error.message}</Alert>
-            ) : null}
-
-            <div className="rounded-md border p-3 text-sm">
-              <div className="text-xs text-muted-foreground">Description</div>
-              <div className="mt-1 whitespace-pre-wrap">{ticketDetail.data?.ticket.description ?? "(none)"}</div>
-            </div>
-
-            {(() => {
-              const t: any = ticketDetail.data?.ticket;
-              const hasHealth =
-                Boolean(t?.dispatchState && t.dispatchState !== "idle") ||
-                Boolean(t?.lastDispatchError) ||
-                Boolean(t?.lastDispatchedAt) ||
-                Boolean(t?.dispatchLockExpiresAt);
-              if (!hasHealth) return null;
-
-              return (
-                <details className="rounded-md border">
-                  <summary className="cursor-pointer select-none px-3 py-2 text-sm font-medium">
-                    Health
-                    <span className="ml-2 text-xs font-normal text-muted-foreground">
-                      (dispatcher/status)
-                    </span>
-                  </summary>
-                  <div className="grid gap-3 px-3 pb-3 text-sm sm:grid-cols-2">
-                    <div className="space-y-1">
-                      <div className="text-xs text-muted-foreground">Dispatch state</div>
-                      <div className="font-mono">{t.dispatchState ?? "(none)"}</div>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="text-xs text-muted-foreground">Last dispatched</div>
-                      <div>{t.lastDispatchedAt ? new Date(t.lastDispatchedAt).toLocaleString() : "(never)"}</div>
-                    </div>
-                    <div className="space-y-1 sm:col-span-2">
-                      <div className="text-xs text-muted-foreground">Last dispatch error</div>
-                      <div className={t.lastDispatchError ? "text-destructive whitespace-pre-wrap" : "text-muted-foreground"}>
-                        {t.lastDispatchError ?? "(none)"}
-                      </div>
-                    </div>
+        <div className="fixed inset-0 z-50 bg-black/50 p-2 sm:p-4">
+          <div className="mx-auto flex h-full w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-background shadow-lg">
+            <div className="flex items-start justify-between gap-3 border-b p-4 shrink-0">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <div className="text-lg font-semibold truncate">
+                    {ticketDetail.data?.ticket.title ?? "Ticket"}
                   </div>
-                </details>
-              );
-            })()}
-
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="text-sm text-muted-foreground">
-                Owner: <span className="font-mono">{ticketDetail.data?.ticket.ownerAgentId ?? "(unassigned)"}</span>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  variant="outline"
-                  disabled={retryDispatch.isPending || ticketDetail.isLoading}
-                  onClick={async () => {
-                    if (!openTicketId) return;
-                    const ok = window.confirm("Retry dispatch for this ticket? This will re-queue it for the dispatcher.");
-                    if (!ok) return;
-                    setError(null);
-                    await retryDispatch.mutateAsync({ ticketId: openTicketId });
-                  }}
-                >
-                  {retryDispatch.isPending ? "Retrying…" : "Retry"}
-                </Button>
-                <Button
-                  disabled={!ticketDetail.data?.ticket.ownerAgentId || invokeOwner.isPending}
-                  onClick={async () => {
-                    setError(null);
-                    await invokeOwner.mutateAsync({ ticketId: openTicketId });
-                  }}
-                >
-                  {invokeOwner.isPending ? "Running…" : "Run owner agent"}
-                </Button>
-                <Button
-                  variant="destructive"
-                  disabled={deleteTicket.isPending || ticketDetail.isLoading}
-                  onClick={async () => {
-                    if (!openTicketId) return;
-                    const key = formatTicketKey((ticketDetail.data?.ticket as any)?.ticketNumber);
-                    const typed = window.prompt(`Type ${key} to delete this ticket (soft-delete).`);
-                    if (typed !== key) return;
-                    setError(null);
-                    await deleteTicket.mutateAsync({ ticketId: openTicketId });
-                  }}
-                >
-                  {deleteTicket.isPending ? "Deleting…" : "Delete"}
-                </Button>
-              </div>
-            </div>
-
-            {(ticketDetail.data?.runs?.length ?? 0) > 0 ? (
-              <details className="rounded-md border">
-                <summary className="cursor-pointer select-none px-3 py-2 text-sm font-medium">Runs</summary>
-                <div className="space-y-2 px-3 pb-3 text-sm">
-                  {(ticketDetail.data?.runs ?? []).slice(0, 20).map((r: any) => (
-                    <div key={r.id} className="rounded-md border bg-background p-2">
-                      <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
-                        <div className="font-mono">
-                          {r.agentId} · {r.status}
-                        </div>
-                        <div>{new Date(r.startedAt).toLocaleString()}</div>
-                      </div>
-                      {r.error ? <div className="mt-1 text-xs text-destructive whitespace-pre-wrap">{r.error}</div> : null}
-                      {r.output ? (
-                        <details className="mt-1">
-                          <summary className="cursor-pointer text-xs text-muted-foreground">Output</summary>
-                          <pre className="mt-2 max-h-64 overflow-auto rounded-md border bg-muted p-2 text-[11px] whitespace-pre-wrap">{r.output}</pre>
-                        </details>
-                      ) : null}
-                    </div>
-                  ))}
-                </div>
-              </details>
-            ) : null}
-
-            <div className="space-y-2">
-              <div className="text-sm font-medium">Comments</div>
-              <div className="space-y-2 rounded-md border p-3">
-                {(ticketDetail.data?.comments ?? []).map((c) => (
-                  <div key={c.id} className="rounded-md border bg-background p-2">
-                    <div className="text-[11px] text-muted-foreground">
-                      {c.authorType} · {new Date(c.createdAt).toLocaleString()}
-                    </div>
-                    <div className="text-sm break-words overflow-hidden">
-                      <MarkdownMessage body={c.body} />
-                    </div>
-                  </div>
-                ))}
-                {(ticketDetail.data?.comments ?? []).length === 0 ? (
-                  <div className="text-sm text-muted-foreground">No comments yet.</div>
-                ) : null}
-              </div>
-
-              <div className="sticky bottom-0 -mx-4 mt-2 border-t bg-background/90 backdrop-blur px-4 py-3">
-                <Textarea
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  placeholder="Add a comment…"
-                  className="min-h-14 rounded-xl text-base"
-                  inputMode="text"
-                  autoCorrect="on"
-                  autoCapitalize="sentences"
-                />
-                <div className="mt-2 flex justify-end">
-                  <Button
-                    disabled={!comment.trim() || addComment.isPending}
-                    onClick={async () => {
-                      if (!openTicketId) return;
-                      setError(null);
-                      await addComment.mutateAsync({ ticketId: openTicketId, body: comment.trim() });
+                  <button
+                    type="button"
+                    className="rounded-md border bg-background px-2 py-0.5 text-[11px] font-mono text-muted-foreground hover:bg-muted"
+                    title="Copy ticket key"
+                    onClick={() => {
+                      const key = formatTicketKey((ticketDetail.data?.ticket as any)?.ticketNumber);
+                      void navigator.clipboard?.writeText?.(key);
                     }}
                   >
-                    {addComment.isPending ? "Posting…" : "Post"}
+                    {formatTicketKey((ticketDetail.data?.ticket as any)?.ticketNumber)}
+                  </button>
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <div className="text-xs text-muted-foreground">State</div>
+                  <select
+                    className="rounded-md border bg-background px-2 py-1 text-xs"
+                    value={normalizeStatus(ticketDetail.data?.ticket.status)}
+                    onChange={(e) => {
+                      if (!openTicketId) return;
+                      setError(null);
+                      move.mutate({ ticketId: openTicketId, status: e.target.value as Status });
+                    }}
+                    disabled={move.isPending || ticketDetail.isLoading}
+                  >
+                    {columns.map((c) => (
+                      <option key={c.key} value={c.key}>
+                        {c.title}
+                      </option>
+                    ))}
+                  </select>
+                  {move.isPending ? <span className="text-xs text-muted-foreground">Saving…</span> : null}
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setOpenTicketId(null);
+                  try {
+                    const url = new URL(window.location.href);
+                    url.searchParams.delete("open");
+                    window.history.replaceState({}, "", url.toString());
+                  } catch {
+                    // ignore
+                  }
+                }}
+              >
+                Close
+              </Button>
+            </div>
+
+            <div className="flex-1 min-h-0 overflow-auto space-y-4 p-4">
+              {ticketDetail.error ? (
+                <Alert className="border-destructive text-destructive">{ticketDetail.error.message}</Alert>
+              ) : null}
+
+              <div className="rounded-md border p-3 text-sm">
+                <div className="text-xs text-muted-foreground">Description</div>
+                <div className="mt-1 whitespace-pre-wrap">
+                  {ticketDetail.data?.ticket.description ?? "(none)"}
+                </div>
+              </div>
+
+              {(() => {
+                const t: any = ticketDetail.data?.ticket;
+                const hasHealth =
+                  Boolean(t?.dispatchState && t.dispatchState !== "idle") ||
+                  Boolean(t?.lastDispatchError) ||
+                  Boolean(t?.lastDispatchedAt) ||
+                  Boolean(t?.dispatchLockExpiresAt);
+                if (!hasHealth) return null;
+
+                return (
+                  <details className="rounded-md border">
+                    <summary className="cursor-pointer select-none px-3 py-2 text-sm font-medium">
+                      Health
+                      <span className="ml-2 text-xs font-normal text-muted-foreground">
+                        (dispatcher/status)
+                      </span>
+                    </summary>
+                    <div className="grid gap-3 px-3 pb-3 text-sm sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <div className="text-xs text-muted-foreground">Dispatch state</div>
+                        <div className="font-mono">{t.dispatchState ?? "(none)"}</div>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="text-xs text-muted-foreground">Last dispatched</div>
+                        <div>
+                          {t.lastDispatchedAt ? new Date(t.lastDispatchedAt).toLocaleString() : "(never)"}
+                        </div>
+                      </div>
+                      <div className="space-y-1 sm:col-span-2">
+                        <div className="text-xs text-muted-foreground">Last dispatch error</div>
+                        <div
+                          className={
+                            t.lastDispatchError
+                              ? "text-destructive whitespace-pre-wrap"
+                              : "text-muted-foreground"
+                          }
+                        >
+                          {t.lastDispatchError ?? "(none)"}
+                        </div>
+                      </div>
+                    </div>
+                  </details>
+                );
+              })()}
+
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="text-sm text-muted-foreground">
+                  Owner:{" "}
+                  <span className="font-mono">
+                    {ticketDetail.data?.ticket.ownerAgentId ?? "(unassigned)"}
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    variant="outline"
+                    disabled={retryDispatch.isPending || ticketDetail.isLoading}
+                    onClick={async () => {
+                      if (!openTicketId) return;
+                      const ok = window.confirm(
+                        "Retry dispatch for this ticket? This will re-queue it for the dispatcher."
+                      );
+                      if (!ok) return;
+                      setError(null);
+                      await retryDispatch.mutateAsync({ ticketId: openTicketId });
+                    }}
+                  >
+                    {retryDispatch.isPending ? "Retrying…" : "Retry"}
                   </Button>
+                  <Button
+                    disabled={!ticketDetail.data?.ticket.ownerAgentId || invokeOwner.isPending}
+                    onClick={async () => {
+                      setError(null);
+                      await invokeOwner.mutateAsync({ ticketId: openTicketId });
+                    }}
+                  >
+                    {invokeOwner.isPending ? "Running…" : "Run owner agent"}
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    disabled={deleteTicket.isPending || ticketDetail.isLoading}
+                    onClick={async () => {
+                      if (!openTicketId) return;
+                      const key = formatTicketKey((ticketDetail.data?.ticket as any)?.ticketNumber);
+                      const typed = window.prompt(`Type ${key} to delete this ticket (soft-delete).`);
+                      if (typed !== key) return;
+                      setError(null);
+                      await deleteTicket.mutateAsync({ ticketId: openTicketId });
+                    }}
+                  >
+                    {deleteTicket.isPending ? "Deleting…" : "Delete"}
+                  </Button>
+                </div>
+              </div>
+
+              {(ticketDetail.data?.runs?.length ?? 0) > 0 ? (
+                <details className="rounded-md border">
+                  <summary className="cursor-pointer select-none px-3 py-2 text-sm font-medium">Runs</summary>
+                  <div className="space-y-2 px-3 pb-3 text-sm">
+                    {(ticketDetail.data?.runs ?? []).slice(0, 20).map((r: any) => (
+                      <div key={r.id} className="rounded-md border bg-background p-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                          <div className="font-mono">
+                            {r.agentId} · {r.status}
+                          </div>
+                          <div>{new Date(r.startedAt).toLocaleString()}</div>
+                        </div>
+                        {r.error ? (
+                          <div className="mt-1 text-xs text-destructive whitespace-pre-wrap">{r.error}</div>
+                        ) : null}
+                        {r.output ? (
+                          <details className="mt-1">
+                            <summary className="cursor-pointer text-xs text-muted-foreground">Output</summary>
+                            <pre className="mt-2 max-h-64 overflow-auto rounded-md border bg-muted p-2 text-[11px] whitespace-pre-wrap">
+                              {r.output}
+                            </pre>
+                          </details>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              ) : null}
+
+              <div className="space-y-2">
+                <div className="text-sm font-medium">Comments</div>
+                <div className="space-y-2 rounded-md border p-3">
+                  {(ticketDetail.data?.comments ?? []).map((c) => (
+                    <div key={c.id} className="rounded-md border bg-background p-2">
+                      <div className="text-[11px] text-muted-foreground">
+                        {c.authorType} · {new Date(c.createdAt).toLocaleString()}
+                      </div>
+                      <div className="text-sm break-words overflow-hidden">
+                        <MarkdownMessage body={c.body} />
+                      </div>
+                    </div>
+                  ))}
+                  {(ticketDetail.data?.comments ?? []).length === 0 ? (
+                    <div className="text-sm text-muted-foreground">No comments yet.</div>
+                  ) : null}
+                </div>
+
+                <div className="sticky bottom-0 -mx-4 mt-2 border-t bg-background/90 backdrop-blur px-4 py-3">
+                  <Textarea
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                    placeholder="Add a comment…"
+                    className="min-h-14 rounded-xl text-base"
+                    inputMode="text"
+                    autoCorrect="on"
+                    autoCapitalize="sentences"
+                  />
+                  <div className="mt-2 flex justify-end">
+                    <Button
+                      disabled={!comment.trim() || addComment.isPending}
+                      onClick={async () => {
+                        if (!openTicketId) return;
+                        setError(null);
+                        await addComment.mutateAsync({ ticketId: openTicketId, body: comment.trim() });
+                      }}
+                    >
+                      {addComment.isPending ? "Posting…" : "Post"}
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
       ) : null}
     </>
   );

@@ -37,7 +37,7 @@ async function buildPromptFromSlackThread(args: {
     const replies = await args.client.conversations.replies({
       channel: args.channel,
       ts: args.threadTs,
-      limit: 12
+      limit: 12,
     });
 
     const msgs = Array.isArray(replies?.messages) ? replies.messages : [];
@@ -81,7 +81,7 @@ async function runCommand(prompt: string) {
       runId: (result as any)?.runId,
       hasPayloads: Array.isArray((result as any)?.result?.payloads),
       payloadCount: (result as any)?.result?.payloads?.length,
-      rawKeys: Object.keys(result as any)
+      rawKeys: Object.keys(result as any),
     };
 
     try {
@@ -96,8 +96,9 @@ async function runCommand(prompt: string) {
     }
 
     return {
-      output: "I got your message, but I failed to produce a reply (empty agent output). Try again in a moment.",
-      debug: dbg
+      output:
+        "I got your message, but I failed to produce a reply (empty agent output). Try again in a moment.",
+      debug: dbg,
     };
   }
 
@@ -127,7 +128,11 @@ async function withEyesThenCheckmark(args: {
       // ignore
     }
     try {
-      await args.client.reactions.add({ channel: args.channel, name: "white_check_mark", timestamp: args.timestamp });
+      await args.client.reactions.add({
+        channel: args.channel,
+        name: "white_check_mark",
+        timestamp: args.timestamp,
+      });
     } catch {
       // ignore
     }
@@ -140,7 +145,7 @@ async function main() {
     appToken: SLACK_APP_TOKEN,
     signingSecret: SLACK_SIGNING_SECRET || "dummy",
     socketMode: true,
-    logLevel: LogLevel.INFO
+    logLevel: LogLevel.INFO,
   });
 
   // CHANNELS: respond to @Hub mentions (no @command required)
@@ -162,7 +167,7 @@ async function main() {
           client,
           channel,
           threadTs,
-          incomingText
+          incomingText,
         });
 
         const { output } = await runCommand(prompt);
@@ -170,9 +175,9 @@ async function main() {
         await client.chat.postMessage({
           channel,
           thread_ts: threadTs,
-          text: output.slice(0, 3900)
+          text: output.slice(0, 3900),
         });
-      }
+      },
     });
   });
 
@@ -196,7 +201,7 @@ async function main() {
           client,
           channel,
           threadTs,
-          incomingText
+          incomingText,
         });
 
         const { output } = await runCommand(prompt);
@@ -204,9 +209,9 @@ async function main() {
         await client.chat.postMessage({
           channel,
           thread_ts: threadTs,
-          text: output.slice(0, 3900)
+          text: output.slice(0, 3900),
         });
-      }
+      },
     });
   });
 

@@ -49,7 +49,7 @@ export const skillsRouter = createTrpcRouter({
       author: r.author ? String(r.author) : null,
       version: r.version ? String(r.version) : null,
       installSpec: r.install_spec ? String(r.install_spec) : null,
-      updatedAt: r.updated_at
+      updatedAt: r.updated_at,
     }));
   }),
 
@@ -60,13 +60,15 @@ export const skillsRouter = createTrpcRouter({
         where: and(
           eq(hubAgentSkillPermissions.workspaceId, ctx.workspace.id),
           eq(hubAgentSkillPermissions.agentId, input.agentId)
-        )
+        ),
       });
       return rows;
     }),
 
   agentSkillAccessSet: adminProcedure
-    .input(z.object({ agentId: z.string().min(1), clawhubSkillId: z.string().min(1), isAllowed: z.boolean() }))
+    .input(
+      z.object({ agentId: z.string().min(1), clawhubSkillId: z.string().min(1), isAllowed: z.boolean() })
+    )
     .mutation(async ({ ctx, input }) => {
       await ctx.db
         .insert(hubAgentSkillPermissions)
@@ -76,11 +78,15 @@ export const skillsRouter = createTrpcRouter({
           clawhubSkillId: input.clawhubSkillId,
           isAllowed: input.isAllowed,
           createdAt: new Date(),
-          updatedAt: new Date()
+          updatedAt: new Date(),
         })
         .onConflictDoUpdate({
-          target: [hubAgentSkillPermissions.workspaceId, hubAgentSkillPermissions.agentId, hubAgentSkillPermissions.clawhubSkillId],
-          set: { isAllowed: input.isAllowed, updatedAt: new Date() }
+          target: [
+            hubAgentSkillPermissions.workspaceId,
+            hubAgentSkillPermissions.agentId,
+            hubAgentSkillPermissions.clawhubSkillId,
+          ],
+          set: { isAllowed: input.isAllowed, updatedAt: new Date() },
         });
 
       return { ok: true };
@@ -102,7 +108,7 @@ export const skillsRouter = createTrpcRouter({
         "--files",
         "--file",
         "SKILL.md",
-        "--no-input"
+        "--no-input",
       ];
       if (input.version?.trim()) {
         args.splice(4, 0, "--version", input.version.trim());
@@ -112,13 +118,15 @@ export const skillsRouter = createTrpcRouter({
       try {
         const res: any = await execFileAsync("bunx", args, {
           timeout: 60_000,
-          maxBuffer: 3 * 1024 * 1024
+          maxBuffer: 3 * 1024 * 1024,
         });
         stdout = String(res?.stdout ?? "");
       } catch (err: any) {
         const out = String(err?.stdout ?? "");
         const eout = String(err?.stderr ?? "");
-        throw new Error(`Clawhub inspect failed: ${String(err?.message ?? err)}\n${(out + "\n" + eout).trim()}`);
+        throw new Error(
+          `Clawhub inspect failed: ${String(err?.message ?? err)}\n${(out + "\n" + eout).trim()}`
+        );
       }
 
       // Strip bunx noise lines before JSON
@@ -139,15 +147,17 @@ export const skillsRouter = createTrpcRouter({
         security: data?.version?.security ?? null,
         files,
         skillMd: typeof data?.file?.content === "string" ? data.file.content : null,
-        sourceUrl: data?.owner?.handle ? `https://clawhub.ai/${data.owner.handle}/${input.slug}` : `https://clawhub.ai/${input.slug}`,
-        installCmd: `bunx clawhub@latest install ${input.slug} --workdir /root/.openclaw --dir skills --no-input`
+        sourceUrl: data?.owner?.handle
+          ? `https://clawhub.ai/${data.owner.handle}/${input.slug}`
+          : `https://clawhub.ai/${input.slug}`,
+        installCmd: `bunx clawhub@latest install ${input.slug} --workdir /root/.openclaw --dir skills --no-input`,
       };
     }),
   searchClawhub: protectedProcedure
     .input(
       z.object({
         query: z.string().min(1).max(200),
-        limit: z.number().min(1).max(25).optional().default(10)
+        limit: z.number().min(1).max(25).optional().default(10),
       })
     )
     .query(async ({ input }) => {
@@ -175,7 +185,7 @@ export const skillsRouter = createTrpcRouter({
           name: String(r?.displayName ?? r?.slug ?? "").trim(),
           description: typeof r?.summary === "string" ? r.summary : undefined,
           version: typeof r?.version === "string" ? r.version : undefined,
-          installSpec: r?.slug ? `clawhub:${String(r.slug)}` : undefined
+          installSpec: r?.slug ? `clawhub:${String(r.slug)}` : undefined,
         }))
         .filter((r: any) => r.id);
 
@@ -195,13 +205,19 @@ export const skillsRouter = createTrpcRouter({
               stats: d?.skill?.stats
                 ? {
                     stars: Number.isFinite(d.skill.stats.stars) ? Number(d.skill.stats.stars) : undefined,
-                    downloads: Number.isFinite(d.skill.stats.downloads) ? Number(d.skill.stats.downloads) : undefined,
-                    installsAllTime: Number.isFinite(d.skill.stats.installsAllTime) ? Number(d.skill.stats.installsAllTime) : undefined,
-                    installsCurrent: Number.isFinite(d.skill.stats.installsCurrent) ? Number(d.skill.stats.installsCurrent) : undefined
+                    downloads: Number.isFinite(d.skill.stats.downloads)
+                      ? Number(d.skill.stats.downloads)
+                      : undefined,
+                    installsAllTime: Number.isFinite(d.skill.stats.installsAllTime)
+                      ? Number(d.skill.stats.installsAllTime)
+                      : undefined,
+                    installsCurrent: Number.isFinite(d.skill.stats.installsCurrent)
+                      ? Number(d.skill.stats.installsCurrent)
+                      : undefined,
                   }
                 : undefined,
               highlighted: Boolean(d?.skill?.badges?.highlighted),
-              suspicious: Boolean(d?.moderation?.isSuspicious)
+              suspicious: Boolean(d?.moderation?.isSuspicious),
             } as ClawhubSkillResult;
           } catch {
             return r;
@@ -218,7 +234,7 @@ export const skillsRouter = createTrpcRouter({
       return ctx.db.query.hubSkillInstalls.findMany({
         where: eq(hubSkillInstalls.workspaceId, ctx.workspace.id),
         orderBy: (t, { desc: descOrder }) => [descOrder(t.updatedAt)],
-        limit: input.limit
+        limit: input.limit,
       });
     }),
 
@@ -226,7 +242,10 @@ export const skillsRouter = createTrpcRouter({
     .input(z.object({ installId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const row = await ctx.db.query.hubSkillInstalls.findFirst({
-        where: and(eq(hubSkillInstalls.workspaceId, ctx.workspace.id), eq(hubSkillInstalls.id, input.installId))
+        where: and(
+          eq(hubSkillInstalls.workspaceId, ctx.workspace.id),
+          eq(hubSkillInstalls.id, input.installId)
+        ),
       });
       if (!row) throw new Error("Install not found");
       return row;
@@ -239,7 +258,7 @@ export const skillsRouter = createTrpcRouter({
         name: z.string().min(1).optional(),
         author: z.string().optional(),
         version: z.string().optional(),
-        installSpec: z.string().min(1)
+        installSpec: z.string().min(1),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -272,10 +291,15 @@ export const skillsRouter = createTrpcRouter({
           attempts: 0,
           createdByUserId: ctx.user?.id,
           createdAt: new Date(),
-          updatedAt: new Date()
+          updatedAt: new Date(),
         })
         .onConflictDoUpdate({
-          target: [hubSkillInstalls.workspaceId, hubSkillInstalls.source, hubSkillInstalls.clawhubSkillId, hubSkillInstalls.versionKey],
+          target: [
+            hubSkillInstalls.workspaceId,
+            hubSkillInstalls.source,
+            hubSkillInstalls.clawhubSkillId,
+            hubSkillInstalls.versionKey,
+          ],
           set: {
             name: input.name,
             author: input.author,
@@ -289,8 +313,8 @@ export const skillsRouter = createTrpcRouter({
             lockId: null,
             lockExpiresAt: null,
             attempts: 0,
-            updatedAt: new Date()
-          }
+            updatedAt: new Date(),
+          },
         })
         .returning();
 
@@ -301,7 +325,10 @@ export const skillsRouter = createTrpcRouter({
     .input(z.object({ installId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const row = await ctx.db.query.hubSkillInstalls.findFirst({
-        where: and(eq(hubSkillInstalls.workspaceId, ctx.workspace.id), eq(hubSkillInstalls.id, input.installId))
+        where: and(
+          eq(hubSkillInstalls.workspaceId, ctx.workspace.id),
+          eq(hubSkillInstalls.id, input.installId)
+        ),
       });
       if (!row) throw new Error("Install not found");
 
@@ -314,10 +341,12 @@ export const skillsRouter = createTrpcRouter({
           error: null,
           lockId: null,
           lockExpiresAt: null,
-          updatedAt: new Date()
+          updatedAt: new Date(),
         })
-        .where(and(eq(hubSkillInstalls.workspaceId, ctx.workspace.id), eq(hubSkillInstalls.id, input.installId)));
+        .where(
+          and(eq(hubSkillInstalls.workspaceId, ctx.workspace.id), eq(hubSkillInstalls.id, input.installId))
+        );
 
       return { ok: true };
-    })
+    }),
 });

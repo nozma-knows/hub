@@ -11,7 +11,7 @@ export const auditRouter = createTrpcRouter({
         .object({
           limit: z.number().int().min(1).max(200).default(50),
           agentId: z.string().optional(),
-          providerKey: z.string().optional()
+          providerKey: z.string().optional(),
         })
         .optional()
     )
@@ -30,7 +30,7 @@ export const auditRouter = createTrpcRouter({
       return ctx.db.query.auditEvents.findMany({
         where: conditions.length > 0 ? and(...conditions) : undefined,
         orderBy: (table, { desc: descOrder }) => [descOrder(table.createdAt)],
-        limit
+        limit,
       });
-    })
+    }),
 });

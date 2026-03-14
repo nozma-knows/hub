@@ -30,7 +30,7 @@ export const appRouter = createTrpcRouter({
   sync: syncRouter,
   messages: messagesRouter,
   tickets: ticketsRouter,
-  skills: skillsRouter
+  skills: skillsRouter,
 });
 
 export type AppRouter = typeof appRouter;

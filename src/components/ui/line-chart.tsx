@@ -66,13 +66,11 @@ export function LineChart(props: {
 
       <div className="mt-3">
         {pts.length === 0 ? (
-          <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">No data yet.</div>
+          <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">
+            No data yet.
+          </div>
         ) : (
-          <svg
-            viewBox={`0 0 ${w} ${h}`}
-            className="h-36 w-full"
-            onMouseLeave={() => setHoverIdx(null)}
-          >
+          <svg viewBox={`0 0 ${w} ${h}`} className="h-36 w-full" onMouseLeave={() => setHoverIdx(null)}>
             <path d={path} fill="none" stroke="currentColor" strokeWidth={2} className="text-primary" />
             {pts.map((p, idx) => {
               const xs = pts.map((pp) => pp.x);
@@ -81,8 +79,10 @@ export function LineChart(props: {
               const maxX = Math.max(...xs);
               const minY = Math.min(...ys);
               const maxY = Math.max(...ys);
-              const sx = (x: number) => (maxX === minX ? pad : pad + ((x - minX) / (maxX - minX)) * (w - pad * 2));
-              const sy = (y: number) => (maxY === minY ? h - pad : h - pad - ((y - minY) / (maxY - minY)) * (h - pad * 2));
+              const sx = (x: number) =>
+                maxX === minX ? pad : pad + ((x - minX) / (maxX - minX)) * (w - pad * 2);
+              const sy = (y: number) =>
+                maxY === minY ? h - pad : h - pad - ((y - minY) / (maxY - minY)) * (h - pad * 2);
               const cx = sx(p.x);
               const cy = sy(p.y);
               return (

@@ -21,7 +21,7 @@ async function cleanupOnce(): Promise<void> {
     .select({
       id: hubMessageAttachments.id,
       workspaceId: hubMessageAttachments.workspaceId,
-      storagePath: hubMessageAttachments.storagePath
+      storagePath: hubMessageAttachments.storagePath,
     })
     .from(hubMessageAttachments)
     .where(and(isNull(hubMessageAttachments.messageId), lt(hubMessageAttachments.createdAt, cutoff)))
@@ -39,7 +39,9 @@ async function cleanupOnce(): Promise<void> {
 
     await db
       .delete(hubMessageAttachments)
-      .where(and(eq(hubMessageAttachments.workspaceId, att.workspaceId), eq(hubMessageAttachments.id, att.id)));
+      .where(
+        and(eq(hubMessageAttachments.workspaceId, att.workspaceId), eq(hubMessageAttachments.id, att.id))
+      );
   }
 
   // eslint-disable-next-line no-console

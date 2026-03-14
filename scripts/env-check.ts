@@ -11,7 +11,7 @@ const summary = {
   OPENCLAW_BASE_URL: env.OPENCLAW_BASE_URL,
   OPENCLAW_API_KEY: env.OPENCLAW_API_KEY ? "set" : "missing",
   HUB_SYNC_ENABLED: env.HUB_SYNC_ENABLED,
-  HUB_MEDIA_GC_ENABLED: env.HUB_MEDIA_GC_ENABLED
+  HUB_MEDIA_GC_ENABLED: env.HUB_MEDIA_GC_ENABLED,
 };
 
 // eslint-disable-next-line no-console

@@ -15,7 +15,7 @@ export const providersRouter = createTrpcRouter({
     await ensureProviderSeeds();
 
     const providerRows = await ctx.db.query.toolProviders.findMany({
-      orderBy: (table, { asc }) => [asc(table.name)]
+      orderBy: (table, { asc }) => [asc(table.name)],
     });
 
     const rows = await Promise.all(
@@ -24,14 +24,14 @@ export const providersRouter = createTrpcRouter({
           where: and(
             eq(toolProviderAppCredentials.workspaceId, ctx.workspace.id),
             eq(toolProviderAppCredentials.providerId, providerRow.id)
-          )
+          ),
         });
 
         return {
           providerKey: providerRow.key,
           providerName: providerRow.name,
           configured: Boolean(appCreds),
-          scopes: appCreds?.scopes ?? []
+          scopes: appCreds?.scopes ?? [],
         };
       })
     );
@@ -45,14 +45,14 @@ export const providersRouter = createTrpcRouter({
         providerKey: z.enum(["slack", "linear"]),
         clientId: z.string().min(1),
         clientSecret: z.string().min(1),
-        scopes: z.array(z.string()).default([])
+        scopes: z.array(z.string()).default([]),
       })
     )
     .mutation(async ({ ctx, input }) => {
       await ensureProviderSeeds();
 
       const providerRow = await ctx.db.query.toolProviders.findFirst({
-        where: eq(toolProviders.key, input.providerKey)
+        where: eq(toolProviders.key, input.providerKey),
       });
 
       if (!providerRow) {
@@ -68,7 +68,7 @@ export const providersRouter = createTrpcRouter({
           encryptedClientSecret: encryptString(input.clientSecret),
           scopes: input.scopes,
           updatedBy: ctx.user!.id,
-          updatedAt: new Date()
+          updatedAt: new Date(),
         })
         .onConflictDoUpdate({
           target: [toolProviderAppCredentials.workspaceId, toolProviderAppCredentials.providerId],
@@ -77,8 +77,8 @@ export const providersRouter = createTrpcRouter({
             encryptedClientSecret: encryptString(input.clientSecret),
             scopes: input.scopes,
             updatedBy: ctx.user!.id,
-            updatedAt: new Date()
-          }
+            updatedAt: new Date(),
+          },
         });
 
       await logAuditEvent({
@@ -88,8 +88,8 @@ export const providersRouter = createTrpcRouter({
         providerKey: input.providerKey,
         result: "success",
         details: {
-          scopes: input.scopes
-        }
+          scopes: input.scopes,
+        },
       });
 
       return { success: true };
@@ -98,7 +98,7 @@ export const providersRouter = createTrpcRouter({
     await ensureProviderSeeds();
 
     const providerRows = await ctx.db.query.toolProviders.findMany({
-      orderBy: (table, { asc }) => [asc(table.name)]
+      orderBy: (table, { asc }) => [asc(table.name)],
     });
 
     const output = await Promise.all(
@@ -108,14 +108,14 @@ export const providersRouter = createTrpcRouter({
             eq(toolConnections.providerId, providerRow.id),
             eq(toolConnections.workspaceId, ctx.workspace.id),
             eq(toolConnections.userId, ctx.user!.id)
-          )
+          ),
         });
 
         const appCreds = await ctx.db.query.toolProviderAppCredentials.findFirst({
           where: and(
             eq(toolProviderAppCredentials.workspaceId, ctx.workspace.id),
             eq(toolProviderAppCredentials.providerId, providerRow.id)
-          )
+          ),
         });
 
         return {
@@ -125,7 +125,7 @@ export const providersRouter = createTrpcRouter({
           scopes: connection?.scopes ?? [],
           expiresAt: connection?.expiresAt ?? null,
           externalAccountId: connection?.externalAccountId ?? null,
-          metadata: connection?.metadata ?? {}
+          metadata: connection?.metadata ?? {},
         };
       })
     );
@@ -137,7 +137,7 @@ export const providersRouter = createTrpcRouter({
     .input(
       z.object({
         providerKey: z.enum(["slack", "linear"]),
-        redirectPath: z.string().default("/integrations")
+        redirectPath: z.string().default("/integrations"),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -150,11 +150,11 @@ export const providersRouter = createTrpcRouter({
         state,
         userId: ctx.user!.id,
         redirectPath: input.redirectPath,
-        expiresAt: new Date(Date.now() + 1000 * 60 * 10)
+        expiresAt: new Date(Date.now() + 1000 * 60 * 10),
       });
 
       const providerRow = await ctx.db.query.toolProviders.findFirst({
-        where: eq(toolProviders.key, provider.key)
+        where: eq(toolProviders.key, provider.key),
       });
       if (!providerRow) {
         throw new Error("Provider not seeded");
@@ -164,7 +164,7 @@ export const providersRouter = createTrpcRouter({
         where: and(
           eq(toolProviderAppCredentials.workspaceId, ctx.workspace.id),
           eq(toolProviderAppCredentials.providerId, providerRow.id)
-        )
+        ),
       });
 
       if (!appCreds) {
@@ -175,30 +175,30 @@ export const providersRouter = createTrpcRouter({
       const authorizationUrl = provider.getAuthUrl(
         {
           state,
-          redirectUri
+          redirectUri,
         },
         {
           clientId: decryptString(appCreds.encryptedClientId),
           clientSecret: decryptString(appCreds.encryptedClientSecret),
-          scopes: appCreds.scopes
+          scopes: appCreds.scopes,
         }
       );
 
       return {
-        url: authorizationUrl
+        url: authorizationUrl,
       };
     }),
 
   disconnect: adminProcedure
     .input(
       z.object({
-        providerKey: z.enum(["slack", "linear"])
+        providerKey: z.enum(["slack", "linear"]),
       })
     )
     .mutation(async ({ ctx, input }) => {
       const provider = getProviderByKey(input.providerKey);
       const providerRow = await ctx.db.query.toolProviders.findFirst({
-        where: eq(toolProviders.key, provider.key)
+        where: eq(toolProviders.key, provider.key),
       });
 
       if (!providerRow) {
@@ -210,7 +210,7 @@ export const providersRouter = createTrpcRouter({
           eq(toolConnections.providerId, providerRow.id),
           eq(toolConnections.workspaceId, ctx.workspace.id),
           eq(toolConnections.userId, ctx.user!.id)
-        )
+        ),
       });
 
       if (connection) {
@@ -232,7 +232,7 @@ export const providersRouter = createTrpcRouter({
           eventType: "providers.disconnect",
           actorUserId: ctx.user!.id,
           providerKey: provider.key,
-          result: "success"
+          result: "success",
         });
       }
 
@@ -242,20 +242,20 @@ export const providersRouter = createTrpcRouter({
   health: adminProcedure
     .input(
       z.object({
-        providerKey: z.enum(["slack", "linear"])
+        providerKey: z.enum(["slack", "linear"]),
       })
     )
     .mutation(async ({ ctx, input }) => {
       const provider = getProviderByKey(input.providerKey);
       const providerRow = await ctx.db.query.toolProviders.findFirst({
-        where: eq(toolProviders.key, provider.key)
+        where: eq(toolProviders.key, provider.key),
       });
 
       if (!providerRow) {
         return {
           connected: false,
           healthy: false,
-          reason: "provider_not_seeded"
+          reason: "provider_not_seeded",
         };
       }
 
@@ -264,14 +264,14 @@ export const providersRouter = createTrpcRouter({
           eq(toolConnections.providerId, providerRow.id),
           eq(toolConnections.workspaceId, ctx.workspace.id),
           eq(toolConnections.userId, ctx.user!.id)
-        )
+        ),
       });
 
       if (!connection) {
         return {
           connected: false,
           healthy: false,
-          reason: "not_connected"
+          reason: "not_connected",
         };
       }
 
@@ -285,14 +285,14 @@ export const providersRouter = createTrpcRouter({
           where: and(
             eq(toolProviderAppCredentials.workspaceId, ctx.workspace.id),
             eq(toolProviderAppCredentials.providerId, providerRow.id)
-          )
+          ),
         });
 
         if (!appCreds) {
           return {
             connected: true,
             healthy: false,
-            reason: "app_not_configured"
+            reason: "app_not_configured",
           };
         }
 
@@ -300,12 +300,12 @@ export const providersRouter = createTrpcRouter({
           {
             connection,
             decryptedAccessToken,
-            decryptedRefreshToken
+            decryptedRefreshToken,
           },
           {
             clientId: decryptString(appCreds.encryptedClientId),
             clientSecret: decryptString(appCreds.encryptedClientSecret),
-            scopes: appCreds.scopes
+            scopes: appCreds.scopes,
           }
         );
 
@@ -313,7 +313,7 @@ export const providersRouter = createTrpcRouter({
           return {
             connected: true,
             healthy: false,
-            reason: "token_expired"
+            reason: "token_expired",
           };
         }
 
@@ -326,7 +326,7 @@ export const providersRouter = createTrpcRouter({
               : connection.encryptedRefreshToken,
             scopes: refreshed.scopes,
             expiresAt: refreshed.expiresAt,
-            updatedAt: new Date()
+            updatedAt: new Date(),
           })
           .where(
             and(
@@ -339,7 +339,7 @@ export const providersRouter = createTrpcRouter({
 
       return {
         connected: true,
-        healthy: true
+        healthy: true,
       };
-    })
+    }),
 });

@@ -11,7 +11,7 @@ import { adminProcedure, createTrpcRouter, protectedProcedure } from "@/server/t
 const behaviorSchema = z.object({
   model: z.string().min(1),
   instructions: z.string().min(1),
-  runtimeConfig: z.record(z.string(), z.any()).optional()
+  runtimeConfig: z.record(z.string(), z.any()).optional(),
 });
 
 async function getUpstreamAgentUnion() {
@@ -22,9 +22,7 @@ async function getUpstreamAgentUnion() {
   try {
     const { openClawConfigGet } = await import("@/lib/openclaw/cli-adapter");
     const list = (await openClawConfigGet("agents.list")) as Array<any>;
-    configuredIds = Array.isArray(list)
-      ? list.map((a) => String(a?.id ?? "").trim()).filter(Boolean)
-      : [];
+    configuredIds = Array.isArray(list) ? list.map((a) => String(a?.id ?? "").trim()).filter(Boolean) : [];
   } catch {
     // ignore
   }
@@ -33,23 +31,24 @@ async function getUpstreamAgentUnion() {
   const liveById = new Map(liveAgents.map((a) => [a.id, a] as const));
 
   const unionIds = [...new Set([...(configuredIds ?? []), ...liveAgents.map((a) => a.id)])];
-  const unionRows = unionIds.map((id) =>
-    liveById.get(id) ?? {
-      id,
-      name: id,
-      status: "unknown",
-      version: undefined,
-      behaviorChecksum: undefined,
-      workspacePath: undefined,
-      agentDir: undefined,
-      model: undefined
-    }
+  const unionRows = unionIds.map(
+    (id) =>
+      liveById.get(id) ?? {
+        id,
+        name: id,
+        status: "unknown",
+        version: undefined,
+        behaviorChecksum: undefined,
+        workspacePath: undefined,
+        agentDir: undefined,
+        model: undefined,
+      }
   );
 
   return {
     configuredIds,
     liveAgents,
-    unionRows
+    unionRows,
   };
 }
 
@@ -79,7 +78,7 @@ async function upsertWorkspaceAgents(input: {
           isRemoved: false,
           removedAt: null,
           lastSeenUpstreamAt: new Date(),
-          lastSyncedAt: new Date()
+          lastSyncedAt: new Date(),
         })
         .onConflictDoUpdate({
           target: agents.id,
@@ -96,8 +95,8 @@ async function upsertWorkspaceAgents(input: {
             removedAt: null,
             lastSeenUpstreamAt: new Date(),
             lastSyncedAt: new Date(),
-            updatedAt: new Date()
-          }
+            updatedAt: new Date(),
+          },
         })
     )
   );
@@ -111,8 +110,8 @@ async function softMarkMissingAgents(input: {
   const existing = await input.db.query.agents.findMany({
     where: and(eq(agents.workspaceId, input.workspaceId), eq(agents.isRemoved, false)),
     columns: {
-      id: true
-    }
+      id: true,
+    },
   });
   const existingIds = existing.map((row: { id: string }) => row.id);
   if (existingIds.length === 0) return 0;
@@ -133,7 +132,7 @@ async function softMarkMissingAgents(input: {
     .set({
       isRemoved: true,
       removedAt: new Date(),
-      updatedAt: new Date()
+      updatedAt: new Date(),
     })
     .where(
       and(
@@ -147,30 +146,31 @@ async function softMarkMissingAgents(input: {
 }
 
 export const agentsRouter = createTrpcRouter({
-  filesList: adminProcedure
-    .input(z.object({ agentId: z.string().min(1) }))
-    .query(async ({ ctx, input }) => {
-      const agent = await ctx.db.query.agents.findFirst({
-        where: and(eq(agents.workspaceId, ctx.workspace.id), eq(agents.id, input.agentId))
-      });
-      if (!agent?.upstreamWorkspacePath) throw new Error("Agent workspace path not known yet. Sync first.");
+  filesList: adminProcedure.input(z.object({ agentId: z.string().min(1) })).query(async ({ ctx, input }) => {
+    const agent = await ctx.db.query.agents.findFirst({
+      where: and(eq(agents.workspaceId, ctx.workspace.id), eq(agents.id, input.agentId)),
+    });
+    if (!agent?.upstreamWorkspacePath) throw new Error("Agent workspace path not known yet. Sync first.");
 
-      const { listAgentWorkspaceFiles } = await import("@/lib/openclaw/agent-files");
-      return listAgentWorkspaceFiles({ workspacePath: agent.upstreamWorkspacePath });
-    }),
+    const { listAgentWorkspaceFiles } = await import("@/lib/openclaw/agent-files");
+    return listAgentWorkspaceFiles({ workspacePath: agent.upstreamWorkspacePath });
+  }),
 
   filesRead: adminProcedure
     .input(z.object({ agentId: z.string().min(1), path: z.string().min(1) }))
     .query(async ({ ctx, input }) => {
       const agent = await ctx.db.query.agents.findFirst({
-        where: and(eq(agents.workspaceId, ctx.workspace.id), eq(agents.id, input.agentId))
+        where: and(eq(agents.workspaceId, ctx.workspace.id), eq(agents.id, input.agentId)),
       });
       if (!agent?.upstreamWorkspacePath) throw new Error("Agent workspace path not known yet. Sync first.");
 
       const { readAgentWorkspaceFile } = await import("@/lib/openclaw/agent-files");
       return {
         path: input.path,
-        content: await readAgentWorkspaceFile({ workspacePath: agent.upstreamWorkspacePath, relativePath: input.path })
+        content: await readAgentWorkspaceFile({
+          workspacePath: agent.upstreamWorkspacePath,
+          relativePath: input.path,
+        }),
       };
     }),
 
@@ -178,7 +178,7 @@ export const agentsRouter = createTrpcRouter({
     .input(z.object({ agentId: z.string().min(1), path: z.string().min(1), content: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const agent = await ctx.db.query.agents.findFirst({
-        where: and(eq(agents.workspaceId, ctx.workspace.id), eq(agents.id, input.agentId))
+        where: and(eq(agents.workspaceId, ctx.workspace.id), eq(agents.id, input.agentId)),
       });
       if (!agent?.upstreamWorkspacePath) throw new Error("Agent workspace path not known yet. Sync first.");
 
@@ -186,7 +186,7 @@ export const agentsRouter = createTrpcRouter({
       await writeAgentWorkspaceFile({
         workspacePath: agent.upstreamWorkspacePath,
         relativePath: input.path,
-        content: input.content
+        content: input.content,
       });
 
       await logAuditEvent({
@@ -197,8 +197,8 @@ export const agentsRouter = createTrpcRouter({
         result: "success",
         details: {
           path: input.path,
-          bytes: input.content.length
-        }
+          bytes: input.content.length,
+        },
       });
 
       return { ok: true };
@@ -230,7 +230,7 @@ export const agentsRouter = createTrpcRouter({
         actorUserId: ctx.user!.id,
         agentId: input.agentId,
         result: "success",
-        details: { model: input.model }
+        details: { model: input.model },
       });
 
       return { ok: true };
@@ -242,17 +242,19 @@ export const agentsRouter = createTrpcRouter({
         agentId: z.string().min(1),
         model: z.string().min(1),
         description: z.string().optional(),
-        files: z.array(z.object({ path: z.string().min(1), content: z.string() })).default([])
+        files: z.array(z.object({ path: z.string().min(1), content: z.string() })).default([]),
       })
     )
     .mutation(async ({ ctx, input }) => {
       const workspacePath = `~/.openclaw/agents/${input.agentId}/workspace`;
 
-      const { openClawAddAgent, openClawSetIdentityFromWorkspace } = await import("@/lib/openclaw/cli-adapter");
+      const { openClawAddAgent, openClawSetIdentityFromWorkspace } = await import(
+        "@/lib/openclaw/cli-adapter"
+      );
       const result = await openClawAddAgent({
         agentId: input.agentId,
         workspacePath,
-        model: input.model
+        model: input.model,
       });
 
       // Seed files into the agent workspace
@@ -292,7 +294,7 @@ export const agentsRouter = createTrpcRouter({
         actorUserId: ctx.user!.id,
         agentId: input.agentId,
         result: "success",
-        details: { model: input.model }
+        details: { model: input.model },
       });
 
       return { result };
@@ -300,7 +302,7 @@ export const agentsRouter = createTrpcRouter({
   list: protectedProcedure.query(async ({ ctx }) => {
     const rows = await ctx.db.query.agents.findMany({
       where: eq(agents.workspaceId, ctx.workspace.id),
-      orderBy: (table, { asc }) => [asc(table.name)]
+      orderBy: (table, { asc }) => [asc(table.name)],
     });
 
     // If DB is empty, hydrate it.
@@ -323,18 +325,18 @@ export const agentsRouter = createTrpcRouter({
         await upsertWorkspaceAgents({
           workspaceId: ctx.workspace.id,
           rows: upstream.unionRows as any,
-          db: ctx.db
+          db: ctx.db,
         });
 
         await softMarkMissingAgents({
           workspaceId: ctx.workspace.id,
           liveAgentIds: configuredIds.length > 0 ? configuredIds : upstream.liveAgents.map((a) => a.id),
-          db: ctx.db
+          db: ctx.db,
         });
 
         return ctx.db.query.agents.findMany({
           where: eq(agents.workspaceId, ctx.workspace.id),
-          orderBy: (table, { asc }) => [asc(table.name)]
+          orderBy: (table, { asc }) => [asc(table.name)],
         });
       }
     } catch {
@@ -353,14 +355,16 @@ export const agentsRouter = createTrpcRouter({
     await upsertWorkspaceAgents({
       workspaceId: ctx.workspace.id,
       rows: upstream.unionRows as any,
-      db: ctx.db
+      db: ctx.db,
     });
 
     const removedCount = await softMarkMissingAgents({
       workspaceId: ctx.workspace.id,
       liveAgentIds:
-        upstream.configuredIds.length > 0 ? upstream.configuredIds : upstream.liveAgents.map((agent) => agent.id),
-      db: ctx.db
+        upstream.configuredIds.length > 0
+          ? upstream.configuredIds
+          : upstream.liveAgents.map((agent) => agent.id),
+      db: ctx.db,
     });
 
     await logAuditEvent({
@@ -370,25 +374,25 @@ export const agentsRouter = createTrpcRouter({
       result: "success",
       details: {
         count: upstream.unionRows.length,
-        removedCount
-      }
+        removedCount,
+      },
     });
 
     return {
       count: upstream.unionRows.length,
-      removedCount
+      removedCount,
     };
   }),
 
   get: protectedProcedure
     .input(
       z.object({
-        agentId: z.string().min(1)
+        agentId: z.string().min(1),
       })
     )
     .query(async ({ ctx, input }) => {
       const agent = await ctx.db.query.agents.findFirst({
-        where: and(eq(agents.workspaceId, ctx.workspace.id), eq(agents.id, input.agentId))
+        where: and(eq(agents.workspaceId, ctx.workspace.id), eq(agents.id, input.agentId)),
       });
 
       const behaviors = await ctx.db.query.agentBehaviorConfigs.findMany({
@@ -396,19 +400,19 @@ export const agentsRouter = createTrpcRouter({
           eq(agentBehaviorConfigs.workspaceId, ctx.workspace.id),
           eq(agentBehaviorConfigs.agentId, input.agentId)
         ),
-        orderBy: (table, { desc: descOrder }) => [descOrder(table.version)]
+        orderBy: (table, { desc: descOrder }) => [descOrder(table.version)],
       });
 
       return {
         agent,
-        behaviors
+        behaviors,
       };
     }),
 
   getConfig: protectedProcedure
     .input(
       z.object({
-        agentId: z.string().min(1)
+        agentId: z.string().min(1),
       })
     )
     .query(async ({ input }) => {
@@ -422,15 +426,15 @@ export const agentsRouter = createTrpcRouter({
         files: z.array(
           z.object({
             path: z.string().min(1),
-            content: z.string()
+            content: z.string(),
           })
-        )
+        ),
       })
     )
     .mutation(async ({ ctx, input }) => {
       const updated = await openClawAdapter.updateAgentConfig({
         agentId: input.agentId,
-        files: input.files
+        files: input.files,
       });
 
       await logAuditEvent({
@@ -440,8 +444,8 @@ export const agentsRouter = createTrpcRouter({
         agentId: input.agentId,
         result: "success",
         details: {
-          fileCount: input.files.length
-        }
+          fileCount: input.files.length,
+        },
       });
 
       return updated;
@@ -451,7 +455,7 @@ export const agentsRouter = createTrpcRouter({
     .input(
       z.object({
         name: z.string().min(1),
-        behavior: behaviorSchema
+        behavior: behaviorSchema,
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -462,7 +466,7 @@ export const agentsRouter = createTrpcRouter({
 
       const remote = await openClawAdapter.createAgent({
         name: input.name,
-        behavior: input.behavior
+        behavior: input.behavior,
       });
 
       await ctx.db.insert(agents).values({
@@ -475,7 +479,7 @@ export const agentsRouter = createTrpcRouter({
         isRemoved: false,
         removedAt: null,
         lastSeenUpstreamAt: new Date(),
-        lastSyncedAt: new Date()
+        lastSyncedAt: new Date(),
       });
 
       await ctx.db.insert(agentBehaviorConfigs).values({
@@ -486,7 +490,7 @@ export const agentsRouter = createTrpcRouter({
         instructions: input.behavior.instructions,
         runtimeConfig: input.behavior.runtimeConfig ?? {},
         isActive: true,
-        updatedBy: ctx.user!.id
+        updatedBy: ctx.user!.id,
       });
 
       await logAuditEvent({
@@ -494,7 +498,7 @@ export const agentsRouter = createTrpcRouter({
         eventType: "agents.create",
         actorUserId: ctx.user!.id,
         agentId: remote.id,
-        result: "success"
+        result: "success",
       });
 
       return remote;
@@ -505,7 +509,7 @@ export const agentsRouter = createTrpcRouter({
       z.object({
         agentId: z.string().min(1),
         name: z.string().min(1).optional(),
-        behavior: behaviorSchema.optional()
+        behavior: behaviorSchema.optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -518,7 +522,7 @@ export const agentsRouter = createTrpcRouter({
 
       const updatedRemote = await openClawAdapter.updateAgent(input.agentId, {
         name: input.name,
-        behavior: input.behavior
+        behavior: input.behavior,
       });
 
       await ctx.db
@@ -534,7 +538,7 @@ export const agentsRouter = createTrpcRouter({
           removedAt: null,
           lastSeenUpstreamAt: new Date(),
           lastSyncedAt: new Date(),
-          updatedAt: new Date()
+          updatedAt: new Date(),
         })
         .onConflictDoUpdate({
           target: agents.id,
@@ -548,14 +552,14 @@ export const agentsRouter = createTrpcRouter({
             removedAt: null,
             lastSeenUpstreamAt: new Date(),
             lastSyncedAt: new Date(),
-            updatedAt: new Date()
-          }
+            updatedAt: new Date(),
+          },
         });
 
       if (input.behavior) {
         const [nextVersion] = await ctx.db
           .select({
-            nextVersion: sql<number>`coalesce(max(${agentBehaviorConfigs.version}), 0) + 1`
+            nextVersion: sql<number>`coalesce(max(${agentBehaviorConfigs.version}), 0) + 1`,
           })
           .from(agentBehaviorConfigs)
           .where(
@@ -568,7 +572,7 @@ export const agentsRouter = createTrpcRouter({
         await ctx.db
           .update(agentBehaviorConfigs)
           .set({
-            isActive: false
+            isActive: false,
           })
           .where(
             and(
@@ -585,7 +589,7 @@ export const agentsRouter = createTrpcRouter({
           instructions: input.behavior.instructions,
           runtimeConfig: input.behavior.runtimeConfig ?? {},
           isActive: true,
-          updatedBy: ctx.user!.id
+          updatedBy: ctx.user!.id,
         });
       }
 
@@ -594,7 +598,7 @@ export const agentsRouter = createTrpcRouter({
         eventType: "agents.update",
         actorUserId: ctx.user!.id,
         agentId: input.agentId,
-        result: "success"
+        result: "success",
       });
 
       return updatedRemote;
@@ -603,7 +607,7 @@ export const agentsRouter = createTrpcRouter({
   remove: adminProcedure
     .input(
       z.object({
-        agentId: z.string().min(1)
+        agentId: z.string().min(1),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -635,18 +639,18 @@ export const agentsRouter = createTrpcRouter({
         eventType: "agents.delete",
         actorUserId: ctx.user!.id,
         agentId: input.agentId,
-        result: "success"
+        result: "success",
       });
 
       return {
-        success: true
+        success: true,
       };
     }),
 
   history: protectedProcedure
     .input(
       z.object({
-        agentId: z.string().min(1)
+        agentId: z.string().min(1),
       })
     )
     .query(async ({ ctx, input }) => {
@@ -655,7 +659,7 @@ export const agentsRouter = createTrpcRouter({
           eq(agentBehaviorConfigs.workspaceId, ctx.workspace.id),
           eq(agentBehaviorConfigs.agentId, input.agentId)
         ),
-        orderBy: (table, { desc: descOrder }) => [descOrder(table.version)]
+        orderBy: (table, { desc: descOrder }) => [descOrder(table.version)],
       });
     }),
 
@@ -665,7 +669,7 @@ export const agentsRouter = createTrpcRouter({
         agentId: agents.id,
         agentName: agents.name,
         providerKey: toolProviders.key,
-        allowed: agentToolPermissions.isAllowed
+        allowed: agentToolPermissions.isAllowed,
       })
       .from(agents)
       .leftJoin(
@@ -679,5 +683,5 @@ export const agentsRouter = createTrpcRouter({
       .where(eq(agents.workspaceId, ctx.workspace.id));
 
     return rows;
-  })
+  }),
 });

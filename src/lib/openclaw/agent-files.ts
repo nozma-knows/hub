@@ -53,7 +53,10 @@ export async function listAgentWorkspaceFiles(input: { workspacePath: string }):
   return files;
 }
 
-export async function readAgentWorkspaceFile(input: { workspacePath: string; relativePath: string }): Promise<string> {
+export async function readAgentWorkspaceFile(input: {
+  workspacePath: string;
+  relativePath: string;
+}): Promise<string> {
   const root = await resolveSafeRoot(input.workspacePath);
   const abs = await resolveSafeFile(root, input.relativePath);
   const ext = path.extname(abs).toLowerCase();

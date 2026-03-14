@@ -14,8 +14,8 @@ const markdownSchema = {
   attributes: {
     ...defaultSchema.attributes,
     code: [...(defaultSchema.attributes?.code ?? []), ["className"]],
-    span: [...(defaultSchema.attributes?.span ?? []), ["className"]]
-  }
+    span: [...(defaultSchema.attributes?.span ?? []), ["className"]],
+  },
 } as const;
 
 export function MarkdownMessage({ body, className }: { body: string; className?: string }) {
@@ -88,7 +88,7 @@ export function MarkdownMessage({ body, className }: { body: string; className?:
             <td className="border-b px-2 py-1 align-top" {...props}>
               {children}
             </td>
-          )
+          ),
         }}
       >
         {body}

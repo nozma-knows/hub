@@ -9,7 +9,6 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 
-
 const installerKey = Symbol.for("openclaw-hub.skill-installer.interval");
 
 type GlobalInstaller = typeof globalThis & {
@@ -22,7 +21,8 @@ const LOCK_TTL_MS = Number(process.env.HUB_SKILL_INSTALLER_LOCK_TTL_MS ?? 10 * 6
 const MAX_ATTEMPTS = Number(process.env.HUB_SKILL_INSTALLER_MAX_ATTEMPTS ?? 2);
 
 // Cross-process throttling: only one install per (workspace, host) at a time.
-const WORKSPACE_MUTEX_ENABLED = (process.env.HUB_SKILL_INSTALLER_WORKSPACE_MUTEX_ENABLED ?? "true").toLowerCase() === "true";
+const WORKSPACE_MUTEX_ENABLED =
+  (process.env.HUB_SKILL_INSTALLER_WORKSPACE_MUTEX_ENABLED ?? "true").toLowerCase() === "true";
 const HOST_MUTEX_KEY = process.env.HUB_SKILL_INSTALLER_HOST_MUTEX_KEY ?? "default";
 
 function lockKeyParts(workspaceId: string) {
@@ -112,12 +112,10 @@ export function startSkillInstaller(): void {
           or(isNull(hubSkillInstalls.lockExpiresAt), lt(hubSkillInstalls.lockExpiresAt, now))
         ),
         orderBy: (t, { asc }) => [asc(t.updatedAt)],
-        limit: 10
+        limit: 10,
       });
 
-      const due = candidates
-        .filter((c) => (c.attempts ?? 0) < MAX_ATTEMPTS)
-        .slice(0, MAX_PER_TICK);
+      const due = candidates.filter((c) => (c.attempts ?? 0) < MAX_ATTEMPTS).slice(0, MAX_PER_TICK);
 
       for (const row of due) {
         const lockId = randomUUID();
@@ -133,7 +131,7 @@ export function startSkillInstaller(): void {
             installStartedAt: row.installStartedAt ?? new Date(),
             attempts: (row.attempts ?? 0) + 1,
             error: null,
-            updatedAt: new Date()
+            updatedAt: new Date(),
           })
           .where(
             and(
@@ -157,7 +155,7 @@ export function startSkillInstaller(): void {
               finishedAt: new Date(),
               lockId: null,
               lockExpiresAt: null,
-              updatedAt: new Date()
+              updatedAt: new Date(),
             })
             .where(and(eq(hubSkillInstalls.id, row.id), eq(hubSkillInstalls.lockId, lockId)));
           continue;
@@ -174,7 +172,7 @@ export function startSkillInstaller(): void {
               finishedAt: new Date(),
               lockId: null,
               lockExpiresAt: null,
-              updatedAt: new Date()
+              updatedAt: new Date(),
             })
             .where(and(eq(hubSkillInstalls.id, row.id), eq(hubSkillInstalls.lockId, lockId)));
           continue;
@@ -201,7 +199,7 @@ export function startSkillInstaller(): void {
               workdir,
               "--dir",
               dir,
-              "--no-input"
+              "--no-input",
             ];
             if (row.version?.trim()) {
               baseArgs.push("--version", row.version.trim());
@@ -214,7 +212,8 @@ export function startSkillInstaller(): void {
             const clawhubToken = process.env.HUB_CLAWHUB_TOKEN?.trim();
             const extraEnv: Record<string, string> = {};
             if (clawhubToken) extraEnv.CLAWHUB_TOKEN = clawhubToken;
-            if (process.env.HUB_CLAWHUB_REGISTRY?.trim()) extraEnv.CLAWHUB_REGISTRY = process.env.HUB_CLAWHUB_REGISTRY.trim();
+            if (process.env.HUB_CLAWHUB_REGISTRY?.trim())
+              extraEnv.CLAWHUB_REGISTRY = process.env.HUB_CLAWHUB_REGISTRY.trim();
 
             let combinedLogs = "";
             let attempt = 0;
@@ -224,9 +223,10 @@ export function startSkillInstaller(): void {
               await db
                 .update(hubSkillInstalls)
                 .set({
-                  statusDetail: attempt === 1 ? "Downloading…" : `Retrying after rate limit… (attempt ${attempt})`,
+                  statusDetail:
+                    attempt === 1 ? "Downloading…" : `Retrying after rate limit… (attempt ${attempt})`,
                   progress: Math.min(90, 25 + attempt * 10),
-                  updatedAt: new Date()
+                  updatedAt: new Date(),
                 })
                 .where(and(eq(hubSkillInstalls.id, row.id), eq(hubSkillInstalls.lockId, lockId)));
 
@@ -235,13 +235,14 @@ export function startSkillInstaller(): void {
                 const res: any = await execFileAsync("bunx", baseArgs, {
                   timeout: 10 * 60_000,
                   maxBuffer: 8 * 1024 * 1024,
-                  env: { ...process.env, ...extraEnv }
+                  env: { ...process.env, ...extraEnv },
                 });
                 const durationMs = Date.now() - t0;
 
                 const stdout = String(res?.stdout ?? "");
                 const stderr = String(res?.stderr ?? "");
-                combinedLogs += `\n\n--- attempt ${attempt} ---\n` + stdout + (stderr ? `\n[stderr]\n${stderr}` : "");
+                combinedLogs +=
+                  `\n\n--- attempt ${attempt} ---\n` + stdout + (stderr ? `\n[stderr]\n${stderr}` : "");
 
                 await db
                   .update(hubSkillInstalls)
@@ -258,7 +259,7 @@ export function startSkillInstaller(): void {
                     finishedAt: new Date(),
                     lockId: null,
                     lockExpiresAt: null,
-                    updatedAt: new Date()
+                    updatedAt: new Date(),
                   })
                   .where(and(eq(hubSkillInstalls.id, row.id), eq(hubSkillInstalls.lockId, lockId)));
 
@@ -279,9 +280,7 @@ export function startSkillInstaller(): void {
 
                 if (!canRetry) {
                   const status = isRateLimited ? "rate_limited" : "failed";
-                  const errorText = isRateLimited
-                    ? "Rate limit exceeded. Please wait a bit and retry."
-                    : msg;
+                  const errorText = isRateLimited ? "Rate limit exceeded. Please wait a bit and retry." : msg;
 
                   await db
                     .update(hubSkillInstalls)
@@ -297,7 +296,7 @@ export function startSkillInstaller(): void {
                       finishedAt: new Date(),
                       lockId: null,
                       lockExpiresAt: null,
-                      updatedAt: new Date()
+                      updatedAt: new Date(),
                     })
                     .where(and(eq(hubSkillInstalls.id, row.id), eq(hubSkillInstalls.lockId, lockId)));
 
@@ -305,7 +304,7 @@ export function startSkillInstaller(): void {
                 }
 
                 const jitter = Math.floor(Math.random() * 500);
-                const delay = parsedRetryAfterMs ?? (baseDelayMs * Math.pow(2, attempt - 1) + jitter);
+                const delay = parsedRetryAfterMs ?? baseDelayMs * Math.pow(2, attempt - 1) + jitter;
 
                 await db
                   .update(hubSkillInstalls)
@@ -316,7 +315,7 @@ export function startSkillInstaller(): void {
                     lastExitCode: exitCode,
                     lastDurationMs: durationMs,
                     lastRateLimitRetryAfterMs: parsedRetryAfterMs,
-                    updatedAt: new Date()
+                    updatedAt: new Date(),
                   })
                   .where(and(eq(hubSkillInstalls.id, row.id), eq(hubSkillInstalls.lockId, lockId)));
 
@@ -325,7 +324,9 @@ export function startSkillInstaller(): void {
             }
           });
         } catch (err) {
-          const isMutexBusy = (err as any)?.code === "MUTEX_BUSY" || String((err as any)?.message ?? "") === "workspace_install_mutex_busy";
+          const isMutexBusy =
+            (err as any)?.code === "MUTEX_BUSY" ||
+            String((err as any)?.message ?? "") === "workspace_install_mutex_busy";
           const msg = isMutexBusy
             ? "Another install is already running for this workspace. Please wait and retry."
             : err instanceof Error
@@ -342,7 +343,7 @@ export function startSkillInstaller(): void {
               finishedAt: isMutexBusy ? null : new Date(),
               lockId: null,
               lockExpiresAt: null,
-              updatedAt: new Date()
+              updatedAt: new Date(),
             })
             .where(and(eq(hubSkillInstalls.id, row.id), eq(hubSkillInstalls.lockId, lockId)));
         }
@@ -361,7 +362,7 @@ export function startSkillInstaller(): void {
             finishedAt: row.finishedAt ?? new Date(),
             lockId: null,
             lockExpiresAt: null,
-            updatedAt: new Date()
+            updatedAt: new Date(),
           })
           .where(and(eq(hubSkillInstalls.id, row.id), eq(hubSkillInstalls.status, "installing")));
       }

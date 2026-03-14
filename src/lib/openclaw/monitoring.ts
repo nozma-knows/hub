@@ -1,11 +1,11 @@
 import { openClawAdapter } from "./adapter";
 import { openClawCliAdapter } from "./cli-adapter";
-import type { 
-  OpenClawAgent, 
-  OpenClawSession, 
+import type {
+  OpenClawAgent,
+  OpenClawSession,
   OpenClawCronJob,
   OpenClawPerformanceMetrics,
-  OpenClawGatewayStatus 
+  OpenClawGatewayStatus,
 } from "./types";
 
 export interface OpenClawMonitoringData {
@@ -29,15 +29,15 @@ export class OpenClawMonitor {
     try {
       return await openClawCliAdapter.getGatewayStatus();
     } catch (error) {
-      console.error('Failed to fetch gateway status from OpenClaw CLI:', error);
+      console.error("Failed to fetch gateway status from OpenClaw CLI:", error);
       return {
         online: false,
         responseTime: 0,
-        version: 'unknown',
+        version: "unknown",
         load: 0,
         memory: { used: 0, total: 0 },
         uptime: 0,
-        error: error instanceof Error ? error.message : 'Gateway offline'
+        error: error instanceof Error ? error.message : "Gateway offline",
       };
     }
   }
@@ -46,7 +46,7 @@ export class OpenClawMonitor {
     try {
       return await openClawCliAdapter.listSessions();
     } catch (error) {
-      console.error('Failed to fetch sessions from OpenClaw CLI:', error);
+      console.error("Failed to fetch sessions from OpenClaw CLI:", error);
       return [];
     }
   }
@@ -55,7 +55,7 @@ export class OpenClawMonitor {
     try {
       return await openClawCliAdapter.listCronJobs();
     } catch (error) {
-      console.error('Failed to fetch cron jobs from OpenClaw CLI:', error);
+      console.error("Failed to fetch cron jobs from OpenClaw CLI:", error);
       return [];
     }
   }
@@ -64,14 +64,14 @@ export class OpenClawMonitor {
     try {
       return await openClawCliAdapter.getPerformanceMetrics();
     } catch (error) {
-      console.error('Failed to fetch performance metrics from OpenClaw CLI:', error);
+      console.error("Failed to fetch performance metrics from OpenClaw CLI:", error);
       return {
         averageResponseTime: 0,
         totalRequests: 0,
         failureRate: 1,
         tokensPerMinute: 0,
         memoryUsage: 0,
-        cpuUsage: 0
+        cpuUsage: 0,
       };
     }
   }
@@ -83,7 +83,7 @@ export class OpenClawMonitor {
         this.fetchSessions(),
         this.fetchCronJobs(),
         this.fetchPerformanceMetrics(),
-        this.fetchGatewayStatus()
+        this.fetchGatewayStatus(),
       ]);
 
       return {
@@ -92,11 +92,11 @@ export class OpenClawMonitor {
         cronJobs,
         performance,
         gatewayStatus,
-        timestamp: new Date()
+        timestamp: new Date(),
       };
     } catch (error) {
-      console.error('Failed to gather monitoring data:', error);
-      
+      console.error("Failed to gather monitoring data:", error);
+
       // Return fallback data
       return {
         agents: [],
@@ -108,18 +108,18 @@ export class OpenClawMonitor {
           failureRate: 1,
           tokensPerMinute: 0,
           memoryUsage: 0,
-          cpuUsage: 0
+          cpuUsage: 0,
         },
         gatewayStatus: {
           online: false,
           responseTime: 0,
-          version: 'unknown',
+          version: "unknown",
           load: 0,
           memory: { used: 0, total: 0 },
           uptime: 0,
-          error: error instanceof Error ? error.message : 'Unknown error'
+          error: error instanceof Error ? error.message : "Unknown error",
         },
-        timestamp: new Date()
+        timestamp: new Date(),
       };
     }
   }
@@ -165,17 +165,17 @@ export class OpenClawMonitor {
       try {
         const newData = await this.gatherMonitoringData();
         this.lastSnapshot = newData;
-        
+
         // Notify all subscribers
-        this.callbacks.forEach(callback => {
+        this.callbacks.forEach((callback) => {
           try {
             callback(newData);
           } catch (error) {
-            console.error('Monitoring callback error:', error);
+            console.error("Monitoring callback error:", error);
           }
         });
       } catch (error) {
-        console.error('Real-time monitoring error:', error);
+        console.error("Real-time monitoring error:", error);
       } finally {
         this.isPolling = false;
       }
@@ -197,13 +197,13 @@ export class OpenClawMonitor {
 
   subscribe(callback: (data: OpenClawMonitoringData) => void): () => void {
     this.callbacks.push(callback);
-    
+
     // Send current data immediately if available
     if (this.lastSnapshot) {
       try {
         callback(this.lastSnapshot);
       } catch (error) {
-        console.error('Subscription callback error:', error);
+        console.error("Subscription callback error:", error);
       }
     }
 

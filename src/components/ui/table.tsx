@@ -19,7 +19,12 @@ export function TableRow({ className, ...props }: HTMLAttributes<HTMLTableRowEle
 }
 
 export function TableHead({ className, ...props }: HTMLAttributes<HTMLTableCellElement>) {
-  return <th className={cn("h-10 px-3 text-left align-middle font-medium text-muted-foreground", className)} {...props} />;
+  return (
+    <th
+      className={cn("h-10 px-3 text-left align-middle font-medium text-muted-foreground", className)}
+      {...props}
+    />
+  );
 }
 
 export function TableCell({ className, ...props }: HTMLAttributes<HTMLTableCellElement>) {

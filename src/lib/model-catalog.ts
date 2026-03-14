@@ -21,8 +21,8 @@ export function supportedModelProviders(): SupportedModelProvider[] {
 async function fetchOpenAiModels(apiKey: string): Promise<ModelDescriptor[]> {
   const response = await fetch("https://api.openai.com/v1/models", {
     headers: {
-      authorization: `Bearer ${apiKey}`
-    }
+      authorization: `Bearer ${apiKey}`,
+    },
   });
   if (!response.ok) {
     throw new Error(`OpenAI model fetch failed (${response.status})`);
@@ -39,8 +39,8 @@ async function fetchAnthropicModels(apiKey: string): Promise<ModelDescriptor[]> 
   const response = await fetch("https://api.anthropic.com/v1/models", {
     headers: {
       "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01"
-    }
+      "anthropic-version": "2023-06-01",
+    },
   });
   if (!response.ok) {
     throw new Error(`Anthropic model fetch failed (${response.status})`);
@@ -57,8 +57,8 @@ async function fetchAnthropicModels(apiKey: string): Promise<ModelDescriptor[]> 
         {
           id: row.id,
           name: row.display_name,
-          contextWindow: row.context_window
-        }
+          contextWindow: row.context_window,
+        },
       ];
     })
     .sort((a, b) => a.id.localeCompare(b.id));
@@ -85,7 +85,7 @@ export async function getAvailableModels(input: {
         eq(modelCatalogCache.workspaceId, input.workspaceId),
         eq(modelCatalogCache.providerKey, input.provider),
         gt(modelCatalogCache.expiresAt, new Date())
-      )
+      ),
     });
 
     if (cached) {
@@ -98,7 +98,7 @@ export async function getAvailableModels(input: {
       eq(modelProviderCredentials.workspaceId, input.workspaceId),
       eq(modelProviderCredentials.providerKey, input.provider),
       eq(modelProviderCredentials.label, "default")
-    )
+    ),
   });
 
   if (!credential) {
@@ -108,7 +108,7 @@ export async function getAvailableModels(input: {
   const apiKey = decryptString(credential.encryptedApiKey);
   const models = await fetchModelsForProvider({
     provider: input.provider,
-    apiKey
+    apiKey,
   });
 
   await db
@@ -119,7 +119,7 @@ export async function getAvailableModels(input: {
       models,
       fetchedAt: new Date(),
       expiresAt: new Date(Date.now() + CACHE_TTL_MS),
-      updatedAt: new Date()
+      updatedAt: new Date(),
     })
     .onConflictDoUpdate({
       target: [modelCatalogCache.workspaceId, modelCatalogCache.providerKey],
@@ -127,8 +127,8 @@ export async function getAvailableModels(input: {
         models,
         fetchedAt: new Date(),
         expiresAt: new Date(Date.now() + CACHE_TTL_MS),
-        updatedAt: new Date()
-      }
+        updatedAt: new Date(),
+      },
     });
 
   return models;

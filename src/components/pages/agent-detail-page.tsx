@@ -27,20 +27,20 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
     onError: (e) => setError(e.message),
     onSuccess: async () => {
       await utils.agents.get.invalidate({ agentId });
-    }
+    },
   });
 
   const files = trpc.agents.filesList.useQuery(
     { agentId },
     {
-      enabled: Boolean(agentId)
+      enabled: Boolean(agentId),
     }
   );
 
   const fileRead = trpc.agents.filesRead.useQuery(
     { agentId, path: selectedPath ?? "" },
     {
-      enabled: Boolean(selectedPath)
+      enabled: Boolean(selectedPath),
     }
   );
 
@@ -50,7 +50,7 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
         await utils.agents.filesRead.invalidate({ agentId, path: selectedPath });
       }
     },
-    onError: (e) => setError(e.message)
+    onError: (e) => setError(e.message),
   });
 
   const remove = trpc.agents.remove.useMutation({
@@ -58,7 +58,7 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
       await utils.agents.list.invalidate();
       window.location.href = "/agents";
     },
-    onError: (e) => setError(e.message)
+    onError: (e) => setError(e.message),
   });
 
   const me = trpc.auth.me.useQuery();
@@ -68,7 +68,7 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
     onSuccess: async () => {
       await Promise.all([utils.permissions.matrix.invalidate(), utils.audit.list.invalidate()]);
     },
-    onError: (e) => setError(e.message)
+    onError: (e) => setError(e.message),
   });
 
   const permissionMap = useMemo(() => {
@@ -85,7 +85,7 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
     onSuccess: async () => {
       await skillAccess.refetch();
     },
-    onError: (e) => setError(e.message)
+    onError: (e) => setError(e.message),
   });
 
   const skillAccessMap = useMemo(() => {
@@ -161,14 +161,19 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
           <CardTitle>Access</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-sm text-muted-foreground">Agent-owned access controls (per provider). Admins can edit.</div>
+          <div className="text-sm text-muted-foreground">
+            Agent-owned access controls (per provider). Admins can edit.
+          </div>
 
           <div className="mt-3 space-y-2">
             {(matrix.data?.providers ?? []).map((provider) => {
               const key = `${agentId}:${provider.id}`;
               const enabled = permissionMap.get(key) ?? false;
               return (
-                <div key={provider.id} className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
+                <div
+                  key={provider.id}
+                  className="flex items-center justify-between gap-3 rounded-md border px-3 py-2"
+                >
                   <div className="min-w-0">
                     <div className="truncate text-sm font-medium">{provider.name}</div>
                     <div className="truncate text-xs text-muted-foreground">{provider.key}</div>
@@ -181,7 +186,7 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
                         agentId,
                         providerId: provider.id,
                         isAllowed: event.target.checked,
-                        scopeOverrides: {}
+                        scopeOverrides: {},
                       });
                     }}
                   />
@@ -208,19 +213,28 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
               const explicit = skillAccessMap.get(String(s.clawhubSkillId));
               const enabled = explicit ?? true;
               return (
-                <div key={s.clawhubSkillId} className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
+                <div
+                  key={s.clawhubSkillId}
+                  className="flex items-center justify-between gap-3 rounded-md border px-3 py-2"
+                >
                   <div className="min-w-0">
                     <div className="truncate text-sm font-medium">{s.name ?? s.clawhubSkillId}</div>
                     <div className="truncate text-xs text-muted-foreground">
                       {s.version ? `v${s.version}` : ""} {s.author ? `· by ${s.author}` : ""}
                     </div>
-                    <div className="truncate text-[11px] text-muted-foreground font-mono">{s.clawhubSkillId}</div>
+                    <div className="truncate text-[11px] text-muted-foreground font-mono">
+                      {s.clawhubSkillId}
+                    </div>
                   </div>
                   <Switch
                     checked={enabled}
                     disabled={!isAdmin}
                     onChange={(event) => {
-                      setSkillAccess.mutate({ agentId, clawhubSkillId: s.clawhubSkillId, isAllowed: event.target.checked });
+                      setSkillAccess.mutate({
+                        agentId,
+                        clawhubSkillId: s.clawhubSkillId,
+                        isAllowed: event.target.checked,
+                      });
                     }}
                   />
                 </div>
@@ -228,7 +242,9 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
             })}
 
             {(installedSkills.data ?? []).length === 0 && !installedSkills.isLoading ? (
-              <div className="rounded-md border p-3 text-sm text-muted-foreground">No installed skills yet.</div>
+              <div className="rounded-md border p-3 text-sm text-muted-foreground">
+                No installed skills yet.
+              </div>
             ) : null}
           </div>
         </CardContent>

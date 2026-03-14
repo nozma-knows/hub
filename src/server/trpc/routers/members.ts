@@ -16,22 +16,22 @@ export const membersRouter = createTrpcRouter({
   list: adminProcedure.query(async ({ ctx }) => {
     const [workspace, members, invites] = await Promise.all([
       ctx.db.query.workspaces.findFirst({
-        where: eq(workspaces.id, ctx.workspace.id)
+        where: eq(workspaces.id, ctx.workspace.id),
       }),
       ctx.db.query.workspaceMembers.findMany({
         where: eq(workspaceMembers.workspaceId, ctx.workspace.id),
-        orderBy: (table, { asc }) => [asc(table.joinedAt)]
+        orderBy: (table, { asc }) => [asc(table.joinedAt)],
       }),
       ctx.db.query.workspaceInvites.findMany({
         where: and(eq(workspaceInvites.workspaceId, ctx.workspace.id), isNull(workspaceInvites.revokedAt)),
-        orderBy: (table, { desc }) => [desc(table.createdAt)]
-      })
+        orderBy: (table, { desc }) => [desc(table.createdAt)],
+      }),
     ]);
 
     return {
       workspace,
       members,
-      invites
+      invites,
     };
   }),
 
@@ -39,7 +39,7 @@ export const membersRouter = createTrpcRouter({
     .input(
       z.object({
         email: z.string().email(),
-        role: z.enum(["admin", "operator"]).default("operator")
+        role: z.enum(["admin", "operator"]).default("operator"),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -54,7 +54,7 @@ export const membersRouter = createTrpcRouter({
           role: input.role,
           tokenHash,
           invitedBy: ctx.user!.id,
-          expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7)
+          expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
         })
         .returning();
 
@@ -65,14 +65,14 @@ export const membersRouter = createTrpcRouter({
         result: "success",
         details: {
           email: input.email,
-          role: input.role
-        }
+          role: input.role,
+        },
       });
 
       return {
         inviteId: invite.id,
         token: rawToken,
-        inviteUrl: `/workspace/invite?token=${encodeURIComponent(rawToken)}`
+        inviteUrl: `/workspace/invite?token=${encodeURIComponent(rawToken)}`,
       };
     }),
 
@@ -80,7 +80,7 @@ export const membersRouter = createTrpcRouter({
     .input(
       z.object({
         userId: z.string().min(1),
-        role: z.enum(["owner", "admin", "operator"])
+        role: z.enum(["owner", "admin", "operator"]),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -88,13 +88,10 @@ export const membersRouter = createTrpcRouter({
         .update(workspaceMembers)
         .set({
           role: input.role,
-          updatedAt: new Date()
+          updatedAt: new Date(),
         })
         .where(
-          and(
-            eq(workspaceMembers.workspaceId, ctx.workspace.id),
-            eq(workspaceMembers.userId, input.userId)
-          )
+          and(eq(workspaceMembers.workspaceId, ctx.workspace.id), eq(workspaceMembers.userId, input.userId))
         );
 
       await logAuditEvent({
@@ -104,8 +101,8 @@ export const membersRouter = createTrpcRouter({
         result: "success",
         details: {
           userId: input.userId,
-          role: input.role
-        }
+          role: input.role,
+        },
       });
 
       return { success: true };
@@ -114,17 +111,14 @@ export const membersRouter = createTrpcRouter({
   remove: adminProcedure
     .input(
       z.object({
-        userId: z.string().min(1)
+        userId: z.string().min(1),
       })
     )
     .mutation(async ({ ctx, input }) => {
       await ctx.db
         .delete(workspaceMembers)
         .where(
-          and(
-            eq(workspaceMembers.workspaceId, ctx.workspace.id),
-            eq(workspaceMembers.userId, input.userId)
-          )
+          and(eq(workspaceMembers.workspaceId, ctx.workspace.id), eq(workspaceMembers.userId, input.userId))
         );
 
       await logAuditEvent({
@@ -133,8 +127,8 @@ export const membersRouter = createTrpcRouter({
         actorUserId: ctx.user!.id,
         result: "success",
         details: {
-          userId: input.userId
-        }
+          userId: input.userId,
+        },
       });
 
       return { success: true };
@@ -143,13 +137,13 @@ export const membersRouter = createTrpcRouter({
   acceptInvite: protectedProcedure
     .input(
       z.object({
-        token: z.string().min(20)
+        token: z.string().min(20),
       })
     )
     .mutation(async ({ ctx, input }) => {
       const tokenHash = hashToken(input.token);
       const invite = await ctx.db.query.workspaceInvites.findFirst({
-        where: and(eq(workspaceInvites.tokenHash, tokenHash), isNull(workspaceInvites.revokedAt))
+        where: and(eq(workspaceInvites.tokenHash, tokenHash), isNull(workspaceInvites.revokedAt)),
       });
 
       if (!invite) {
@@ -170,14 +164,14 @@ export const membersRouter = createTrpcRouter({
           role: invite.role,
           invitedBy: invite.invitedBy,
           joinedAt: new Date(),
-          updatedAt: new Date()
+          updatedAt: new Date(),
         })
         .onConflictDoUpdate({
           target: [workspaceMembers.workspaceId, workspaceMembers.userId],
           set: {
             role: invite.role,
-            updatedAt: new Date()
-          }
+            updatedAt: new Date(),
+          },
         });
 
       await ctx.db
@@ -185,7 +179,7 @@ export const membersRouter = createTrpcRouter({
         .set({
           acceptedBy: ctx.user!.id,
           acceptedAt: new Date(),
-          updatedAt: new Date()
+          updatedAt: new Date(),
         })
         .where(eq(workspaceInvites.id, invite.id));
 
@@ -193,9 +187,9 @@ export const membersRouter = createTrpcRouter({
         workspaceId: invite.workspaceId,
         eventType: "members.accept_invite",
         actorUserId: ctx.user!.id,
-        result: "success"
+        result: "success",
       });
 
       return { success: true };
-    })
+    }),
 });

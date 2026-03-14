@@ -22,7 +22,7 @@ export type TrpcContext = {
 
 export async function createTrpcContext(honoContext: HonoContext): Promise<TrpcContext> {
   const sessionResult = (await auth.api.getSession({
-    headers: honoContext.req.raw.headers
+    headers: honoContext.req.raw.headers,
   })) as { user?: SessionUser } | null;
   const user = sessionResult?.user ?? null;
   const workspace = user ? await ensureUserWorkspace(user) : null;
@@ -33,9 +33,9 @@ export async function createTrpcContext(honoContext: HonoContext): Promise<TrpcC
     workspace: workspace
       ? {
           id: workspace.workspaceId,
-          role: workspace.role
+          role: workspace.role,
         }
       : null,
-    honoContext
+    honoContext,
   };
 }

@@ -16,7 +16,7 @@ const pool =
   globalForPool[globalKey] ??
   new Pool({
     connectionString: env.DATABASE_URL,
-    max: 10
+    max: 10,
   });
 
 if (env.NODE_ENV !== "production") {

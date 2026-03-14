@@ -25,7 +25,12 @@ import { Label } from "@/components/ui/label";
 import { MarkdownMessage } from "@/components/markdown";
 import { Textarea } from "@/components/ui/textarea";
 import { isSendShortcut } from "@/lib/keyboard";
-import { acquireStream, getMicPermissionState, release as releaseMic, stop as stopMic } from "@/lib/mic-manager";
+import {
+  acquireStream,
+  getMicPermissionState,
+  release as releaseMic,
+  stop as stopMic,
+} from "@/lib/mic-manager";
 import { trpc } from "@/lib/trpc-client";
 
 export function ChannelPage({ channelId }: { channelId: string }) {
@@ -209,7 +214,13 @@ export function ChannelPage({ channelId }: { channelId: string }) {
       const stream = await acquireStream();
       mediaStreamRef.current = stream;
 
-            const types = ["audio/mp4", "audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/ogg"];
+      const types = [
+        "audio/mp4",
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/ogg;codecs=opus",
+        "audio/ogg",
+      ];
       const mimeType = types.find((t) => (window as any).MediaRecorder?.isTypeSupported?.(t)) ?? "";
 
       const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
@@ -334,7 +345,10 @@ export function ChannelPage({ channelId }: { channelId: string }) {
   const [ticketOwner, setTicketOwner] = useState<string>("");
 
   const channels = trpc.messages.channelsList.useQuery();
-  const channel = useMemo(() => (channels.data ?? []).find((c) => c.id === channelId) ?? null, [channels.data, channelId]);
+  const channel = useMemo(
+    () => (channels.data ?? []).find((c) => c.id === channelId) ?? null,
+    [channels.data, channelId]
+  );
 
   const threads = trpc.messages.threadsList.useQuery({ channelId }, { enabled: Boolean(channelId) });
 
@@ -346,7 +360,7 @@ export function ChannelPage({ channelId }: { channelId: string }) {
       await utils.messages.threadsList.invalidate({ channelId });
       await utils.messages.threadGet.invalidate({ threadId: res.threadId });
     },
-    onError: (e) => setError(e.message)
+    onError: (e) => setError(e.message),
   });
 
   useEffect(() => {
@@ -405,7 +419,7 @@ export function ChannelPage({ channelId }: { channelId: string }) {
       setComposer("");
       setPendingAttachments([]);
     },
-    onError: (e) => setError(e.message)
+    onError: (e) => setError(e.message),
   });
 
   const createTicket = trpc.tickets.createFromThread.useMutation({
@@ -414,7 +428,7 @@ export function ChannelPage({ channelId }: { channelId: string }) {
       setTicketTitle("");
       setTicketOwner("");
     },
-    onError: (e) => setError(e.message)
+    onError: (e) => setError(e.message),
   });
 
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -454,7 +468,7 @@ export function ChannelPage({ channelId }: { channelId: string }) {
 
   function updateMentionQuery(nextText: string) {
     const el = composerRef.current;
-    const cursor = el ? el.selectionStart ?? nextText.length : nextText.length;
+    const cursor = el ? (el.selectionStart ?? nextText.length) : nextText.length;
     const before = nextText.slice(0, cursor);
     const match = before.match(/(^|\s)@([a-zA-Z0-9_-]*)$/);
     if (!match) {
@@ -547,7 +561,8 @@ export function ChannelPage({ channelId }: { channelId: string }) {
       if (recordTimerRef.current) window.clearInterval(recordTimerRef.current);
       recordTimerRef.current = null;
       try {
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") mediaRecorderRef.current.stop();
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive")
+          mediaRecorderRef.current.stop();
       } catch {
         // ignore
       }
@@ -686,7 +701,10 @@ export function ChannelPage({ channelId }: { channelId: string }) {
 
         <CardContent className="flex-1 min-h-0 p-0">
           <div className="flex h-full min-h-0 flex-col">
-            <div ref={listRef} className="flex-1 min-h-0 overflow-auto overscroll-contain px-3 py-3 bg-muted/10">
+            <div
+              ref={listRef}
+              className="flex-1 min-h-0 overflow-auto overscroll-contain px-3 py-3 bg-muted/10"
+            >
               {!isAtBottom && unseenCount > 0 ? (
                 <div className="sticky top-2 z-10 flex justify-center">
                   <button
@@ -722,7 +740,8 @@ export function ChannelPage({ channelId }: { channelId: string }) {
 
                   const withinWindow =
                     prev &&
-                    Math.abs(new Date(m.createdAt).getTime() - new Date(prev.createdAt).getTime()) < 5 * 60_000;
+                    Math.abs(new Date(m.createdAt).getTime() - new Date(prev.createdAt).getTime()) <
+                      5 * 60_000;
 
                   const grouped = Boolean(sameAuthor && withinWindow && m.authorType !== "system");
 
@@ -746,7 +765,11 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                         ? " bg-background border"
                         : " bg-primary text-primary-foreground");
 
-                  const align = isSystem ? "flex justify-center" : isAgent ? "flex justify-start" : "flex justify-end";
+                  const align = isSystem
+                    ? "flex justify-center"
+                    : isAgent
+                      ? "flex justify-start"
+                      : "flex justify-end";
 
                   return (
                     <div key={m.id} className={align + (grouped ? " mt-1" : " mt-3")}>
@@ -799,7 +822,11 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                                 title={a.originalName ?? "image"}
                               >
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img src={a.url} alt={a.originalName ?? "image"} className="h-32 w-full object-cover" />
+                                <img
+                                  src={a.url}
+                                  alt={a.originalName ?? "image"}
+                                  className="h-32 w-full object-cover"
+                                />
                               </button>
                             ))}
                           </div>
@@ -849,7 +876,11 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                   <div className="flex-1 min-w-0">
                     <Textarea
                       ref={composerRef}
-                      value={composerBase !== null ? `${composerBase}${dictationText ? (composerBase.trim() ? " " : "") + dictationText : ""}` : composer}
+                      value={
+                        composerBase !== null
+                          ? `${composerBase}${dictationText ? (composerBase.trim() ? " " : "") + dictationText : ""}`
+                          : composer
+                      }
                       onChange={(e) => {
                         const next = e.target.value;
                         setComposer(next);
@@ -867,7 +898,7 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                           await send.mutateAsync({
                             threadId,
                             body: composer.trim() || "(image)",
-                            attachmentIds: pendingAttachments.map((a) => a.id)
+                            attachmentIds: pendingAttachments.map((a) => a.id),
                           });
                           return;
                         }
@@ -956,14 +987,19 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                     </button>
 
                     <Button
-                      disabled={!threadId || send.isPending || (!composer.trim() && pendingAttachments.length === 0) || uploadingCount > 0}
+                      disabled={
+                        !threadId ||
+                        send.isPending ||
+                        (!composer.trim() && pendingAttachments.length === 0) ||
+                        uploadingCount > 0
+                      }
                       onClick={async () => {
                         if (!threadId) return;
                         setError(null);
                         await send.mutateAsync({
                           threadId,
                           body: composer.trim() || "(image)",
-                          attachmentIds: pendingAttachments.map((a) => a.id)
+                          attachmentIds: pendingAttachments.map((a) => a.id),
                         });
                       }}
                       className="h-12 w-12 rounded-xl p-0"
@@ -976,14 +1012,17 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                 </div>
 
                 {isRecording ? (
-                  <div className="text-xs text-muted-foreground">Recording… {Math.floor(recordSeconds / 60)}:{String(recordSeconds % 60).padStart(2, "0")}</div>
+                  <div className="text-xs text-muted-foreground">
+                    Recording… {Math.floor(recordSeconds / 60)}:{String(recordSeconds % 60).padStart(2, "0")}
+                  </div>
                 ) : isTranscribing ? (
                   <div className="text-xs text-muted-foreground">Transcribing…</div>
                 ) : sttError ? (
                   <div className="text-xs text-destructive">
                     STT failed: {sttError}
                     <div className="mt-1 text-[11px] text-muted-foreground">
-                      Tip: In Chrome iOS: tap the address bar “…” → Site settings → Microphone → Allow, then reload.
+                      Tip: In Chrome iOS: tap the address bar “…” → Site settings → Microphone → Allow, then
+                      reload.
                     </div>
                   </div>
                 ) : null}
@@ -991,8 +1030,16 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                 {pendingAttachments.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
                     {pendingAttachments.map((a) => (
-                      <div key={a.id} className="flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-xs">
-                        <a href={a.url} target="_blank" rel="noreferrer" className="truncate max-w-[180px] hover:underline">
+                      <div
+                        key={a.id}
+                        className="flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-xs"
+                      >
+                        <a
+                          href={a.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="truncate max-w-[180px] hover:underline"
+                        >
                           {a.originalName ?? "image"}
                         </a>
                         <button
@@ -1006,7 +1053,9 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                         </button>
                       </div>
                     ))}
-                    {uploadingCount > 0 ? <div className="text-xs text-muted-foreground">Uploading…</div> : null}
+                    {uploadingCount > 0 ? (
+                      <div className="text-xs text-muted-foreground">Uploading…</div>
+                    ) : null}
                   </div>
                 ) : uploadingCount > 0 ? (
                   <div className="text-xs text-muted-foreground">Uploading…</div>
@@ -1035,7 +1084,11 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                   >
                     <div className="max-h-[90vh] max-w-[90vw]" onClick={(e) => e.stopPropagation()}>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={lightbox.url} alt={lightbox.name ?? "image"} className="max-h-[90vh] max-w-[90vw] rounded-lg" />
+                      <img
+                        src={lightbox.url}
+                        alt={lightbox.name ?? "image"}
+                        className="max-h-[90vh] max-w-[90vw] rounded-lg"
+                      />
                       <div className="mt-2 flex justify-end gap-2">
                         <a
                           className="rounded-md bg-background/90 px-3 py-1 text-xs"
@@ -1056,20 +1109,20 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                     </div>
                   </div>
                 ) : null}
-
               </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-
       {showTicket ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-xl rounded-lg bg-background shadow-lg">
             <div className="border-b p-4">
               <div className="text-lg font-semibold">Create ticket</div>
-              <div className="mt-1 text-sm text-muted-foreground">This will create a Todo ticket linked to this channel’s thread.</div>
+              <div className="mt-1 text-sm text-muted-foreground">
+                This will create a Todo ticket linked to this channel’s thread.
+              </div>
             </div>
             <div className="space-y-3 p-4">
               <div className="space-y-1">
@@ -1105,7 +1158,7 @@ export function ChannelPage({ channelId }: { channelId: string }) {
                       threadId,
                       title: ticketTitle.trim(),
                       description: `Created from channel ${title}.`,
-                      ownerAgentId: ticketOwner || undefined
+                      ownerAgentId: ticketOwner || undefined,
                     });
                   }}
                 >

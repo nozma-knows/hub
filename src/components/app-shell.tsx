@@ -19,12 +19,12 @@ const links = [
   { href: "/integrations", label: "Integrations" },
   { href: "/usage", label: "Usage" },
   { href: "/audit", label: "Audit" },
-  { href: "/workspace", label: "Workspace" }
+  { href: "/workspace", label: "Workspace" },
 ];
 
 export function AppShell({
   children,
-  mainClassName
+  mainClassName,
 }: {
   children: React.ReactNode;
   mainClassName?: string;
@@ -89,7 +89,7 @@ export function AppShell({
                 fetch("/api/auth/sign-out", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
-                  body: "{}"
+                  body: "{}",
                 })
                   .catch(() => {
                     // ignore
@@ -111,7 +111,6 @@ export function AppShell({
               </Button>
             </form>
           </div>
-
         </div>
 
         {/* Mobile nav (rendered outside the header flex row so it doesn't shift the right-side buttons) */}
@@ -146,12 +145,7 @@ export function AppShell({
         ) : null}
       </header>
 
-      <main
-        className={cn(
-          "mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8",
-          mainClassName
-        )}
-      >
+      <main className={cn("mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8", mainClassName)}>
         {children}
       </main>
     </div>

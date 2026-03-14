@@ -69,7 +69,10 @@ export class VpsMetricsStore {
       const cpus = os.cpus();
       const cpuTimes = sumCpuTimes(cpus);
       const cpuUsage = this.lastCpu
-        ? Math.max(0, Math.min(1, 1 - (cpuTimes.idle - this.lastCpu.idle) / (cpuTimes.total - this.lastCpu.total || 1)))
+        ? Math.max(
+            0,
+            Math.min(1, 1 - (cpuTimes.idle - this.lastCpu.idle) / (cpuTimes.total - this.lastCpu.total || 1))
+          )
         : 0;
       this.lastCpu = cpuTimes;
 
@@ -86,7 +89,7 @@ export class VpsMetricsStore {
         diskUsed: host.diskRoot?.used,
         diskTotal: host.diskRoot?.total,
         netRxBytes: net?.rxBytes,
-        netTxBytes: net?.txBytes
+        netTxBytes: net?.txBytes,
       };
 
       this.points.push(p);

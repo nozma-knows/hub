@@ -33,7 +33,7 @@ export function IntegrationsPage() {
         const rows = query.state.data as any[] | undefined;
         const hasPending = (rows ?? []).some((r) => r?.status === "queued" || r?.status === "installing");
         return hasPending ? 2000 : false;
-      }
+      },
     }
   );
 
@@ -43,14 +43,14 @@ export function IntegrationsPage() {
       setSelectedSkill(null);
       setSkillConsent(false);
     },
-    onError: (e) => setSkillError(e.message)
+    onError: (e) => setSkillError(e.message),
   });
 
   const retryInstall = trpc.skills.retryInstall.useMutation({
     onSuccess: async () => {
       await installs.refetch();
     },
-    onError: (e) => setSkillError(e.message)
+    onError: (e) => setSkillError(e.message),
   });
 
   return (
@@ -63,7 +63,9 @@ export function IntegrationsPage() {
       <div className="space-y-3">
         <div>
           <h2 className="text-lg font-semibold">Skills (Clawhub)</h2>
-          <p className="text-sm text-muted-foreground">Search the Clawhub catalog and install skills with explicit consent.</p>
+          <p className="text-sm text-muted-foreground">
+            Search the Clawhub catalog and install skills with explicit consent.
+          </p>
         </div>
 
         <Card>
@@ -95,16 +97,22 @@ export function IntegrationsPage() {
                     <div className="text-sm font-medium">{s.name}</div>
                     {s.version ? <div className="text-xs text-muted-foreground">v{s.version}</div> : null}
                   </div>
-                  {s.description ? <div className="mt-1 text-xs text-muted-foreground line-clamp-2">{s.description}</div> : null}
+                  {s.description ? (
+                    <div className="mt-1 text-xs text-muted-foreground line-clamp-2">{s.description}</div>
+                  ) : null}
                   <div className="mt-2 text-[11px] text-muted-foreground flex flex-wrap gap-x-2 gap-y-1">
                     <span>{s.author ? `by ${s.author}` : ""}</span>
                     {typeof s.stats?.stars === "number" ? <span>★ {s.stats.stars}</span> : null}
-                    {typeof s.stats?.downloads === "number" ? <span>{s.stats.downloads.toLocaleString()} downloads</span> : null}
+                    {typeof s.stats?.downloads === "number" ? (
+                      <span>{s.stats.downloads.toLocaleString()} downloads</span>
+                    ) : null}
                     {s.id ? <span>· id: {s.id}</span> : null}
                   </div>
                 </button>
               ))}
-              {skillQuery.trim().length >= 2 && (skillsSearch.data?.results?.length ?? 0) === 0 && !skillsSearch.isFetching ? (
+              {skillQuery.trim().length >= 2 &&
+              (skillsSearch.data?.results?.length ?? 0) === 0 &&
+              !skillsSearch.isFetching ? (
                 <div className="text-sm text-muted-foreground">No results.</div>
               ) : null}
             </div>
@@ -143,12 +151,16 @@ export function IntegrationsPage() {
                   </div>
                 ) : null}
 
-                {i.error ? <div className="mt-2 text-xs text-destructive whitespace-pre-wrap">{i.error}</div> : null}
+                {i.error ? (
+                  <div className="mt-2 text-xs text-destructive whitespace-pre-wrap">{i.error}</div>
+                ) : null}
 
                 {i.logs ? (
                   <details className="mt-2">
                     <summary className="cursor-pointer text-xs text-muted-foreground">Logs</summary>
-                    <pre className="mt-2 max-h-64 overflow-auto rounded-md border bg-muted p-2 text-[11px]">{i.logs}</pre>
+                    <pre className="mt-2 max-h-64 overflow-auto rounded-md border bg-muted p-2 text-[11px]">
+                      {i.logs}
+                    </pre>
                   </details>
                 ) : null}
 
@@ -170,7 +182,9 @@ export function IntegrationsPage() {
                 ) : null}
               </div>
             ))}
-            {(installs.data ?? []).length === 0 ? <div className="text-sm text-muted-foreground">No installs yet.</div> : null}
+            {(installs.data ?? []).length === 0 ? (
+              <div className="text-sm text-muted-foreground">No installs yet.</div>
+            ) : null}
           </CardContent>
         </Card>
       </div>
@@ -180,15 +194,21 @@ export function IntegrationsPage() {
           <div className="w-full max-w-xl rounded-xl bg-background shadow-lg overflow-hidden">
             <div className="border-b p-4">
               <div className="text-lg font-semibold">Install skill</div>
-              <div className="mt-1 text-sm text-muted-foreground">Explicit consent required before installing code onto the host.</div>
+              <div className="mt-1 text-sm text-muted-foreground">
+                Explicit consent required before installing code onto the host.
+              </div>
             </div>
             <div className="p-4 space-y-3 text-sm">
-              {skillError ? <Alert className="border-destructive text-destructive">{skillError}</Alert> : null}
+              {skillError ? (
+                <Alert className="border-destructive text-destructive">{skillError}</Alert>
+              ) : null}
 
               <div className="rounded-md border p-3">
                 <div className="font-medium">{selectedSkill.name}</div>
                 {selectedSkill.description ? (
-                  <div className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap">{selectedSkill.description}</div>
+                  <div className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap">
+                    {selectedSkill.description}
+                  </div>
                 ) : null}
                 <div className="mt-2 text-xs text-muted-foreground font-mono">slug: {selectedSkill.id}</div>
               </div>
@@ -199,19 +219,31 @@ export function IntegrationsPage() {
                 <div className="rounded-md border p-3 space-y-2">
                   <div className="flex items-center justify-between gap-2">
                     <div className="text-xs text-muted-foreground">Source</div>
-                    <a className="text-xs underline" href={skillInspect.data.sourceUrl} target="_blank" rel="noreferrer">
+                    <a
+                      className="text-xs underline"
+                      href={skillInspect.data.sourceUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
                       View on Clawhub
                     </a>
                   </div>
-                  <div className="text-xs text-muted-foreground">Version: {skillInspect.data.version ?? "latest"}</div>
+                  <div className="text-xs text-muted-foreground">
+                    Version: {skillInspect.data.version ?? "latest"}
+                  </div>
                   {skillInspect.data.security ? (
                     <div className="text-xs text-muted-foreground">
-                      Security: <span className="font-mono">{String(skillInspect.data.security.status ?? "unknown")}</span>
+                      Security:{" "}
+                      <span className="font-mono">
+                        {String(skillInspect.data.security.status ?? "unknown")}
+                      </span>
                       {skillInspect.data.security.hasWarnings ? " (warnings)" : ""}
                     </div>
                   ) : null}
                   <div className="text-xs text-muted-foreground">Install command</div>
-                  <pre className="max-h-[25vh] overflow-auto rounded-md bg-muted p-2 text-xs">{skillInspect.data.installCmd}</pre>
+                  <pre className="max-h-[25vh] overflow-auto rounded-md bg-muted p-2 text-xs">
+                    {skillInspect.data.installCmd}
+                  </pre>
                   {skillInspect.data.files?.length ? (
                     <div>
                       <div className="text-xs text-muted-foreground">Files</div>
@@ -226,8 +258,12 @@ export function IntegrationsPage() {
                   ) : null}
                   {skillInspect.data.skillMd ? (
                     <details className="rounded-md border">
-                      <summary className="cursor-pointer select-none px-3 py-2 text-sm font-medium">Preview SKILL.md</summary>
-                      <pre className="max-h-[35vh] overflow-auto p-3 text-xs">{skillInspect.data.skillMd}</pre>
+                      <summary className="cursor-pointer select-none px-3 py-2 text-sm font-medium">
+                        Preview SKILL.md
+                      </summary>
+                      <pre className="max-h-[35vh] overflow-auto p-3 text-xs">
+                        {skillInspect.data.skillMd}
+                      </pre>
                     </details>
                   ) : null}
                 </div>
@@ -236,7 +272,8 @@ export function IntegrationsPage() {
               ) : null}
 
               <Alert className="border-muted text-muted-foreground">
-                Installs into <span className="font-mono">/root/.openclaw/skills</span> (OpenClaw managed skills directory).
+                Installs into <span className="font-mono">/root/.openclaw/skills</span> (OpenClaw managed
+                skills directory).
               </Alert>
 
               <div className="flex items-start gap-2 rounded-md border p-3">
@@ -274,7 +311,7 @@ export function IntegrationsPage() {
                         name: skillInspect.data?.name ?? selectedSkill.name,
                         author: skillInspect.data?.owner ?? selectedSkill.author,
                         version: skillInspect.data?.version ?? selectedSkill.version,
-                        installSpec: selectedSkill.installSpec
+                        installSpec: selectedSkill.installSpec,
                       });
                       // Close modal immediately on success to avoid confusing UX.
                       setSelectedSkill(null);

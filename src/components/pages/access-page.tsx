@@ -16,7 +16,7 @@ export function AccessPage() {
   const upsert = trpc.permissions.upsert.useMutation({
     onSuccess: async () => {
       await Promise.all([utils.permissions.matrix.invalidate(), utils.audit.list.invalidate()]);
-    }
+    },
   });
 
   const permissionMap = useMemo(() => {
@@ -54,7 +54,10 @@ export function AccessPage() {
                     const permissionKey = `${agent.id}:${provider.id}`;
                     const enabled = permissionMap.get(permissionKey) ?? false;
                     return (
-                      <div key={provider.id} className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
+                      <div
+                        key={provider.id}
+                        className="flex items-center justify-between gap-3 rounded-md border px-3 py-2"
+                      >
                         <div className="min-w-0">
                           <div className="truncate text-sm font-medium">{provider.name}</div>
                           <div className="truncate text-xs text-muted-foreground">{provider.key}</div>
@@ -67,7 +70,7 @@ export function AccessPage() {
                               agentId: agent.id,
                               providerId: provider.id,
                               isAllowed: event.target.checked,
-                              scopeOverrides: {}
+                              scopeOverrides: {},
                             });
                           }}
                         />
@@ -110,7 +113,7 @@ export function AccessPage() {
                                 agentId: agent.id,
                                 providerId: provider.id,
                                 isAllowed: event.target.checked,
-                                scopeOverrides: {}
+                                scopeOverrides: {},
                               });
                             }}
                           />

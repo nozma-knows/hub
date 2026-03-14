@@ -3,7 +3,7 @@ import type {
   OpenClawBindingInput,
   ProviderAuthUrlInput,
   ProviderTokenResult,
-  ToolProvider
+  ToolProvider,
 } from "@/lib/providers/types";
 
 export class SlackProvider implements ToolProvider {
@@ -11,31 +11,37 @@ export class SlackProvider implements ToolProvider {
   readonly displayName = "Slack";
   readonly authType = "oauth2" as const;
 
-  getAuthUrl(input: ProviderAuthUrlInput, app: import("@/lib/providers/types").ProviderAppCredentials): string {
+  getAuthUrl(
+    input: ProviderAuthUrlInput,
+    app: import("@/lib/providers/types").ProviderAppCredentials
+  ): string {
     const params = new URLSearchParams({
       client_id: app.clientId,
       scope: app.scopes.join(","),
       redirect_uri: input.redirectUri,
-      state: input.state
+      state: input.state,
     });
 
     return `https://slack.com/oauth/v2/authorize?${params.toString()}`;
   }
 
-  async exchangeCode(input: ExchangeCodeInput, app: import("@/lib/providers/types").ProviderAppCredentials): Promise<ProviderTokenResult> {
+  async exchangeCode(
+    input: ExchangeCodeInput,
+    app: import("@/lib/providers/types").ProviderAppCredentials
+  ): Promise<ProviderTokenResult> {
     const body = new URLSearchParams({
       code: input.code,
       client_id: app.clientId,
       client_secret: app.clientSecret,
-      redirect_uri: input.redirectUri
+      redirect_uri: input.redirectUri,
     });
 
     const response = await fetch("https://slack.com/api/oauth.v2.access", {
       method: "POST",
       headers: {
-        "content-type": "application/x-www-form-urlencoded"
+        "content-type": "application/x-www-form-urlencoded",
       },
-      body: body.toString()
+      body: body.toString(),
     });
 
     const payload = (await response.json()) as {
@@ -57,8 +63,8 @@ export class SlackProvider implements ToolProvider {
       externalAccountId: payload.team?.id,
       metadata: {
         teamName: payload.team?.name,
-        botUserId: payload.bot_user_id
-      }
+        botUserId: payload.bot_user_id,
+      },
     };
   }
 
@@ -75,15 +81,15 @@ export class SlackProvider implements ToolProvider {
 
   async revoke(input: { decryptedAccessToken: string }): Promise<void> {
     const body = new URLSearchParams({
-      token: input.decryptedAccessToken
+      token: input.decryptedAccessToken,
     });
 
     await fetch("https://slack.com/api/auth.revoke", {
       method: "POST",
       headers: {
-        "content-type": "application/x-www-form-urlencoded"
+        "content-type": "application/x-www-form-urlencoded",
       },
-      body: body.toString()
+      body: body.toString(),
     }).catch(() => {
       // tolerate remote revoke failure
     });
@@ -102,9 +108,9 @@ export class SlackProvider implements ToolProvider {
       provider: this.key,
       capabilities,
       credentials: {
-        accessToken: input.decryptedAccessToken
+        accessToken: input.decryptedAccessToken,
       },
-      constraints: input.scopeOverrides?.constraints
+      constraints: input.scopeOverrides?.constraints,
     };
   }
 }

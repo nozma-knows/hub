@@ -5,7 +5,7 @@ import type {
   OpenClawSession,
   OpenClawCronJob,
   OpenClawPerformanceMetrics,
-  OpenClawGatewayStatus
+  OpenClawGatewayStatus,
 } from "./types";
 
 const execAsync = promisify(exec);
@@ -31,8 +31,8 @@ async function resolveOpenclawBin(): Promise<string> {
     const { stdout } = await execAsync("command -v openclaw", {
       env: {
         ...process.env,
-        PATH: process.env.PATH ? `${process.env.PATH}:${DEFAULT_PATH}` : DEFAULT_PATH
-      }
+        PATH: process.env.PATH ? `${process.env.PATH}:${DEFAULT_PATH}` : DEFAULT_PATH,
+      },
     });
     const found = stdout.trim();
     if (found) return found;
@@ -63,7 +63,9 @@ export class OpenClawCliAdapter {
         : command;
 
     const defaultTimeoutMs = Number(process.env.OPENCLAW_CLI_TIMEOUT_MS ?? 60000);
-    const timeoutMs = Number.isFinite(opts?.timeoutMs as number) ? (opts!.timeoutMs as number) : defaultTimeoutMs;
+    const timeoutMs = Number.isFinite(opts?.timeoutMs as number)
+      ? (opts!.timeoutMs as number)
+      : defaultTimeoutMs;
 
     try {
       const { stdout, stderr } = await execAsync(resolvedCommand, {
@@ -71,8 +73,8 @@ export class OpenClawCliAdapter {
         maxBuffer: 4 * 1024 * 1024, // 4MB max output
         env: {
           ...process.env,
-          PATH: process.env.PATH ? `${process.env.PATH}:${DEFAULT_PATH}` : DEFAULT_PATH
-        }
+          PATH: process.env.PATH ? `${process.env.PATH}:${DEFAULT_PATH}` : DEFAULT_PATH,
+        },
       });
 
       if (stderr && !stderr.includes("warning:") && !stderr.includes("info:")) {
@@ -87,7 +89,7 @@ export class OpenClawCliAdapter {
         code: err?.code ?? null,
         signal: err?.signal ?? null,
         killed: err?.killed ?? null,
-        stderr: typeof err?.stderr === "string" ? err.stderr.trim().slice(0, 400) : undefined
+        stderr: typeof err?.stderr === "string" ? err.stderr.trim().slice(0, 400) : undefined,
       };
       console.error("OpenClaw CLI command failed:", meta);
       throw new Error(
@@ -124,7 +126,7 @@ export class OpenClawCliAdapter {
               behaviorChecksum: row?.behaviorChecksum ? String(row.behaviorChecksum) : undefined,
               workspacePath: row?.workspacePath ? String(row.workspacePath) : undefined,
               agentDir: row?.agentDir ? String(row.agentDir) : undefined,
-              model: row?.model ? String(row.model) : undefined
+              model: row?.model ? String(row.model) : undefined,
             } as OpenClawAgent;
           })
           .filter(Boolean) as OpenClawAgent[];
@@ -149,7 +151,7 @@ export class OpenClawCliAdapter {
         behaviorChecksum: currentAgent.behaviorChecksum,
         workspacePath: currentAgent.workspacePath,
         agentDir: currentAgent.agentDir,
-        model: currentAgent.model
+        model: currentAgent.model,
       });
     };
 
@@ -164,7 +166,7 @@ export class OpenClawCliAdapter {
           currentAgent = {
             id: match[1],
             name: match[1],
-            status: "ready"
+            status: "ready",
           };
         }
         continue;
@@ -208,134 +210,134 @@ export class OpenClawCliAdapter {
   }
 
   async listSessions(): Promise<OpenClawSession[]> {
-    const output = await this.runCommand('openclaw sessions list');
+    const output = await this.runCommand("openclaw sessions list");
     const sessions: OpenClawSession[] = [];
-    
-    const lines = output.split('\n');
+
+    const lines = output.split("\n");
     let inSessionData = false;
-    
+
     for (const line of lines) {
-      if (line.includes('Kind') && line.includes('Key') && line.includes('Model')) {
+      if (line.includes("Kind") && line.includes("Key") && line.includes("Model")) {
         inSessionData = true;
         continue;
       }
-      
+
       if (!inSessionData) continue;
-      
+
       const trimmed = line.trim();
       if (!trimmed) continue;
-      
+
       // Parse session line: "direct agent:main:main 1m ago claude-sonnet-4-20250514 116k/200k (58%) system id:..."
       const parts = trimmed.split(/\s+/);
       if (parts.length < 4) continue;
-      
+
       const kind = parts[0];
       const sessionId = parts[1];
-      const ageStr = parts[2] + ' ' + parts[3]; // "1m ago"
-      
-      let model = '';
-      let tokensStr = '';
+      const ageStr = parts[2] + " " + parts[3]; // "1m ago"
+
+      let model = "";
+      let tokensStr = "";
       let modelIndex = 4;
-      
+
       // Find where model starts (looking for a model-like string)
       for (let i = 4; i < parts.length; i++) {
-        if (parts[i].includes('claude-') || parts[i].includes('gpt-') || parts[i].includes('anthropic/')) {
+        if (parts[i].includes("claude-") || parts[i].includes("gpt-") || parts[i].includes("anthropic/")) {
           model = parts[i];
           modelIndex = i;
           break;
         }
       }
-      
+
       // Find tokens (format like "116k/200k")
       for (let i = modelIndex + 1; i < parts.length; i++) {
-        if (parts[i].includes('/') && (parts[i].includes('k') || parts[i].includes('M'))) {
+        if (parts[i].includes("/") && (parts[i].includes("k") || parts[i].includes("M"))) {
           tokensStr = parts[i];
           break;
         }
       }
-      
+
       // Parse tokens
       let tokensUsed = 0;
       let tokensTotal = 0;
-      
+
       if (tokensStr) {
         const tokenMatch = tokensStr.match(/(\d+(?:\.\d+)?)([kM]?)\/(\d+(?:\.\d+)?)([kM]?)/);
         if (tokenMatch) {
           const [, usedNum, usedUnit, totalNum, totalUnit] = tokenMatch;
-          
-          tokensUsed = parseFloat(usedNum) * (usedUnit === 'k' ? 1000 : usedUnit === 'M' ? 1000000 : 1);
-          tokensTotal = parseFloat(totalNum) * (totalUnit === 'k' ? 1000 : totalUnit === 'M' ? 1000000 : 1);
+
+          tokensUsed = parseFloat(usedNum) * (usedUnit === "k" ? 1000 : usedUnit === "M" ? 1000000 : 1);
+          tokensTotal = parseFloat(totalNum) * (totalUnit === "k" ? 1000 : totalUnit === "M" ? 1000000 : 1);
         }
       }
-      
+
       // Determine agent ID from session ID
-      let agentId = 'unknown';
-      if (sessionId.startsWith('agent:')) {
+      let agentId = "unknown";
+      if (sessionId.startsWith("agent:")) {
         const agentMatch = sessionId.match(/^agent:([^:]+)/);
         if (agentMatch) {
           agentId = agentMatch[1];
         }
       }
-      
+
       // Calculate last activity (rough estimation)
       let lastActivity = new Date();
-      if (ageStr.includes('m ago')) {
+      if (ageStr.includes("m ago")) {
         const minutes = parseInt(ageStr);
         lastActivity = new Date(Date.now() - minutes * 60 * 1000);
-      } else if (ageStr.includes('h ago')) {
+      } else if (ageStr.includes("h ago")) {
         const hours = parseInt(ageStr);
         lastActivity = new Date(Date.now() - hours * 60 * 60 * 1000);
       }
-      
+
       sessions.push({
         id: sessionId,
         agentId,
-        kind: kind as OpenClawSession['kind'],
-        model: model || 'unknown',
+        kind: kind as OpenClawSession["kind"],
+        model: model || "unknown",
         tokensUsed: Math.round(tokensUsed),
         tokensTotal: Math.round(tokensTotal),
         lastActivity,
-        status: 'active'
+        status: "active",
       });
     }
-    
+
     return sessions;
   }
 
   async listCronJobs(): Promise<OpenClawCronJob[]> {
-    const output = await this.runCommand('openclaw cron list');
+    const output = await this.runCommand("openclaw cron list");
     const jobs: OpenClawCronJob[] = [];
-    
-    const lines = output.split('\n');
+
+    const lines = output.split("\n");
     let inJobData = false;
-    
+
     for (const line of lines) {
-      if (line.includes('ID') && line.includes('Name') && line.includes('Schedule')) {
+      if (line.includes("ID") && line.includes("Name") && line.includes("Schedule")) {
         inJobData = true;
         continue;
       }
-      
+
       if (!inJobData) continue;
-      
+
       const trimmed = line.trim();
       if (!trimmed) continue;
-      
+
       // Parse job line: "44ba1e8d-1da9-4ef9-8bc4-996fd7e8c23e Daily Tech & AI Briefing cron 0 13 * * * @ UTC in 6h 17h ago ok isolated main"
       const parts = trimmed.split(/\s+/);
       if (parts.length < 6) continue;
-      
+
       const id = parts[0];
-      
+
       // Find the schedule part (starts with "cron")
       let scheduleStart = -1;
       let scheduleEnd = -1;
-      
+
       for (let i = 1; i < parts.length; i++) {
-        if (parts[i] === 'cron') {
+        if (parts[i] === "cron") {
           scheduleStart = i + 1;
           // Find end of schedule (before "in" or "never" or similar)
           for (let j = i + 1; j < parts.length; j++) {
-            if (parts[j] === 'in' || parts[j] === 'never' || parts[j] === '@') {
+            if (parts[j] === "in" || parts[j] === "never" || parts[j] === "@") {
               scheduleEnd = j;
               break;
             }
@@ -343,42 +345,42 @@ export class OpenClawCliAdapter {
           break;
         }
       }
-      
-      let schedule = '';
+
+      let schedule = "";
       if (scheduleStart > 0 && scheduleEnd > scheduleStart) {
-        schedule = parts.slice(scheduleStart, scheduleEnd).join(' ');
+        schedule = parts.slice(scheduleStart, scheduleEnd).join(" ");
       }
-      
+
       // Extract name (between ID and "cron")
-      let name = '';
+      let name = "";
       if (scheduleStart > 1) {
-        name = parts.slice(1, scheduleStart - 1).join(' ');
+        name = parts.slice(1, scheduleStart - 1).join(" ");
       }
-      
+
       // Find status, agent etc.
-      let status: OpenClawCronJob['lastStatus'] = undefined;
-      let agentId = 'unknown';
+      let status: OpenClawCronJob["lastStatus"] = undefined;
+      let agentId = "unknown";
       let enabled = true;
-      
+
       // Look for status indicators
       for (const part of parts) {
-        if (part === 'ok' || part === 'success') status = 'success';
-        if (part === 'failure' || part === 'error') status = 'failure';
-        if (part === 'timeout') status = 'timeout';
-        if (part === 'disabled') enabled = false;
+        if (part === "ok" || part === "success") status = "success";
+        if (part === "failure" || part === "error") status = "failure";
+        if (part === "timeout") status = "timeout";
+        if (part === "disabled") enabled = false;
       }
-      
+
       // Agent ID is usually the last part
       if (parts.length > 0) {
         const lastPart = parts[parts.length - 1];
-        if (lastPart && lastPart !== 'ok' && lastPart !== 'error' && lastPart !== 'isolated') {
+        if (lastPart && lastPart !== "ok" && lastPart !== "error" && lastPart !== "isolated") {
           agentId = lastPart;
         }
       }
-      
+
       jobs.push({
         id,
-        name: name || 'Unnamed Job',
+        name: name || "Unnamed Job",
         schedule,
         enabled,
         lastStatus: status,
@@ -386,10 +388,10 @@ export class OpenClawCliAdapter {
         nextRun: undefined, // Would need more parsing to extract timing
         lastRun: undefined,
         runCount: undefined,
-        averageDuration: undefined
+        averageDuration: undefined,
       });
     }
-    
+
     return jobs;
   }
 
@@ -401,39 +403,39 @@ export class OpenClawCliAdapter {
       failureRate: 0.01,
       tokensPerMinute: 850,
       memoryUsage: 0.45,
-      cpuUsage: 0.15
+      cpuUsage: 0.15,
     };
   }
 
   async getGatewayStatus(): Promise<OpenClawGatewayStatus> {
     try {
-      const output = await this.runCommand('openclaw gateway status');
-      const isOnline = !output.includes('not running') && !output.includes('error');
-      
+      const output = await this.runCommand("openclaw gateway status");
+      const isOnline = !output.includes("not running") && !output.includes("error");
+
       // Parse version from status
-      let version = 'unknown';
+      let version = "unknown";
       const versionMatch = output.match(/OpenClaw ([^\s]+)/);
       if (versionMatch) {
         version = versionMatch[1];
       }
-      
+
       return {
         online: isOnline,
         responseTime: 25, // Rough estimate since CLI is fast
         version,
         load: 0.2,
         memory: { used: 512 * 1024 * 1024, total: 2048 * 1024 * 1024 }, // Mock data
-        uptime: 3600 // Mock data
+        uptime: 3600, // Mock data
       };
     } catch (error) {
       return {
         online: false,
         responseTime: 0,
-        version: 'unknown',
+        version: "unknown",
         load: 0,
         memory: { used: 0, total: 0 },
         uptime: 0,
-        error: error instanceof Error ? error.message : 'Gateway offline'
+        error: error instanceof Error ? error.message : "Gateway offline",
       };
     }
   }
@@ -450,17 +452,18 @@ export class OpenClawCliAdapter {
     diskSpace: { used: number; total: number; free: number };
   }> {
     try {
-      const [statusOutput, hostnameOutput, unameOutput, uptimeOutput, memoryOutput, diskOutput] = await Promise.all([
-        this.runCommand('openclaw status').catch(() => ''),
-        this.runCommand('hostname').catch(() => 'unknown'),
-        this.runCommand('uname -a').catch(() => 'unknown unknown unknown'),
-        this.runCommand('uptime').catch(() => ''),
-        this.runCommand('cat /proc/meminfo').catch(() => ''),
-        this.runCommand('df -h /').catch(() => '')
-      ]);
+      const [statusOutput, hostnameOutput, unameOutput, uptimeOutput, memoryOutput, diskOutput] =
+        await Promise.all([
+          this.runCommand("openclaw status").catch(() => ""),
+          this.runCommand("hostname").catch(() => "unknown"),
+          this.runCommand("uname -a").catch(() => "unknown unknown unknown"),
+          this.runCommand("uptime").catch(() => ""),
+          this.runCommand("cat /proc/meminfo").catch(() => ""),
+          this.runCommand("df -h /").catch(() => ""),
+        ]);
 
       // Parse OpenClaw version
-      let openclawVersion = 'unknown';
+      let openclawVersion = "unknown";
       const versionMatch = statusOutput.match(/OpenClaw ([^\s]+)/);
       if (versionMatch) {
         openclawVersion = versionMatch[1];
@@ -468,9 +471,9 @@ export class OpenClawCliAdapter {
 
       // Parse system info
       const hostname = hostnameOutput.trim();
-      const unameFields = unameOutput.split(' ');
-      const platform = unameFields[0] || 'unknown';
-      const arch = unameFields[4] || 'unknown';
+      const unameFields = unameOutput.split(" ");
+      const platform = unameFields[0] || "unknown";
+      const arch = unameFields[4] || "unknown";
 
       // Parse uptime
       let uptime = 0;
@@ -478,11 +481,11 @@ export class OpenClawCliAdapter {
       if (uptimeMatch) {
         const uptimeStr = uptimeMatch[1];
         // Simple parsing - just get a rough estimate
-        if (uptimeStr.includes('day')) {
+        if (uptimeStr.includes("day")) {
           const days = parseInt(uptimeStr);
           uptime = days * 24 * 3600;
-        } else if (uptimeStr.includes(':')) {
-          const timeParts = uptimeStr.split(':');
+        } else if (uptimeStr.includes(":")) {
+          const timeParts = uptimeStr.split(":");
           uptime = parseInt(timeParts[0]) * 3600 + parseInt(timeParts[1]) * 60;
         }
       }
@@ -501,22 +504,22 @@ export class OpenClawCliAdapter {
       const memTotalMatch = memoryOutput.match(/MemTotal:\s*(\d+) kB/);
       const memAvailableMatch = memoryOutput.match(/MemAvailable:\s*(\d+) kB/);
       const memFreeMatch = memoryOutput.match(/MemFree:\s*(\d+) kB/);
-      
+
       if (memTotalMatch) {
         const total = parseInt(memTotalMatch[1]) * 1024; // Convert KB to bytes
         const available = memAvailableMatch ? parseInt(memAvailableMatch[1]) * 1024 : 0;
         const free = memFreeMatch ? parseInt(memFreeMatch[1]) * 1024 : available;
-        
+
         memoryUsage = {
           total,
           free,
-          used: total - free
+          used: total - free,
         };
       }
 
       // Parse disk space
       let diskSpace = { used: 0, total: 0, free: 0 };
-      const diskLines = diskOutput.split('\n');
+      const diskLines = diskOutput.split("\n");
       if (diskLines.length > 1) {
         const diskLine = diskLines[1];
         const diskFields = diskLine.trim().split(/\s+/);
@@ -527,7 +530,16 @@ export class OpenClawCliAdapter {
             if (match) {
               const num = parseFloat(match[1]);
               const unit = match[2];
-              const multiplier = unit === 'K' ? 1024 : unit === 'M' ? 1024*1024 : unit === 'G' ? 1024*1024*1024 : unit === 'T' ? 1024*1024*1024*1024 : 1;
+              const multiplier =
+                unit === "K"
+                  ? 1024
+                  : unit === "M"
+                    ? 1024 * 1024
+                    : unit === "G"
+                      ? 1024 * 1024 * 1024
+                      : unit === "T"
+                        ? 1024 * 1024 * 1024 * 1024
+                        : 1;
               return num * multiplier;
             }
             return 0;
@@ -536,7 +548,7 @@ export class OpenClawCliAdapter {
           diskSpace = {
             total: parseSize(diskFields[1]),
             used: parseSize(diskFields[2]),
-            free: parseSize(diskFields[3])
+            free: parseSize(diskFields[3]),
           };
         }
       }
@@ -550,21 +562,20 @@ export class OpenClawCliAdapter {
         uptime,
         loadAvg,
         memoryUsage,
-        diskSpace
+        diskSpace,
       };
-
     } catch (error) {
-      console.error('Failed to gather system info:', error);
+      console.error("Failed to gather system info:", error);
       return {
-        hostname: 'unknown',
-        platform: 'unknown', 
-        arch: 'unknown',
+        hostname: "unknown",
+        platform: "unknown",
+        arch: "unknown",
         nodeVersion: process.version,
-        openclawVersion: 'unknown',
+        openclawVersion: "unknown",
         uptime: 0,
         loadAvg: [0, 0, 0],
         memoryUsage: { used: 0, total: 0, free: 0 },
-        diskSpace: { used: 0, total: 0, free: 0 }
+        diskSpace: { used: 0, total: 0, free: 0 },
       };
     }
   }
@@ -597,7 +608,7 @@ export async function openClawAddAgent(input: OpenClawAddAgentInput) {
     "--model",
     shQuote(input.model),
     "--non-interactive",
-    "--json"
+    "--json",
   ].join(" ");
 
   const output = await openClawCliAdapter.runCommand(cmd);
@@ -616,7 +627,7 @@ export async function openClawSetIdentityFromWorkspace(input: OpenClawSetIdentit
     "--workspace",
     shQuote(input.workspacePath),
     "--from-identity",
-    "--json"
+    "--json",
   ].join(" ");
 
   const output = await openClawCliAdapter.runCommand(cmd);
@@ -637,7 +648,11 @@ export async function openClawConfigGet(path: string) {
   }
 }
 
-export async function openClawAgentTurn(input: { agentId: string; message: string; timeoutSeconds?: number }) {
+export async function openClawAgentTurn(input: {
+  agentId: string;
+  message: string;
+  timeoutSeconds?: number;
+}) {
   const cmd = [
     "openclaw agent",
     "--agent",
@@ -645,7 +660,7 @@ export async function openClawAgentTurn(input: { agentId: string; message: strin
     "--message",
     shQuote(input.message),
     "--json",
-    ...(input.timeoutSeconds ? ["--timeout", shQuote(String(input.timeoutSeconds))] : [])
+    ...(input.timeoutSeconds ? ["--timeout", shQuote(String(input.timeoutSeconds))] : []),
   ].join(" ");
 
   const timeoutMs = input.timeoutSeconds ? input.timeoutSeconds * 1000 + 15_000 : undefined;
@@ -677,7 +692,7 @@ export async function openClawAgentTurn(input: { agentId: string; message: strin
 
   return {
     ...parsed,
-    output
+    output,
   };
 }
 

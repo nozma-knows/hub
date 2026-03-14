@@ -21,8 +21,12 @@ export function InviteAcceptPage() {
           <CardTitle>Accept Workspace Invite</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">Accept this invite to join the shared OpenClaw Hub workspace.</p>
-          {!token ? <Alert className="border-destructive text-destructive">Missing invite token in URL.</Alert> : null}
+          <p className="text-sm text-muted-foreground">
+            Accept this invite to join the shared OpenClaw Hub workspace.
+          </p>
+          {!token ? (
+            <Alert className="border-destructive text-destructive">Missing invite token in URL.</Alert>
+          ) : null}
           <Button
             disabled={!token || accept.isPending}
             onClick={async () => {
