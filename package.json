@@ -9,6 +9,7 @@
     "build": "NODE_ENV=production bunx --bun next build",
     "start": "bunx --bun next start",
     "check": "bunx tsc --noEmit",
+    "env:check": "bun run scripts/env-check.ts",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down",
     "db:logs": "docker compose logs -f postgres",

@@ -311,8 +311,18 @@ honoApp.get("/oauth/:provider/callback", async (c) => {
 // Avoid starting background intervals during Next.js build/trace steps.
 const nextPhase = process.env.NEXT_PHASE;
 if (nextPhase !== "phase-production-build") {
-  startReconciliationSync();
+  // These are safe to run in-process for single-instance deployments.
+  // For multi-instance web scaling, disable them via env so only a single worker runs loops.
+  if (env.HUB_SYNC_ENABLED) {
+    startReconciliationSync();
+  }
+
+  // Dispatcher has its own HUB_DISPATCHER_ENABLED gate inside startDispatcher().
   startDispatcher();
-  startMediaGc();
+
+  if (env.HUB_MEDIA_GC_ENABLED) {
+    startMediaGc();
+  }
+
   // startSkillInstaller(); (handled by dispatcher worker)
 }

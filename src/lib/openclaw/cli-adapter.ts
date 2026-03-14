@@ -97,10 +97,46 @@ export class OpenClawCliAdapter {
   }
 
   async listAgents(): Promise<OpenClawAgent[]> {
-    const output = await this.runCommand('openclaw agents list');
+    // Prefer structured output when available.
+    try {
+      const raw = await this.runCommand("openclaw agents list --json");
+      const parsed = JSON.parse(raw) as any;
+      const rows = Array.isArray(parsed)
+        ? parsed
+        : Array.isArray(parsed?.agents)
+          ? parsed.agents
+          : Array.isArray(parsed?.data)
+            ? parsed.data
+            : Array.isArray(parsed?.items)
+              ? parsed.items
+              : null;
+
+      if (rows) {
+        return rows
+          .map((row: any) => {
+            const id = String(row?.id ?? row?.agentId ?? row?.slug ?? "").trim();
+            if (!id) return null;
+            return {
+              id,
+              name: String(row?.name ?? row?.displayName ?? id),
+              status: String(row?.status ?? row?.state ?? "ready"),
+              version: row?.version ? String(row.version) : undefined,
+              behaviorChecksum: row?.behaviorChecksum ? String(row.behaviorChecksum) : undefined,
+              workspacePath: row?.workspacePath ? String(row.workspacePath) : undefined,
+              agentDir: row?.agentDir ? String(row.agentDir) : undefined,
+              model: row?.model ? String(row.model) : undefined
+            } as OpenClawAgent;
+          })
+          .filter(Boolean) as OpenClawAgent[];
+      }
+    } catch {
+      // fall back to text parsing
+    }
+
+    const output = await this.runCommand("openclaw agents list");
     const agents: OpenClawAgent[] = [];
 
-    const lines = output.split('\n');
+    const lines = output.split("\n");
     let currentAgent: Partial<OpenClawAgent> | null = null;
 
     const flush = () => {
@@ -108,7 +144,7 @@ export class OpenClawCliAdapter {
       agents.push({
         id: currentAgent.id,
         name: currentAgent.name || currentAgent.id,
-        status: currentAgent.status || 'ready',
+        status: currentAgent.status || "ready",
         version: currentAgent.version,
         behaviorChecksum: currentAgent.behaviorChecksum,
         workspacePath: currentAgent.workspacePath,
@@ -120,7 +156,7 @@ export class OpenClawCliAdapter {
     for (const line of lines) {
       const trimmed = line.trim();
 
-      if (trimmed.startsWith('- ')) {
+      if (trimmed.startsWith("- ")) {
         flush();
 
         const match = trimmed.match(/^- (\S+)(.*)$/);
@@ -128,7 +164,7 @@ export class OpenClawCliAdapter {
           currentAgent = {
             id: match[1],
             name: match[1],
-            status: 'ready'
+            status: "ready"
           };
         }
         continue;
@@ -136,26 +172,26 @@ export class OpenClawCliAdapter {
 
       if (!currentAgent) continue;
 
-      if (trimmed.startsWith('Identity:')) {
+      if (trimmed.startsWith("Identity:")) {
         // Identity: 🐨 Kodi (IDENTITY.md)
         const identityMatch = trimmed.match(/Identity:\s+(?:\S+\s+)?(.+?)(?:\s+\([^)]+\))?$/);
         if (identityMatch) currentAgent.name = identityMatch[1].trim();
         continue;
       }
 
-      if (trimmed.startsWith('Workspace:')) {
+      if (trimmed.startsWith("Workspace:")) {
         const m = trimmed.match(/Workspace:\s+(.+)$/);
         if (m) currentAgent.workspacePath = m[1].trim();
         continue;
       }
 
-      if (trimmed.startsWith('Agent dir:') || trimmed.startsWith('Agent dir')) {
+      if (trimmed.startsWith("Agent dir:") || trimmed.startsWith("Agent dir")) {
         const m = trimmed.match(/Agent dir:\s+(.+)$/);
         if (m) currentAgent.agentDir = m[1].trim();
         continue;
       }
 
-      if (trimmed.startsWith('Model:')) {
+      if (trimmed.startsWith("Model:")) {
         const m = trimmed.match(/Model:\s+(.+)$/);
         if (m) {
           currentAgent.model = m[1].trim();
