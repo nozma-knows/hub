@@ -211,6 +211,26 @@ export const hubTickets = pgTable("hub_tickets", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
 });
 
+export const hubSlackThreads = pgTable(
+  "hub_slack_threads",
+  {
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    slackTeamId: text("slack_team_id").notNull(),
+    slackChannelId: text("slack_channel_id").notNull(),
+    slackThreadTs: text("slack_thread_ts").notNull(),
+    hubThreadId: uuid("hub_thread_id")
+      .notNull()
+      .references(() => hubThreads.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.workspaceId, table.slackTeamId, table.slackChannelId, table.slackThreadTs] })
+  })
+);
+
 export const hubMessageAttachments = pgTable("hub_message_attachments", {
   id: uuid("id").primaryKey().defaultRandom(),
   workspaceId: uuid("workspace_id")
