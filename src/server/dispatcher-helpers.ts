@@ -15,8 +15,7 @@ export function extractHubActions(output: string): HubAction[] {
 
       if (parsed?.kind === "set_ticket_state") {
         if (typeof parsed.status !== "string" || !parsed.status.trim()) continue;
-        const note =
-          typeof parsed.note === "string" && parsed.note.trim() ? parsed.note.trim() : undefined;
+        const note = typeof parsed.note === "string" && parsed.note.trim() ? parsed.note.trim() : undefined;
         actions.push({ kind: "set_ticket_state", status: parsed.status.trim(), note });
         continue;
       }

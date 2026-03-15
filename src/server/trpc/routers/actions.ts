@@ -121,6 +121,12 @@ export const actionsRouter = createTrpcRouter({
         );
       }
 
+      console.log("[actions.invoke] start", {
+        correlationId,
+        agentId: input.agentId,
+        toolBindingCount: toolBindings.length,
+      });
+
       const result = await openClawAdapter.invokeAgent(input.agentId, {
         prompt: input.prompt,
         toolBindings,
@@ -181,6 +187,14 @@ export const actionsRouter = createTrpcRouter({
         details: {
           toolBindingCount: toolBindings.length,
         },
+      });
+
+      console.log("[actions.invoke] ok", {
+        correlationId,
+        agentId: input.agentId,
+        toolBindingCount: toolBindings.length,
+        durationMs: Date.now() - startedAt,
+        totalTokens,
       });
 
       return {

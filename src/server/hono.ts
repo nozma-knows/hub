@@ -1,5 +1,5 @@
 import { trpcServer } from "@hono/trpc-server";
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq, gt, sql } from "drizzle-orm";
 import { Hono } from "hono";
 
 import { randomUUID } from "node:crypto";
@@ -9,6 +9,7 @@ import { imageSize } from "image-size";
 
 import {
   hubChannels,
+  hubDispatcherState,
   hubMessageAttachments,
   hubMessages,
   hubThreads,
@@ -32,12 +33,48 @@ import { startMediaGc } from "@/server/media-gc";
 export const honoApp = new Hono().basePath("/api");
 
 honoApp.get("/health", async (c) => {
-  await ensureProviderSeeds();
-  const count = await db.$count(toolProviders);
+  const timestamp = new Date().toISOString();
+
+  let dbOk = false;
+  let providerCount: number | null = null;
+  let dispatcherLastTickAt: string | null = null;
+  let dispatcherLastError: string | null = null;
+
+  try {
+    // DB check (fast): if this fails, still return a JSON health payload.
+    await db.execute(sql`select 1`);
+    dbOk = true;
+
+    await ensureProviderSeeds();
+    providerCount = await db.$count(toolProviders);
+  } catch (err) {
+    // keep best-effort health endpoint
+    dbOk = false;
+    dispatcherLastError = err instanceof Error ? err.message : String(err);
+  }
+
+  if (dbOk) {
+    try {
+      const state = await db.query.hubDispatcherState.findFirst({
+        where: eq(hubDispatcherState.key, "main"),
+      });
+      dispatcherLastTickAt = state?.lastTickAt ? new Date(state.lastTickAt).toISOString() : null;
+      dispatcherLastError = state?.lastError ?? null;
+    } catch {
+      // ignore
+    }
+  }
+
   return c.json({
-    ok: true,
-    providerCount: count,
-    timestamp: new Date().toISOString(),
+    ok: dbOk,
+    dbOk,
+    providerCount,
+    dispatcher: {
+      enabled: (process.env.HUB_DISPATCHER_ENABLED ?? "true").toLowerCase() === "true",
+      lastTickAt: dispatcherLastTickAt,
+      lastError: dispatcherLastError,
+    },
+    timestamp,
   });
 });
 

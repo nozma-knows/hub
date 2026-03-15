@@ -1,10 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import {
-  extractHubActions,
-  isStuckTicket,
-  normalizeTicketStatus,
-} from "../src/server/dispatcher-helpers";
+import { extractHubActions, isStuckTicket, normalizeTicketStatus } from "../src/server/dispatcher-helpers";
 
 describe("dispatcher helpers", () => {
   describe("normalizeTicketStatus", () => {

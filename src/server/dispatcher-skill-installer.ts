@@ -60,7 +60,17 @@ export async function runSkillInstallerTick() {
 
       // Install into OpenClaw managed skills dir (~/.openclaw/skills)
       const workdir = "/root/.openclaw";
-      const args = ["--bun", "clawhub@latest", "install", slug, "--workdir", workdir, "--dir", "skills", "--no-input"];
+      const args = [
+        "--bun",
+        "clawhub@latest",
+        "install",
+        slug,
+        "--workdir",
+        workdir,
+        "--dir",
+        "skills",
+        "--no-input",
+      ];
       if (version) args.push("--version", version);
 
       await db
